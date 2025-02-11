@@ -20,14 +20,18 @@ if __name__ == "__main__":
     parser.add_argument("--max-oracle-calls", type=int, default=100)
     parser.add_argument("--freq-log", type=int, default=10)
     parser.add_argument("--debug", action='store_true')
-    parser.add_argument("--oracle-args", type=json.loads, default={})
     args = parser.parse_args()
 
 
     oracle = OracleWrapper(args)
-    oracle.assign_evaluator(
-        Oracle(name=args.oracle, **args.oracle_args),
-    )
+    if not args.oracle.endswith('docking'):
+        oracle.assign_evaluator(
+            Oracle(name=args.oracle),
+        )
+    else:
+        oracle.assign_evaluator(
+            Oracle(name=args.oracle, ncpus=1),
+        )
     rewards = oracle(smis)
     print(rewards)
 
