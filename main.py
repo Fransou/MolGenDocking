@@ -1,6 +1,8 @@
-from mol_rewards import OracleWrapper
-from tdc import Oracle
+import json
 import argparse
+from tdc import Oracle
+from mol_rewards import OracleWrapper
+
 
 smis = [
     "Cc1cccc(C)c1N1CCC(Oc2ccc(N3N=C(C(F)(F)F)[C@@H](C)[C@@H]3CC(=O)O)cc2)CC1",
@@ -18,12 +20,13 @@ if __name__ == "__main__":
     parser.add_argument("--max-oracle-calls", type=int, default=100)
     parser.add_argument("--freq-log", type=int, default=10)
     parser.add_argument("--debug", action='store_true')
+    parser.add_argument("--oracle-args", type=json.loads, default={})
     args = parser.parse_args()
 
 
     oracle = OracleWrapper(args)
     oracle.assign_evaluator(
-        Oracle(name=args.oracle),
+        Oracle(name=args.oracle, **args.oracle_args),
     )
     rewards = oracle(smis)
     print(rewards)
