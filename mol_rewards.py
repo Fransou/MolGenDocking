@@ -1,6 +1,6 @@
 """Reward functions for molecular optimization."""
 import os
-from argparse import Namespace
+import argparse
 import logging
 from typing import List, Union, Optional, Dict
 import yaml
@@ -45,6 +45,34 @@ def top_auc(buffer, top_n, finish, freq_log, max_oracle_calls):
     return sum / max_oracle_calls
 
 
+class RDKITOracle:
+    """
+    Class implementing all Rdkit descriptors.
+    """
+
+    def __init__(self, name: str):
+        self.name = name
+        self.descriptor = self.get_descriptor()
+
+    def get_descriptor(self):
+        """ Get the descriptor from Rdkit. """
+        rdkit_mod = Chem.rdMolDescriptors
+        if hasattr(rdkit_mod, self.name):
+            return getattr(rdkit_mod, self.name)
+        else:
+            raise ValueError(f"Descriptor {self.name} not found in Rdkit.")
+
+    def __call__(self, smi_mol: Union[str, Chem.Mol]) -> float:
+        """ Get the descriptor value for the molecule. """
+        if isinstance(smi_mol, str):
+            mol = Chem.MolFromSmiles(smi_mol)
+        elif isinstance(smi_mol, Chem.Mol):
+            mol = smi_mol
+        else:
+            raise ValueError("Input must be a SMILES string or a RDKit molecule object.")
+        return self.descriptor(mol)
+
+
 class OracleWrapper:
     """
     Code based on the Oracle class from: https://github.com/wenhao-gao/mol_opt/blob/main/main/optimizer.py#L50
@@ -61,7 +89,7 @@ class OracleWrapper:
     """
     def __init__(
             self,
-            args: Optional[Namespace] = None,
+            args: Optional[argparse.Namespace] = None,
             mol_buffer: Dict[str, List[Union[float, int]]] = {}
     ):
         self.logger = create_logger(__name__ + "/" + self.__class__.__name__, level="DEBUG" if args.debug else "WARNING")
@@ -84,7 +112,7 @@ class OracleWrapper:
     def budget(self) -> int:
         return self.max_oracle_calls
 
-    def assign_evaluator(self, evaluator: Oracle):
+    def assign_evaluator(self, evaluator: Union[Oracle, RDKITOracle]):
         self.evaluator = evaluator
 
     def sort_buffer(self):
@@ -137,7 +165,7 @@ class OracleWrapper:
         avg_sa = np.mean(self.sa_scorer(smis))
         diversity_top100 = self.diversity_evaluator(smis)
 
-        print(f'{n_calls}/{self.max_oracle_calls} | '
+        self.logger.info(f'{n_calls}/{self.max_oracle_calls} | '
               f'avg_top1: {avg_top1:.3f} | '
               f'avg_top10: {avg_top10:.3f} | '
               f'avg_top100: {avg_top100:.3f} | '
@@ -145,7 +173,7 @@ class OracleWrapper:
               f'div: {diversity_top100:.3f}')
 
         # try:
-        print({
+        self.logger.info({
             "avg_top1": avg_top1,
             "avg_top10": avg_top10,
             "avg_top100": avg_top100,
@@ -164,7 +192,7 @@ class OracleWrapper:
         """
         Function to score one molecule
 
-        Argguments:
+        Arguments:
             smi: One SMILES string represents a molecule.
 
         Return:
@@ -213,4 +241,35 @@ class OracleWrapper:
         return len(self.mol_buffer) >= self.max_oracle_calls
 
 
+if __name__ =="__main__":
+    smis = [
+        "O=C(NCCCc1ccccc1)NCCc1cccs1",
+        "CCCCOc1ccccc1C[C@H]1COC(=O)[C@@H]1Cc1ccc(Cl)c(Cl)c1",
+        "O=c1[nH]nc2n1-c1ccc(OCc3ccc(F)cc3)cc1CCC2",
+        "CCN1CCN(c2ccc(C3=CC4(CCc5cc(O)ccc54)c4ccc(O)cc43)cc2)CC1",
+    ]
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--smiles', type=str, default=smis)
+    parser.add_argument("--oracle", type=str, default='JNK3')
+    parser.add_argument("--max-oracle-calls", type=int, default=100)
+    parser.add_argument("--freq-log", type=int, default=10)
+    parser.add_argument("--debug", action='store_true')
+    args = parser.parse_args()
+
+    oracle = OracleWrapper(args)
+    if args.oracle.endswith('docking'):
+        oracle.assign_evaluator(
+            Oracle(name=args.oracle, ncpus=1),
+        )
+    else:
+        try:
+            oracle.assign_evaluator(
+                Oracle(name=args.oracle),
+            )
+        except ValueError as e:
+            oracle.assign_evaluator(
+                RDKITOracle(args.oracle),
+            )
+    rewards = oracle(smis)
+    print(rewards)
