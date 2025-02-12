@@ -5,11 +5,10 @@ from mol_rewards import OracleWrapper
 
 
 smis = [
-    "Cc1cccc(C)c1N1CCC(Oc2ccc(N3N=C(C(F)(F)F)[C@@H](C)[C@@H]3CC(=O)O)cc2)CC1",
     "O=C(NCCCc1ccccc1)NCCc1cccs1",
-    "CC[C@H](C)[C@H](NC(=O)[C@H](CC(N)=O)NC(=O)[C@@H](NC(=O)[C@H](Cc1cnc[nH]1)NC(=O)[C@H](CCCNC(=N)N)NC(=O)[C@@H](NC(=O)[C@H](CCCCN)NC(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](CC(C)C)NC(=O)[C@@H](NC(=O)CN)C(C)C)[C@@H](C)O)C(C)C)C(=O)N[C@@H](CC(C)C)C(=O)NC(CCC(C)C)C(=O)N[C@@H](Cc1ccccc1)C(=O)N[C@@H](CCSC)C(=O)NCC(=O)N[C@@H](Cc1ccc(O)cc1)C(=O)N[C@@H](CO)C(=O)N[C@H](C(=O)O)[C@@H](C)O",
     "CCCCOc1ccccc1C[C@H]1COC(=O)[C@@H]1Cc1ccc(Cl)c(Cl)c1",
-    "CO[C@]1(C)C[C@H](O[C@H]2[C@H](C)[C@@H](O[C@@H]3O[C@H](C)C[C@H](N(C)C)[C@H]3O)[C@](C)(O)C[C@@H](C)CN(C)C(=O)C[C@H](Cc3ccc(NC(=O)[C@H](Cc4ccccc4Cl)NC(=O)Cc4ccccc4)cc3)NC(=O)[C@H](C(C)C)NC(=O)[C@@H]2C)O[C@@H](C)[C@@H]1O",
+    "O=c1[nH]nc2n1-c1ccc(OCc3ccc(F)cc3)cc1CCC2",
+    "CCN1CCN(c2ccc(C3=CC4(CCc5cc(O)ccc54)c4ccc(O)cc43)cc2)CC1",
 ]
 
 
