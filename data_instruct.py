@@ -1,13 +1,12 @@
 from datasets import load_dataset, Dataset
-from transformers import DataCollatorForLanguageModeling
+import math
+from transformers import DataCollatorForLanguageModeling, TrainingArguments, AutoModelForCausalLM, AutoTokenizer, Trainer
+import torch
 
+dataset = load_dataset("zjunlp/Mol-Instructions", 'Molecule-oriented Instructions', trust_remote_code=True)
 
-dataset = load_dataset("zjunlp/Mol-Instructions", 'Molecule-oriented Instructions')
-
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-model = AutoModelForCausalLM.from_pretrained("BEE-spoke-data/smol_llama-101M-GQA").train()
-tokenizer = AutoTokenizer.from_pretrained("BEE-spoke-data/smol_llama-101M-GQA")
+model = AutoModelForCausalLM.from_pretrained("crumb/nano-mistral")
+tokenizer = AutoTokenizer.from_pretrained("crumb/nano-mistral")
 
 def get_training_corpus(dataset):
     corpus = []
@@ -19,6 +18,8 @@ def get_training_corpus(dataset):
             if i>100:
                 break
     return corpus
+
+
 corpus = get_training_corpus(dataset)
 tokenizer.add_special_tokens({"additional_special_tokens": ["<instr>", "<\instr>"], "mask_token": "[MASK]"})
 # tokenizer.train_new_from_iterator(corpus, vocab_size=tokenizer.vocab_size+100)
@@ -41,7 +42,6 @@ downsampled_dataset = lm_dataset.train_test_split(
     train_size=train_size, test_size=test_size, seed=42
 )
 
-from transformers import TrainingArguments
 
 batch_size = 64
 # Show the training loss with every epoch
@@ -59,7 +59,6 @@ training_args = TrainingArguments(
     fp16=True,
     logging_steps=logging_steps,
 )
-from transformers import Trainer
 
 trainer = Trainer(
     model=model,
@@ -71,7 +70,6 @@ trainer = Trainer(
 )
 
 
-import math
 
 eval_results = trainer.evaluate()
 print(f">>> Perplexity: {math.exp(eval_results['eval_loss']):.2f}")
