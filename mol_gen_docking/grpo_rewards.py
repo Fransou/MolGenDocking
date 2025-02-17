@@ -1,5 +1,5 @@
 from typing import List, Any
-from molecular_properties import get_oracle, KNOWN_PROPERTIES
+from mol_gen_docking.molecular_properties import get_oracle, KNOWN_PROPERTIES
 import re
 
 import torch
@@ -79,33 +79,6 @@ def get_reward_molecular_property(
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
         rewards.append(reward)
-    return rewards
-
-
-def get_reward_n_generated(prompts: List[Any], completions: List[Any]) -> List[float]:
-    """
-    Get reward for number of generated molecules.
-    The amount is located in the prompt with a pattern like:
-    "$N molecules"
-    while molecules are located in the completion between the <smiles> and </smiles> tags.
-    """
-    rewards = []
-    for prompt, completion in zip(prompts, completions):
-        if isinstance(prompt, list):
-            assert len(prompt) == 1
-            prompt = prompt[0]
-        if isinstance(prompt, dict):
-            assert "content" in prompt
-            prompt = prompt["content"]
-        if isinstance(completion, list):
-            assert len(completion) == 1
-            completion = completion[0]
-        if isinstance(completion, dict):
-            assert "content" in completion
-            completion = completion["content"]
-        n_to_generate = int(re.search(r"([0-9]+) molecules", prompt).group(1))
-        smiles = completion.split("<smiles>")[1:]
-        rewards.append(len(smiles) == n_to_generate)
     return rewards
 
 

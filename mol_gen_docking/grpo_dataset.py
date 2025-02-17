@@ -1,6 +1,6 @@
 from IPython.core.debugger import prompt
 
-from grpo_rewards import KNOWN_PROPERTIES
+from mol_gen_docking.grpo_rewards import KNOWN_PROPERTIES
 from numpy import random
 
 OBJECTIVES = ["maximize", "minimize"]
@@ -16,7 +16,7 @@ class MolInstructionsDataset:
     def fill_prompt(self, prompt: str, property: str, objective: str):
         return prompt + f" {property} ({objective}),"
 
-    def generate(self, n: int):
+    def generate(self, n: int, return_n_props: bool = False):
         for _ in range(n):
             n_props = random.randint(1, self.max_n_props)
             properties = random.choice(self.known_properties, n_props, replace=False)
@@ -24,7 +24,10 @@ class MolInstructionsDataset:
             prompt = self.template
             for prop, obj in zip(properties, objectives):
                 prompt = self.fill_prompt(prompt, prop, obj)
-            yield prompt[:-1] + "."
+            if not return_n_props:
+                yield prompt[:-1] + "."
+            else:
+                yield prompt[:-1] + ".", n_props
 
 
 if __name__ == "__main__":

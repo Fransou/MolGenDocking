@@ -6,7 +6,7 @@ from peft import LoraConfig, TaskType, get_peft_model
 import argparse
 from trl import SFTTrainer, SFTConfig, setup_chat_format
 
-from sft_data import InstructionDatasetProcessor
+from mol_gen_docking.sft_data import InstructionDatasetProcessor
 
 
 def get_model_and_dataset(args: argparse.Namespace):

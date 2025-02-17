@@ -1,12 +1,13 @@
 """Reward functions for molecular optimization."""
 
 import argparse
-import logging
 from typing import List, Union
 
 from tdc import Oracle
 from rdkit.Chem import rdMolDescriptors
 from rdkit import Chem
+
+from mol_gen_docking.logger import create_logger
 
 KNOWN_PROPERTIES = [
     "JNK3",
@@ -20,7 +21,13 @@ KNOWN_PROPERTIES = [
     "Num H-bond acceptors",
     "Num H-bond donors",
     "Num Rotatable Bonds",
-    "TPSA",
+    "Fraction C atoms Sp3 hybridised",
+    "Topological Polar Surface Area",
+    "Hall-Kier alpha",
+    "Hall-Kier kappa 1",
+    "Hall-Kier kappa 2",
+    "Hall-Kier kappa 3",
+    "Kier Phi",
 ]
 
 PROPERTIES_NAMES_SIMPLE = {
@@ -29,26 +36,14 @@ PROPERTIES_NAMES_SIMPLE = {
     "Num H-bond acceptors": "CalcNumHBA",
     "Num H-bond donors": "CalcNumHBD",
     "Num Rotatable Bonds": "CalcNumRotatableBonds",
-    "TPSA": "CalcTPSA",
+    "Fraction C atoms Sp3 hybridised": "CalcFractionCSP3",
+    "Topological Polar Surface Area": "CalcTPSA",
+    "Hall-Kier alpha": "CalcHallKierAlpha",
+    "Hall-Kier kappa 1": "CalcKappa1",
+    "Hall-Kier kappa 2": "CalcKappa2",
+    "Hall-Kier kappa 3": "CalcKappa3",
+    "Kier Phi": "CalcPhi",
 }
-
-
-def create_logger(name: str, level: str = "INFO"):
-    """
-    Create a logger object with the specified name and level.
-    :param name: Name of the logger
-    :param level: Level of the logger
-    :return: Logger object
-    """
-    logger = logging.getLogger(name)
-    console_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "[%(asctime)s | %(name)s | %(levelname)s] %(message)s"
-    )
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    logger.setLevel(level)
-    return logger
 
 
 class RDKITOracle:
@@ -67,17 +62,30 @@ class RDKITOracle:
         else:
             raise ValueError(f"Descriptor {self.name} not found in Rdkit.")
 
-    def __call__(self, smi_mol: Union[str, Chem.Mol]) -> float:
+    def __call__(
+        self, smi_mol: Union[str, Chem.Mol, List[str], List[Chem.Mol]]
+    ) -> Union[float, List[float]]:
         """Get the descriptor value for the molecule."""
-        if isinstance(smi_mol, str):
-            mol = Chem.MolFromSmiles(smi_mol)
-        elif isinstance(smi_mol, Chem.Mol):
-            mol = smi_mol
+        if isinstance(smi_mol, list):
+            if isinstance(smi_mol[0], str):
+                mols = [Chem.MolFromSmiles(smi) for smi in smi_mol]
+            elif isinstance(smi_mol[0], Chem.Mol):
+                mols = smi_mol
+            else:
+                raise ValueError(
+                    "Input must be a list of SMILES strings or a list of RDKit molecule objects."
+                )
+            return [float(self.descriptor(mol)) for mol in mols]
         else:
-            raise ValueError(
-                "Input must be a SMILES string or a RDKit molecule object."
-            )
-        return self.descriptor(mol)
+            if isinstance(smi_mol, str):
+                mol = Chem.MolFromSmiles(smi_mol)
+            elif isinstance(smi_mol, Chem.Mol):
+                mol = smi_mol
+            else:
+                raise ValueError(
+                    "Input must be a SMILES string or a RDKit molecule object."
+                )
+            return float(self.descriptor(mol))
 
 
 class OracleWrapper:
@@ -107,23 +115,32 @@ class OracleWrapper:
     def assign_evaluator(self, evaluator: Union[Oracle, RDKITOracle]):
         self.evaluator = evaluator
 
-    def score_smi(self, smi: str) -> float:
+    def score(self, inp: Union[str, Chem.Mol]) -> float:
         """
         Function to score one molecule
 
         Arguments:
-            smi: One SMILES string represents a molecule.
+            inp: One SMILES string represents a molecule.
 
         Return:
             score: a float represents the property of the molecule.
         """
-        if smi is None:
+        if inp is None:
             return 0
-        mol = Chem.MolFromSmiles(smi)
-        if mol is None or len(smi) == 0:
+        elif isinstance(inp, str):
+            mol = Chem.MolFromSmiles(inp)
+        elif isinstance(inp, Chem.Mol):
+            mol = inp
+        else:
+            raise ValueError(
+                "Input must be a SMILES string or a RDKit molecule object, but encountered: {}".format(
+                    inp
+                )
+            )
+        if mol is None or len(inp) == 0:
             return 0
-        smi = Chem.MolToSmiles(mol)
-        return float(self.evaluator(smi))
+        inp = Chem.MolToSmiles(mol)
+        return float(self.evaluator(inp))
 
     def __call__(self, smis: Union[str, List[str]]) -> Union[float, List[float]]:
         """
@@ -132,10 +149,10 @@ class OracleWrapper:
         if isinstance(smis, list):
             score_list = []
             for smi in smis:
-                score_list.append(self.score_smi(smi))
+                score_list.append(self.score(smi))
 
         elif isinstance(smis, str):
-            score_list = self.score_smi(smis)
+            score_list = self.score(smis)
 
         else:
             raise ValueError(

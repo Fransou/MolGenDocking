@@ -5,8 +5,8 @@ from datasets import Dataset
 from transformers import AutoModelForCausalLM
 from trl import GRPOConfig, GRPOTrainer
 
-from grpo_rewards import get_reward_molecular_property
-from grpo_dataset import MolInstructionsDataset
+from mol_gen_docking.grpo_rewards import get_reward_molecular_property
+from mol_gen_docking.grpo_dataset import MolInstructionsDataset
 
 
 def get_model(args):
