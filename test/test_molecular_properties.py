@@ -66,3 +66,13 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props, list)
     assert len(props) == len(smiles_data)
     assert isinstance(props[0], float)
+
+
+def test_vina(smiles_data):
+    """
+    Tests the oracle with vina
+    """
+    oracle = get_oracle("3pbl_docking")
+    props = oracle(smiles_data)
+    assert isinstance(props, list)
+    assert len(props) == len(smiles_data)
