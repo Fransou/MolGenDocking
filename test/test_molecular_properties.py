@@ -1,7 +1,7 @@
 from typing import List
 
 import pytest
-from tdc.single_pred import ADME
+from tdc import single_pred
 from rdkit.Chem import rdMolDescriptors
 
 from mol_gen_docking.molecular_properties import (
@@ -20,14 +20,16 @@ def is_rdkit_use(name:str):
 
 @pytest.fixture(
     params=[
-        "hERG",
-        pytest.param("BBB_Martins", marks=pytest.mark.slow),
-        pytest.param("Caco2_Wang", marks=pytest.mark.slow)
+        "hERG*TOX",
+        pytest.param("BBB_Martins*ADME", marks=pytest.mark.slow),
+        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.slow)
     ],
     scope="module"
 )
 def smiles_data(request) -> List[str]:
-    return ADME(name=request.param).get_data()["Drug"].tolist()
+    name, task_or = request.param.split("*")
+    task_mod = getattr(single_pred, task_or)
+    return task_mod(name=name).get_data()["Drug"].tolist()
 
 @pytest.fixture(
     params= [
