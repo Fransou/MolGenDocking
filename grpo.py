@@ -19,7 +19,7 @@ def get_model(args):
     # )
 
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_name, torch_dtype="auto", device_map="auto"
+        args.model_name, torch_dtype="auto", device_map="auto", local_files_only=True
     )
 
     # model = get_peft_model(model, peft_config)
