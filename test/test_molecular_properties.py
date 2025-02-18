@@ -22,8 +22,8 @@ def is_rdkit_use(name:str):
 @pytest.fixture(
     params=[
         "hERG*Tox",
-        pytest.param("BBB_Martins*ADME", marks=pytest.mark.skip),
-        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.skip)
+        pytest.param("BBB_Martins*ADME", marks=pytest.mark.slow),
+        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.slow)
     ],
     scope="module"
 )
