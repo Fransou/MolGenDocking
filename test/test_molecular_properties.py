@@ -1,4 +1,5 @@
 from typing import List
+import os
 
 import pytest
 from tdc import single_pred
@@ -68,6 +69,7 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props[0], float)
 
 
+@pytest.mark.skipif(os.system("vina --help") == 0)
 def test_vina(smiles_data):
     """
     Tests the oracle with vina
