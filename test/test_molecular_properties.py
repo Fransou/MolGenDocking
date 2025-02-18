@@ -1,3 +1,5 @@
+from typing import List
+
 import pytest
 from tdc.single_pred import ADME
 from rdkit.Chem import rdMolDescriptors
@@ -12,58 +14,53 @@ from mol_gen_docking.logger import create_logger
 
 logger = create_logger(__name__)
 
+def is_rdkit_use(name:str):
+    return name in KNOWN_PROPERTIES or name in PROPERTIES_NAMES_SIMPLE.values()
 
-@pytest.mark.parametrize(
-    "rdkit_poss",
-    [rdkit_poss for rdkit_poss in dir(rdMolDescriptors) if "Calc" in rdkit_poss],
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        "hERG",
+        pytest.param("BBB_Martins", marks=pytest.mark.slow),
+        pytest.param("Caco2_Wang", marks=pytest.mark.slow)
+    ]
 )
-def test_RDKITOracle(rdkit_poss: str):
+def smiles_data(task_name: str) -> List[str]:
+    return ADME(name=task_name).get_data()["Drug"].tolist()
+
+@pytest.fixture(
+    scope="module",
+    params= [
+        prop for prop in dir(rdMolDescriptors) if ("Calc" in prop and (is_rdkit_use(prop)))
+    ]
+)
+def rdkit_oracle(name:str) -> RDKITOracle:
+    return RDKITOracle(name=name)
+
+@pytest.fixture(
+    scope="module",
+    params= KNOWN_PROPERTIES
+)
+def oracle(name):
+    return get_oracle(name)
+
+def test_RDKITOracle(rdkit_oracle, smiles_data):
     """
     Test the RDKITOracle class
     """
-    data = ADME(name="BBB_Martins").get_data()
-    smiles = data["Drug"].tolist()[0:10]
-
-    is_prop_considered = (
-        rdkit_poss in KNOWN_PROPERTIES or rdkit_poss in PROPERTIES_NAMES_SIMPLE.values()
-    )
-    oracle = RDKITOracle(rdkit_poss)
-    try:
-        print(type(smiles))
-        props = oracle(smiles)
-        assert isinstance(props, list)
-        assert len(props) == len(smiles)
-        assert isinstance(props[0], float)
-    except Exception as e:
-        if is_prop_considered:
-            logger.error(f"Error for property {rdkit_poss}: {e}")
-            raise e
-        else:
-            logger.info(
-                f"Property {rdkit_poss} is not considered and failed to compute"
-            )
-    if not is_prop_considered:
-        logger.warning(
-            f"Property {rdkit_poss} is not considered but successfully computed"
-        )
+    props = rdkit_oracle(smiles_data)
+    assert isinstance(props, list)
+    assert len(props) == len(smiles_data)
+    assert isinstance(props[0], float)
 
 
-@pytest.mark.parametrize("property_name", KNOWN_PROPERTIES)
-def test_oracles(property_name: str):
+
+def test_oracles(oracle, smiles_data):
     """
     Test the RDKITOracle class
-    Args:
-        task_name: str: The name of the task to test
     """
-    data = ADME(name="BBB_Martins").get_data()
-    smiles = data["Drug"].tolist()[0:10]
-
-    oracle = get_oracle(property_name)
-    try:
-        props = oracle(smiles)
-        assert isinstance(props, list)
-        assert len(props) == len(smiles)
-        assert isinstance(props[0], float)
-    except Exception as e:
-        logger.error(f"Error for property {property_name}")
-        raise e
+    props = oracle(smiles_data)
+    assert isinstance(props, list)
+    assert len(props) == len(smiles_data)
+    assert isinstance(props[0], float)
