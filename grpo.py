@@ -19,10 +19,10 @@ def get_model(args):
     # )
 
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_name, torch_dtype="auto", device_map="auto", local_files_only=True
+        args.model_name, torch_dtype="auto", device_map="auto", local_files_only=args.local_files_only
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        args.model_name
+        args.model_name, local_files_only=args.local_files_only
     )
 
     # model = get_peft_model(model, peft_config)
@@ -79,6 +79,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n_prompts", type=int, default=16, help="The number of prompts to generate"
     )
+    parser.add_argument("--local_files_only", action="store_true")
     args = parser.parse_args()
     model, tokenizer = get_model(args)
 
