@@ -23,24 +23,24 @@ def is_rdkit_use(name:str):
         "hERG",
         pytest.param("BBB_Martins", marks=pytest.mark.slow),
         pytest.param("Caco2_Wang", marks=pytest.mark.slow)
-    ]
+    ],
 )
-def smiles_data(task_name: str) -> List[str]:
-    return ADME(name=task_name).get_data()["Drug"].tolist()
+def smiles_data(param: str) -> List[str]:
+    return ADME(name=param).get_data()["Drug"].tolist()
 
 @pytest.fixture(
     params= [
         prop for prop in dir(rdMolDescriptors) if ("Calc" in prop and (is_rdkit_use(prop)))
     ]
 )
-def rdkit_oracle(rdkit_prop_name:str) -> RDKITOracle:
-    return RDKITOracle(name=rdkit_prop_name)
+def rdkit_oracle(param:str) -> RDKITOracle:
+    return RDKITOracle(name=param)
 
 @pytest.fixture(
     params= KNOWN_PROPERTIES
 )
-def oracle(prop_name: str):
-    return get_oracle(prop_name)
+def oracle(param: str):
+    return get_oracle(param)
 
 
 
