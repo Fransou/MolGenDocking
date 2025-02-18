@@ -22,7 +22,7 @@ echo "Starting job on dataset"
 
 mkdir $SLURM_DIR
 cd $SLURM_DIR
-cp -r $WORKING_DIR SLURM_DIR
+cp -r $WORKING_DIR $SLURM_DIR
 cd MolGenDocking
 
 wandb offline
