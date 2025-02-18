@@ -35,8 +35,8 @@ def smiles_data(task_name: str) -> List[str]:
         prop for prop in dir(rdMolDescriptors) if ("Calc" in prop and (is_rdkit_use(prop)))
     ]
 )
-def rdkit_oracle(name:str) -> RDKITOracle:
-    return RDKITOracle(name=name)
+def rdkit_oracle(rdkit_prop_name:str) -> RDKITOracle:
+    return RDKITOracle(name=rdkit_prop_name)
 
 @pytest.fixture(
     scope="module",
@@ -44,6 +44,8 @@ def rdkit_oracle(name:str) -> RDKITOracle:
 )
 def oracle(prop_name: str):
     return get_oracle(prop_name)
+
+
 
 def test_RDKITOracle(rdkit_oracle, smiles_data):
     """
