@@ -69,7 +69,7 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props[0], float)
 
 
-@pytest.mark.skipif(os.system("vina --help") == 0)
+@pytest.mark.skipif(os.system("vina --help") == 0, reason="requires vina")
 def test_vina(smiles_data):
     """
     Tests the oracle with vina
