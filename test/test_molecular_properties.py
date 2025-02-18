@@ -42,8 +42,8 @@ def rdkit_oracle(name:str) -> RDKITOracle:
     scope="module",
     params= KNOWN_PROPERTIES
 )
-def oracle(name):
-    return get_oracle(name)
+def oracle(prop_name: str):
+    return get_oracle(prop_name)
 
 def test_RDKITOracle(rdkit_oracle, smiles_data):
     """
