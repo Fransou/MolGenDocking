@@ -20,7 +20,7 @@ def is_rdkit_use(name:str):
 
 @pytest.fixture(
     params=[
-        "hERG*TOX",
+        "hERG*Tox",
         pytest.param("BBB_Martins*ADME", marks=pytest.mark.slow),
         pytest.param("Caco2_Wang*ADME", marks=pytest.mark.slow)
     ],
