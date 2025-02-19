@@ -27,7 +27,7 @@ class InstructionDatasetProcessor:
                 "zjunlp/Mol-Instructions", "Molecule-oriented Instructions"
             )
         elif name == "Mol-Instructions":
-            self.dataset = load_dataset("osunlp/SMolInstruct", use_first=100)
+            self.dataset = load_dataset("osunlp/SMolInstruct")
         else:
             raise ValueError("Unknown dataset")
 
