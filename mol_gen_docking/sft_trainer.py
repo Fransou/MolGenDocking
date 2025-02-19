@@ -1,3 +1,4 @@
+import os
 import argparse
 
 from trl import SFTTrainer, SFTConfig, setup_chat_format

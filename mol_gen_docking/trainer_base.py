@@ -1,3 +1,4 @@
+import os
 import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -28,6 +29,7 @@ class MolTrainer:
         raise NotImplementedError
 
     def __call__(self):
+        os.environ["WANDB_MODE"]="offline"
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
         trainer.train()
