@@ -53,8 +53,7 @@ class GRPOMolTrainer:
         )
 
         dataset, eval_dataset = self.get_dataset()
-        print("FINISHED")
-        return None
+        print("LAUNCHING TRAINING")
 
         trainer = GRPOTrainer(
             model=model,
