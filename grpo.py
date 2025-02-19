@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import submitit
 
-from mol_gen_docking.parser import add_trainer_args, add_model_data_args
+from mol_gen_docking.parser import add_trainer_args, add_model_data_args, add_slurm_args
 from mol_gen_docking.grpo_trainer import GRPOMolTrainer
 
 
@@ -15,6 +15,7 @@ if __name__ == "__main__":
     )
     add_trainer_args(parser)
     add_model_data_args(parser)
+    add_slurm_args(parser)
     parser.add_argument(
         "--n_prompts", type=int, default=16, help="The number of prompts to generate"
     )
@@ -22,14 +23,14 @@ if __name__ == "__main__":
 
     executor = submitit.AutoExecutor(folder="log_test")
     executor.update_parameters(
-        timeout_min=5,
-        nodes=1,
-        mem_gb=200,
-        cpus_per_task=8,
-        tasks_per_node=1,
-        gpus_per_node=1,
-        slurm_account="def-ibenayed",
-        slurm_job_name="GRPO"
+        timeout_min=args.timeout_min,
+        nodes=args.nodes,
+        mem_gb=args.mem_gb,
+        cpus_per_task=args.cpus_per_task,
+        tasks_per_node=args.tasks_per_node,
+        gpus_per_node=args.gpus_per_node,
+        slurm_account=args.slurm_account,
+        slurm_job_name=args.slurm_job_name,
     )
 
     trainer = GRPOMolTrainer(args)

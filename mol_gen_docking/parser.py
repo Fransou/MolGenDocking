@@ -36,3 +36,13 @@ def add_model_data_args(parser):
         help="The LoRA configuration to use",
     )
     parser.add_argument("--local-files-only", action="store_true")
+
+def add_slurm_args(parser):
+    parser.add_argument("--timeout-min", type=int, default=15)
+    parser.add_argument("--nodes", type=int, default=1)
+    parser.add_argument("--mem_gb", type=int, default=200)
+    parser.add_argument("--cpus-per-task", type=int, default=8)
+    parser.add_argument("--tasks-per-node", type=int, default=1)
+    parser.add_argument("--gpus-per-node", type=int, default=1)
+    parser.add_argument("--slurm-account", type=str, default="def-ibenayed")
+    parser.add_argument("--slurm-job-name", type=str, default="MolGenDocking")
