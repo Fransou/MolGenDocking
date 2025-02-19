@@ -59,11 +59,7 @@ class InstructionDatasetProcessor:
                     inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
                 elif self.is_selfies(out):
                     out = special_tok["selfies"] + out + special_tok["selfies_end"]
-
                 corpus.append({"prompt": instruction + inp, "completion": out})
-
-                if i > 100:
-                    break
         dataset = Dataset.from_list(corpus)
         dataset = dataset.train_test_split(
             train_size=train_size, test_size=test_size, seed=42
