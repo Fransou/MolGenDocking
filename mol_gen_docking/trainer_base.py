@@ -1,10 +1,11 @@
 import os
 import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import submitit
 
-
-class MolTrainer:
+class MolTrainer(submitit.helpers.Checkpointable):
     def __init__(self, args: argparse.Namespace):
+        super().__init__()
         self.args = args
         self.model, self.tokenizer = self.get_model()
         self.dataset, self.eval_dataset = self.get_dataset()
@@ -28,8 +29,13 @@ class MolTrainer:
     def get_trainer(self):
         raise NotImplementedError
 
+    def checkpoint(self):
+        training_callable = MolTrainer(self.args)
+
+        return submitit.helpers.DelayedSubmission(training_callable)
+
     def __call__(self):
         os.environ["WANDB_MODE"]="offline"
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
-        trainer.train()
+        trainer.train(resume_from_checkpoint = True)
