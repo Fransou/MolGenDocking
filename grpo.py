@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n_prompts", type=int, default=16, help="The number of prompts to generate"
     )
-    parser.add_argument("--local_files_only", action="store_true")
+    parser.add_argument("--local-files-only", action="store_true")
     args = parser.parse_args()
 
     executor = submitit.AutoExecutor(folder="log_test")
