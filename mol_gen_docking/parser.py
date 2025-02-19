@@ -20,6 +20,9 @@ def add_trainer_args(parser):
     parser.add_argument(
         "--output_dir", type=str, default="test", help="The output directory to use"
     )
+    parser.add_argument(
+        "--num-train-epochs", type=int, default=100, help="The number of epochs to use"
+    )
 
 
 def add_model_data_args(parser):
@@ -40,7 +43,7 @@ def add_model_data_args(parser):
 def add_slurm_args(parser):
     parser.add_argument("--timeout-min", type=int, default=15)
     parser.add_argument("--nodes", type=int, default=1)
-    parser.add_argument("--mem_gb", type=int, default=200)
+    parser.add_argument("--mem-gb", type=int, default=200)
     parser.add_argument("--cpus-per-task", type=int, default=8)
     parser.add_argument("--tasks-per-node", type=int, default=1)
     parser.add_argument("--gpus-per-node", type=int, default=1)

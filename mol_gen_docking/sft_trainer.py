@@ -43,6 +43,7 @@ class SFTMolTrainer(MolTrainer):
 
         training_args = SFTConfig(
             output_dir=self.args.output_dir,
+            num_train_epochs=self.args.num_train_epochs,
             overwrite_output_dir=True,
             evaluation_strategy="epoch",
             learning_rate=self.args.learning_rate,
