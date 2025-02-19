@@ -1,78 +1,9 @@
 import argparse
 import json
-
-from datasets import Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import GRPOConfig, GRPOTrainer
-
 import submitit
 
-from mol_gen_docking.grpo_rewards import get_reward_molecular_property
-from mol_gen_docking.grpo_dataset import MolInstructionsDataset
+from mol_gen_docking.grpo_trainer import launch_grpo_training
 
-
-def get_model(args):
-    # peft_config = LoraConfig(
-    #    task_type=TaskType.SEQ_2_SEQ_LM,
-    #    inference_mode=False,
-    #    r=args.lora_config.get("r", 8),
-    #    lora_alpha=args.lora_config.get("lora_alpha", 32),
-    #    lora_dropout=args.lora_config.get("lora_dropout", 0.1)
-    # )
-
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model_name, torch_dtype="auto", device_map="auto", local_files_only=args.local_files_only
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.model_name, local_files_only=args.local_files_only
-    )
-
-    # model = get_peft_model(model, peft_config)
-    # model.print_trainable_parameters()
-
-    return model, tokenizer
-
-
-def get_dataset(args):
-    # Load the dataset
-    dataset = Dataset.from_dict(
-        {"prompt": list(MolInstructionsDataset().generate(args.n_prompts))}
-    )
-    eval_dataset = Dataset.from_dict(
-        {"prompt": list(MolInstructionsDataset().generate(10))}
-    )
-    return dataset, eval_dataset
-
-
-def main(args: argparse.Namespace):
-    model, tokenizer = get_model(args)
-
-    training_args = GRPOConfig(
-        output_dir=args.output_dir,
-        overwrite_output_dir=True,
-        evaluation_strategy="epoch",
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        num_generations=2,
-        push_to_hub=False,
-    )
-
-    dataset, eval_dataset = get_dataset(args)
-    print("FINISHED")
-    return None
-
-    trainer = GRPOTrainer(
-        model=model,
-        reward_funcs=[get_reward_molecular_property],
-        args=training_args,
-        train_dataset=dataset,
-        eval_dataset=eval_dataset,
-        processing_class=tokenizer,
-        reward_processing_classes=tokenizer,
-    )
-    trainer.train()
 
 
 
@@ -115,10 +46,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--local_files_only", action="store_true")
     args = parser.parse_args()
-    main(args)
 
     executor = submitit.AutoExecutor(folder="log_test")
-
     executor.update_parameters(
         timeout_min=5,
         nodes=1,
@@ -129,5 +58,5 @@ if __name__ == "__main__":
         job_name="GRPO"
     )
 
-    job=executor.submit(main, args)
+    job=executor.submit(launch_grpo_training, args)
     job.result()
