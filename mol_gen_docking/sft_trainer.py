@@ -3,7 +3,7 @@ import argparse
 from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
 
-from mol_gen_docking.sft_data import InstructionDatasetProcessor
+from mol_gen_docking.sft_data import InstructionDatasetProcessor, special_tok
 from mol_gen_docking.trainer_base import MolTrainer
 
 
@@ -19,6 +19,12 @@ class SFTMolTrainer(MolTrainer):
         )
 
     def get_trainer(self):
+        # Expand model vocab
+        self.tokenizer.add_special_tokens(
+            {"additional_special_tokens": special_tok.values()}
+        )
+        self.model.resize_token_embeddings(len(self.tokenizer))
+
         peft_config = LoraConfig(
             task_type=TaskType.SEQ_2_SEQ_LM,
             inference_mode=False,
