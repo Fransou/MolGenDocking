@@ -2,7 +2,7 @@ import argparse
 import json
 
 from datasets import Dataset
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
 from mol_gen_docking.grpo_rewards import get_reward_molecular_property
@@ -19,13 +19,16 @@ def get_model(args):
     # )
 
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_name, torch_dtype="auto", device_map="auto"
+        args.model_name, torch_dtype="auto", device_map="auto", local_files_only=args.local_files_only
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_name, local_files_only=args.local_files_only
     )
 
     # model = get_peft_model(model, peft_config)
     # model.print_trainable_parameters()
 
-    return model
+    return model, tokenizer
 
 
 def get_dataset(args):
@@ -76,8 +79,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n_prompts", type=int, default=16, help="The number of prompts to generate"
     )
+    parser.add_argument("--local_files_only", action="store_true")
     args = parser.parse_args()
-    model = get_model(args)
+    model, tokenizer = get_model(args)
 
     training_args = GRPOConfig(
         output_dir=args.output_dir,
@@ -99,5 +103,7 @@ if __name__ == "__main__":
         args=training_args,
         train_dataset=dataset,
         eval_dataset=eval_dataset,
+        processing_class=tokenizer,
+        reward_processing_classes=tokenizer,
     )
     trainer.train()
