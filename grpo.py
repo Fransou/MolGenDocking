@@ -5,6 +5,8 @@ from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 
+import submitit
+
 from mol_gen_docking.grpo_rewards import get_reward_molecular_property
 from mol_gen_docking.grpo_dataset import MolInstructionsDataset
 
@@ -40,6 +42,38 @@ def get_dataset(args):
         {"prompt": list(MolInstructionsDataset().generate(10))}
     )
     return dataset, eval_dataset
+
+
+def main(args: argparse.Namespace):
+    model, tokenizer = get_model(args)
+
+    training_args = GRPOConfig(
+        output_dir=args.output_dir,
+        overwrite_output_dir=True,
+        evaluation_strategy="epoch",
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
+        num_generations=2,
+        push_to_hub=False,
+    )
+
+    dataset, eval_dataset = get_dataset(args)
+    print("FINISHED")
+    return None
+
+    trainer = GRPOTrainer(
+        model=model,
+        reward_funcs=[get_reward_molecular_property],
+        args=training_args,
+        train_dataset=dataset,
+        eval_dataset=eval_dataset,
+        processing_class=tokenizer,
+        reward_processing_classes=tokenizer,
+    )
+    trainer.train()
+
 
 
 if __name__ == "__main__":
@@ -81,29 +115,19 @@ if __name__ == "__main__":
     )
     parser.add_argument("--local_files_only", action="store_true")
     args = parser.parse_args()
-    model, tokenizer = get_model(args)
+    main(args)
 
-    training_args = GRPOConfig(
-        output_dir=args.output_dir,
-        overwrite_output_dir=True,
-        evaluation_strategy="epoch",
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        num_generations=2,
-        push_to_hub=False,
+    executor = submitit.AutoExecutor(folder="log_test")
+
+    executor.update_parameters(
+        timeout_min=5,
+        nodes=1,
+        mem_gb=200,
+        cpus_per_task=8,
+        tasks_per_node=1,
+        account="def-ibenayed",
+        job_name="GRPO"
     )
 
-    dataset, eval_dataset = get_dataset(args)
-
-    trainer = GRPOTrainer(
-        model=model,
-        reward_funcs=[get_reward_molecular_property],
-        args=training_args,
-        train_dataset=dataset,
-        eval_dataset=eval_dataset,
-        processing_class=tokenizer,
-        reward_processing_classes=tokenizer,
-    )
-    trainer.train()
+    job=executor.submit(main, args)
+    job.result()
