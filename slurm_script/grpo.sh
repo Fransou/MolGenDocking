@@ -26,4 +26,4 @@ cp -r $WORKING_DIR $SLURM_DIR
 cd MolGenDocking
 
 wandb offline
-python grpo.py
+python grpo.py --local-files-only
