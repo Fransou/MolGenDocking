@@ -1,31 +1,16 @@
 import argparse
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
 from mol_gen_docking.grpo_dataset import MolInstructionsDataset
 from mol_gen_docking.grpo_rewards import get_reward_molecular_property
+from mol_gen_docking.trainer_base import MolTrainer
 
 
-
-class GRPOMolTrainer:
+class GRPOMolTrainer(MolTrainer):
     def __init__(self, args: argparse.Namespace):
-        self.args = args
-
-
-    def get_model(self):
-        model = AutoModelForCausalLM.from_pretrained(
-            self.args.model_name,
-            torch_dtype="auto",
-            device_map="auto",
-            local_files_only=self.args.local_files_only
-        ).bfloat16()
-        tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name,
-            local_files_only=self.args.local_files_only
-        )
-        return model, tokenizer
+        super().__init__(args)
 
     def get_dataset(self):
         # Load the dataset
@@ -37,9 +22,7 @@ class GRPOMolTrainer:
         )
         return dataset, eval_dataset
 
-    def __call__(self):
-        model, tokenizer = self.get_model()
-
+    def get_trainer(self):
         training_args = GRPOConfig(
             output_dir=self.args.output_dir,
             overwrite_output_dir=True,
@@ -52,19 +35,16 @@ class GRPOMolTrainer:
             push_to_hub=False,
         )
 
-        dataset, eval_dataset = self.get_dataset()
-        print("LAUNCHING TRAINING")
-
-        trainer = GRPOTrainer(
-            model=model,
+        return GRPOTrainer(
+            model=self.model,
             reward_funcs=[get_reward_molecular_property],
             args=training_args,
-            train_dataset=dataset,
-            eval_dataset=eval_dataset,
-            processing_class=tokenizer,
-            reward_processing_classes=tokenizer,
+            train_dataset=self.dataset,
+            eval_dataset=self.eval_dataset,
+            processing_class=self.tokenizer,
+            reward_processing_classes=self.tokenizer,
         )
-        trainer.train()
+
 
 def launch_grpo_training(args: argparse.Namespace):
     trainer = GRPOMolTrainer(args)

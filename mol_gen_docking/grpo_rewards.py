@@ -7,7 +7,7 @@ import torch
 
 def molecular_properties(completion: Any, oracle: str, **kwargs):
     """
-    Strip smiles located between the <smiles> and </smiles> tags or selfies located between the <selfies> and </selfies> tags.
+    Strip smiles located between the <SMILES> and </SMILES> tags or selfies located between the <selfies> and </selfies> tags.
     """
     if isinstance(completion, list):
         assert len(completion) == 1
@@ -17,8 +17,8 @@ def molecular_properties(completion: Any, oracle: str, **kwargs):
         completion = completion["content"]
 
     def parse_smiles(s):
-        s_spl = s.split("<smiles>")[1:]
-        s_spl = [x.split("</smiles>")[0] for x in s_spl]
+        s_spl = s.split("<SMILES>")[1:]
+        s_spl = [x.split("</SMILES>")[0] for x in s_spl]
         return s_spl
 
     oracle_fn = get_oracle(oracle)
@@ -80,18 +80,3 @@ def get_reward_molecular_property(
                 reward += -mol_prop.mean()
         rewards.append(reward)
     return rewards
-
-
-if __name__ == "__main__":
-    instructions = [
-        "The objective is: logP (maximize), Molecular Weight (below 500)",
-        "The objective is: DRD2 (maximize), QED (maximize)",
-    ]
-    comp = [
-        "These are the smiles:<smiles>CCO</smiles>, <smiles>CCCO</smiles>",
-        "These are the smiles:<smiles>CCCCCCCCCCCCCCCCO</smiles>, <smiles>CCCO</smiles>",
-    ]
-
-    props = get_reward_molecular_property(instructions, comp)
-
-    print(props)

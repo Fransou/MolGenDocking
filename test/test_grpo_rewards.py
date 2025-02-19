@@ -26,7 +26,7 @@ COMPLETIONS = [
 
 def fill_completion(smiles: List[str], completion: str) -> str:
     """Fill the completion with the smiles."""
-    smiles = "".join(["<smiles>{}</smiles>".format(s) for s in smiles])
+    smiles = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
     return completion.replace("[SMILES]", smiles)
 
 
