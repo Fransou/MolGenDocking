@@ -50,6 +50,7 @@ class GRPOMolTrainer:
             per_device_eval_batch_size=self.args.batch_size,
             num_generations=2,
             push_to_hub=False,
+            use_vllm=True
         )
 
         dataset, eval_dataset = self.get_dataset()
