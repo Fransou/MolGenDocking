@@ -57,7 +57,7 @@ if __name__ == "__main__":
         tasks_per_node=1,
         gpus_per_node=1,
         slurm_account="def-ibenayed",
-        slurm_job_name="GRPO"
+        slurm_job_name="SFT"
     )
 
     job=executor.submit(launch_sft_training, args)

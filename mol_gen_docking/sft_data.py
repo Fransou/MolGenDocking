@@ -47,7 +47,7 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def get_training_corpus(self):
+    def get_training_corpus(self, train_size, test_size):
         corpus = []
         for k in self.dataset.keys():
             for i in trange(len(self.dataset[k])):
@@ -64,4 +64,8 @@ class InstructionDatasetProcessor:
 
                 if i > 100:
                     break
-        return Dataset.from_list(corpus)
+        dataset = Dataset.from_list(corpus)
+        dataset = dataset.train_test_split(
+            train_size=train_size, test_size=test_size, seed=42
+        )
+        return dataset["train"], dataset["test"]

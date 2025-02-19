@@ -14,13 +14,9 @@ class SFTMolTrainer(MolTrainer):
 
     def get_dataset(self):
         # Load the dataset
-        dataset = InstructionDatasetProcessor(self.args.dataset).get_training_corpus()
-        test_size = int(0.1*self.args.train_size)
-
-        downsampled_dataset = dataset.train_test_split(
-            train_size=self.args.train_size, test_size=test_size, seed=42
+        return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
+            self.args.train_size,int(0.1*self.args.train_size)
         )
-        return downsampled_dataset["train"], downsampled_dataset["test"]
 
     def get_trainer(self):
         peft_config = LoraConfig(
