@@ -54,6 +54,7 @@ if __name__ == "__main__":
         mem_gb=200,
         cpus_per_task=8,
         tasks_per_node=1,
+        gpus_per_node=1,
         account="def-ibenayed",
         job_name="GRPO"
     )
