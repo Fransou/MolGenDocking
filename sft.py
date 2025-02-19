@@ -44,6 +44,8 @@ if __name__ == "__main__":
         default={"r": 8, "lora_alpha": 32, "lora_dropout": 0.1},
         help="The LoRA configuration to use",
     )
+    parser.add_argument("--local-files-only", action="store_true")
+
     args = parser.parse_args()
 
     executor = submitit.AutoExecutor(folder="log_test")
