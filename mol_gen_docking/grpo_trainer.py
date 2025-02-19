@@ -20,7 +20,7 @@ class GRPOMolTrainer:
             torch_dtype="auto",
             device_map="auto",
             local_files_only=self.args.local_files_only
-        )
+        ).bfloat16()
         tokenizer = AutoTokenizer.from_pretrained(
             self.args.model_name,
             local_files_only=self.args.local_files_only
@@ -50,7 +50,6 @@ class GRPOMolTrainer:
             per_device_eval_batch_size=self.args.batch_size,
             num_generations=2,
             push_to_hub=False,
-            use_vllm=True
         )
 
         dataset, eval_dataset = self.get_dataset()
