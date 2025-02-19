@@ -21,7 +21,7 @@ class SFTMolTrainer(MolTrainer):
     def get_trainer(self):
         # Expand model vocab
         self.tokenizer.add_special_tokens(
-            {"additional_special_tokens": special_tok.values()}
+            {"additional_special_tokens": list(special_tok.values())}
         )
         self.model.resize_token_embeddings(len(self.tokenizer))
 
@@ -50,6 +50,7 @@ class SFTMolTrainer(MolTrainer):
             per_device_eval_batch_size=self.args.batch_size,
             push_to_hub=False,
             logging_steps=len(self.dataset) // self.args.batch_size,
+            save_strategy="epoch"
         )
 
         trainer = SFTTrainer(
@@ -60,7 +61,3 @@ class SFTMolTrainer(MolTrainer):
             tokenizer=self.tokenizer,
         )
         return trainer
-
-def launch_sft_training(args: argparse.Namespace):
-    trainer = SFTMolTrainer(args)
-    return trainer()

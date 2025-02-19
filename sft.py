@@ -1,8 +1,9 @@
+import os
 import argparse
 import submitit
 
 from mol_gen_docking.parser import add_trainer_args, add_model_data_args
-from mol_gen_docking.sft_trainer import launch_sft_training
+from mol_gen_docking.sft_trainer import SFTMolTrainer
 
 
 
@@ -19,7 +20,7 @@ if __name__ == "__main__":
 
 
     args = parser.parse_args()
-
+    trainer = SFTMolTrainer(args)
     executor = submitit.AutoExecutor(folder="log_test")
     executor.update_parameters(
         timeout_min=5,
@@ -32,5 +33,5 @@ if __name__ == "__main__":
         slurm_job_name="SFT"
     )
 
-    job=executor.submit(launch_sft_training, args)
+    job=executor.submit(trainer)
     job.result()

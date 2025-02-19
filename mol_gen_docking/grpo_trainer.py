@@ -44,8 +44,3 @@ class GRPOMolTrainer(MolTrainer):
             processing_class=self.tokenizer,
             reward_processing_classes=self.tokenizer,
         )
-
-
-def launch_grpo_training(args: argparse.Namespace):
-    trainer = GRPOMolTrainer(args)
-    return trainer()

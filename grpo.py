@@ -1,8 +1,10 @@
+import os
 import argparse
+from pathlib import Path
 import submitit
 
 from mol_gen_docking.parser import add_trainer_args, add_model_data_args
-from mol_gen_docking.grpo_trainer import launch_grpo_training
+from mol_gen_docking.grpo_trainer import GRPOMolTrainer
 
 
 
@@ -30,5 +32,6 @@ if __name__ == "__main__":
         slurm_job_name="GRPO"
     )
 
-    job=executor.submit(launch_grpo_training, args)
+    trainer = GRPOMolTrainer(args)
+    job=executor.submit(trainer)
     job.result()
