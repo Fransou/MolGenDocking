@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name",
         type=str,
-        default="Qwen/Qwen2.5-0.5B-Instruct",
+        default="Qwen/Qwen2-0.5B-Instruct",
         help="The model name to train",
     )
     parser.add_argument(
