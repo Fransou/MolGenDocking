@@ -33,7 +33,6 @@ if __name__ == "__main__":
         tasks_per_node=args.tasks_per_node,
         gpus_per_node=args.gpus_per_node,
         slurm_account=args.slurm_account,
-        slurm_job_name=args.slurm_job_name,
     )
 
     job=executor.submit(trainer)
