@@ -31,7 +31,8 @@ if __name__ == "__main__":
         gpus_per_node=args.gpus_per_node,
         slurm_account=args.slurm_account,
         slurm_job_name=args.slurm_job_name,
+        slurm_max_num_timeout=5,
     )
 
-    job=executor.submit(trainer, slurm_max_num_timeout=5)
+    job=executor.submit(trainer)
     job.result()
