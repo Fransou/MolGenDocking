@@ -33,5 +33,5 @@ if __name__ == "__main__":
         slurm_job_name=args.slurm_job_name,
     )
 
-    job=executor.submit(trainer)
+    job=executor.submit(trainer, slurm_max_num_timeout=5)
     job.result()
