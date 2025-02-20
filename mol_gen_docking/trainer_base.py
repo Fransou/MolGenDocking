@@ -29,9 +29,8 @@ class MolTrainer(submitit.helpers.Checkpointable):
     def get_trainer(self):
         raise NotImplementedError
 
-    def checkpoint(self):
-        training_callable = MolTrainer(self.args)
-
+    def checkpoint(self, path:str):
+        training_callable = type(self)(self.args)
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
