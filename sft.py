@@ -21,7 +21,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     trainer = SFTMolTrainer(args)
-    executor = submitit.AutoExecutor(folder="log_test")
+    executor = submitit.AutoExecutor(
+        folder="log_test",
+        slurm_max_num_timeout=5,
+    )
     executor.update_parameters(
         timeout_min=args.timeout_min,
         nodes=args.nodes,
@@ -31,7 +34,6 @@ if __name__ == "__main__":
         gpus_per_node=args.gpus_per_node,
         slurm_account=args.slurm_account,
         slurm_job_name=args.slurm_job_name,
-        slurm_max_num_timeout=5,
     )
 
     job=executor.submit(trainer)
