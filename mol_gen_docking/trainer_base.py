@@ -38,4 +38,5 @@ class MolTrainer(submitit.helpers.Checkpointable):
         os.environ["WANDB_MODE"]="offline"
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
-        trainer.train(resume_from_checkpoint = True)
+        ckpt_to_resume = os.path.exists(self.args.output_dir)
+        trainer.train(resume_from_checkpoint = ckpt_to_resume)
