@@ -47,5 +47,6 @@ class MolTrainer(submitit.helpers.Checkpointable):
         for step in possible_ckpts_step:
             path_ckpt = os.path.join(self.args.checkpoint_dir, "checkpoint-"+str(step))
             if len(os.listdir(path_ckpt)) >= 3:
+                print("Recovering Checkpoint :" + path_ckpt)
                 return trainer.train(resume_from_checkpoint = path_ckpt)
         return trainer.train()
