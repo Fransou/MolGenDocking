@@ -32,6 +32,9 @@ class InstructionDatasetProcessor:
             raise ValueError("Unknown dataset")
 
     def is_selfies(self, string):
+        for spe_tok in special_tok.keys():
+            if spe_tok in string:
+                return False
         try:
             if sf.decoder(string) == "":
                 return False
@@ -40,6 +43,9 @@ class InstructionDatasetProcessor:
             return False
 
     def is_smiles(self, string):
+        for spe_tok in special_tok.keys():
+            if spe_tok in string:
+                return False
         try:
             if Chem.MolFromSmiles(string) is None:
                 return False
@@ -54,7 +60,6 @@ class InstructionDatasetProcessor:
                 instruction = self.dataset[k][i].get("instruction", "")
                 inp = self.dataset[k][i].get("input", "")
                 out = self.dataset[k][i]["output"]
-
                 if self.is_selfies(inp):
                     inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
                 elif self.is_selfies(out):
