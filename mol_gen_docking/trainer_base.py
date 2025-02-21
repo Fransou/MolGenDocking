@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import submitit
@@ -6,19 +7,34 @@ import submitit
 class MolTrainer(submitit.helpers.Checkpointable):
     def __init__(self, args: argparse.Namespace):
         super().__init__()
+
         self.args = args
+        self.checkpoint = self.retrieve_checkpoint_step()
+
         self.model, self.tokenizer = self.get_model()
         self.dataset, self.eval_dataset = self.get_dataset()
 
+    def retrieve_checkpoint_step(self):
+        checkpoints_step = sorted([
+            int(d.split('-')[-1]) for d in os.listdir(self.args.output_dir)
+        ], reverse=True)
+
+        for step in checkpoints_step:
+            path_ckpt = os.path.join(self.args.output_dir, "checkpoint-" + str(step))
+            if len(os.listdir(path_ckpt)) >= 3:
+                print("Recovering Checkpoint :" + path_ckpt)
+                return path_ckpt
+        return ""
+
     def get_model(self):
         model = AutoModelForCausalLM.from_pretrained(
-            self.args.model_name,
+            self.args.model_name if self.checkpoint == "" else self.checkpoint,
             torch_dtype="auto",
             device_map="auto",
             local_files_only=self.args.local_files_only
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name,
+            self.args.model_name if self.checkpoint == "" else self.checkpoint,
             local_files_only=self.args.local_files_only
         )
         return model, tokenizer
@@ -39,13 +55,4 @@ class MolTrainer(submitit.helpers.Checkpointable):
         print(
             "LAUNCHING TRAINING"
         )
-        checkpoints_step = sorted([
-            int(d.split('-')[-1]) for d in os.listdir(self.args.output_dir)
-        ], reverse=True)
-
-        for step in checkpoints_step:
-            path_ckpt = os.path.join(self.args.output_dir, "checkpoint-"+str(step))
-            if len(os.listdir(path_ckpt)) >= 3:
-                print("Recovering Checkpoint :" + path_ckpt)
-                return trainer.train(resume_from_checkpoint = path_ckpt)
-        return trainer.train()
+        return trainer.train(resume_from_checkpoint=False if self.checkpoint=="" else self.checkpoint)

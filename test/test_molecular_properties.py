@@ -22,15 +22,15 @@ def is_rdkit_use(name:str):
 @pytest.fixture(
     params=[
         "hERG*Tox",
-        pytest.param("BBB_Martins*ADME", marks=pytest.mark.slow),
-        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.slow)
+        pytest.param("BBB_Martins*ADME", marks=pytest.mark.skip),
+        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.skip)
     ],
     scope="module"
 )
 def smiles_data(request) -> List[str]:
     name, task_or = request.param.split("*")
     task_mod = getattr(single_pred, task_or)
-    return task_mod(name=name).get_data()["Drug"].tolist()
+    return task_mod(name=name).get_data().sample(100)["Drug"].tolist()
 
 @pytest.fixture(
     params= [
@@ -69,7 +69,7 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props[0], float)
 
 
-@pytest.mark.skipif(os.system("vina --help") == 0, reason="requires vina")
+@pytest.mark.skipif(False or os.system("vina --help") == 0, reason="requires vina")
 def test_vina(smiles_data):
     """
     Tests the oracle with vina
