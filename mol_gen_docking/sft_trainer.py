@@ -1,15 +1,17 @@
 import argparse
+from typing import Tuple, Optional
 
 from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
+from datasets import Dataset
 
 from mol_gen_docking.sft_data import InstructionDatasetProcessor, special_tok
 from mol_gen_docking.trainer_base import MolTrainer
 
 
 class SFTMolTrainer(MolTrainer):
-    def __init__(self, args: argparse.Namespace):
-        super().__init__(args)
+    def __init__(self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]]=None):
+        super().__init__(args, datasets)
 
     def get_dataset(self):
         # Load the dataset

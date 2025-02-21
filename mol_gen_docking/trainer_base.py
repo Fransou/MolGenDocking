@@ -1,18 +1,23 @@
 import os
 import argparse
+from typing import Tuple, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from datasets import Dataset
 import submitit
 
 
 class MolTrainer(submitit.helpers.Checkpointable):
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace, datasets:Optional[Tuple[Dataset]]=None):
         super().__init__()
 
         self.args = args
         self.checkpoint_path = self.retrieve_checkpoint_step()
 
         self.model, self.tokenizer = self.get_model()
-        self.dataset, self.eval_dataset = self.get_dataset()
+        if datasets is None:
+            self.dataset, self.eval_dataset = self.get_dataset()
+        else:
+            self.dataset, self.eval_dataset = datasets
 
     def retrieve_checkpoint_step(self):
         checkpoints_step = sorted(
@@ -41,14 +46,14 @@ class MolTrainer(submitit.helpers.Checkpointable):
         )
         return model, tokenizer
 
-    def get_dataset(self):
+    def get_dataset(self) -> Tuple[Dataset]:
         raise NotImplementedError
 
     def get_trainer(self):
         raise NotImplementedError
 
     def checkpoint(self):
-        training_callable = type(self)(self.args)
+        training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
