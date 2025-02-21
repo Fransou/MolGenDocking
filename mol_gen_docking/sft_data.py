@@ -23,11 +23,12 @@ special_tok = {
 class InstructionDatasetProcessor:
     def __init__(self, name: str):
         if name == "SMolInstruct":
+            self.dataset = load_dataset("osunlp/SMolInstruct")
+        elif name == "Mol-Instructions":
             self.dataset = load_dataset(
                 "zjunlp/Mol-Instructions", "Molecule-oriented Instructions"
             )
-        elif name == "Mol-Instructions":
-            self.dataset = load_dataset("osunlp/SMolInstruct")
+
         else:
             raise ValueError("Unknown dataset")
 
