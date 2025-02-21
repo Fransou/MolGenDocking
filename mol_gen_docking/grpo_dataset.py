@@ -1,22 +1,35 @@
-from IPython.core.debugger import prompt
+"""Dataset for generating prompts for molecule generation"""
+
+from typing import Iterator
+from numpy import random
 
 from mol_gen_docking.grpo_rewards import KNOWN_PROPERTIES
-from numpy import random
 
 OBJECTIVES = ["maximize", "minimize"]
 
 
 class MolInstructionsDataset:
-    def __init__(self, max_n_props: int = 3, max_n_generated: int = 10):
+    """A simple Dataset generating rule-based prompts for molecule generation"""
+
+    def __init__(self, max_n_props: int = 3):
+        """
+        :param max_n_props: Maximal number of properties to optimize
+        """
         self.max_n_props = max_n_props
-        self.max_n_generated = max_n_generated
         self.known_properties = KNOWN_PROPERTIES
         self.template = "Generate a molecule optimizing the following properties:"
 
-    def fill_prompt(self, prompt: str, property: str, objective: str):
+    def fill_prompt(self, prompt: str, property: str, objective: str) -> str:
+        """Fills a prompt with a property and objective"""
         return prompt + f" {property} ({objective}),"
 
-    def generate(self, n: int, return_n_props: bool = False):
+    def generate(self, n: int, return_n_props: bool = False) -> Iterator[str]:
+        """
+        Generates n prompts randomly to generate molecules
+        :param n: number of prompts to generate
+        :param return_n_props: if True, returns the number of properties to optimize
+        :return:
+        """
         for _ in range(n):
             n_props = random.randint(1, self.max_n_props)
             properties = random.choice(self.known_properties, n_props, replace=False)
@@ -28,9 +41,3 @@ class MolInstructionsDataset:
                 yield prompt[:-1] + "."
             else:
                 yield prompt[:-1] + ".", n_props
-
-
-if __name__ == "__main__":
-    dataset = MolInstructionsDataset()
-    for prompt in dataset.generate(10):
-        print(prompt)

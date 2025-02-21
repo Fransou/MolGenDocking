@@ -1,3 +1,7 @@
+"""Preprocess the instruction dataset for the model training."""
+
+from typing import Tuple
+
 from datasets import load_dataset, Dataset
 
 import selfies as sf
@@ -21,17 +25,33 @@ special_tok = {
 
 
 class InstructionDatasetProcessor:
+    """
+    Preprocess the instruction dataset for the model training.
+    """
+
     def __init__(self, name: str):
+        """
+        :param name: Name of the dataset
+        """
         if name == "SMolInstruct":
+            self.dataset = load_dataset("osunlp/SMolInstruct")
+        elif name == "Mol-Instructions":
             self.dataset = load_dataset(
                 "zjunlp/Mol-Instructions", "Molecule-oriented Instructions"
             )
-        elif name == "Mol-Instructions":
-            self.dataset = load_dataset("osunlp/SMolInstruct", use_first=100)
+
         else:
             raise ValueError("Unknown dataset")
 
-    def is_selfies(self, string):
+    def is_selfies(self, string) -> bool:
+        """
+        Check if the string is a valid SELFIES.
+        :param string: Input string
+        :return: True if the string is a valid SELFIES, False otherwise
+        """
+        for spe_tok in special_tok.values():
+            if spe_tok in string:
+                return False
         try:
             if sf.decoder(string) == "":
                 return False
@@ -39,7 +59,15 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def is_smiles(self, string):
+    def is_smiles(self, string) -> bool:
+        """
+        Check if the string is a valid SMILES.
+        :param string: Input string
+        :return: True if the string is a valid SMILES, False otherwise
+        """
+        for spe_tok in special_tok.values():
+            if spe_tok in string:
+                return False
         try:
             if Chem.MolFromSmiles(string) is None:
                 return False
@@ -47,21 +75,30 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def get_training_corpus(self):
+    def get_training_corpus(self, train_size, test_size) -> Tuple[Dataset]:
+        """
+        Get the training corpus.
+        :param train_size: Amount of training data
+        :param test_size: Amount of testing data
+        :return: Training and testing datasets
+        """
         corpus = []
-        for k in self.dataset.keys():
+        for k in self.dataset:
             for i in trange(len(self.dataset[k])):
                 instruction = self.dataset[k][i].get("instruction", "")
                 inp = self.dataset[k][i].get("input", "")
                 out = self.dataset[k][i]["output"]
-
                 if self.is_selfies(inp):
                     inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
                 elif self.is_selfies(out):
                     out = special_tok["selfies"] + out + special_tok["selfies_end"]
-
                 corpus.append({"prompt": instruction + inp, "completion": out})
 
                 if i > 100:
                     break
-        return Dataset.from_list(corpus)
+        dataset = Dataset.from_list(corpus)
+        train_size = min(train_size, len(dataset))
+        dataset = dataset.train_test_split(
+            train_size=train_size, test_size=test_size, seed=42
+        )
+        return dataset["train"], dataset["test"]
