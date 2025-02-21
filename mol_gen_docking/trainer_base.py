@@ -40,7 +40,12 @@ class MolTrainer(submitit.helpers.Checkpointable):
             "LAUNCHING TRAINING"
         )
         ckpt_to_resume =False
-        if os.path.exists(self.args.output_dir):
-            if len(os.listdir(self.args.output_dir)) >1:
-                ckpt_to_resume = True
-        trainer.train(resume_from_checkpoint = ckpt_to_resume)
+        possible_ckpts_step = sorted([
+            int(d.split('-')[-1]) for d in os.listdir(self.args.checkpoint_dir)
+        ], reverse=True)
+
+        for step in possible_ckpts_step:
+            path_ckpt = os.path.join(self.args.checkpoint_dir, "checkpoint-"+str(step))
+            if len(os.listdir(path_ckpt)) >= 3:
+                return trainer.train(resume_from_checkpoint = path_ckpt)
+        return trainer.train()
