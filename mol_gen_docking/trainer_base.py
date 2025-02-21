@@ -9,7 +9,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
         super().__init__()
 
         self.args = args
-        self.checkpoint = self.retrieve_checkpoint_step()
+        self.checkpoint_path = self.retrieve_checkpoint_step()
 
         self.model, self.tokenizer = self.get_model()
         self.dataset, self.eval_dataset = self.get_dataset()
@@ -29,13 +29,13 @@ class MolTrainer(submitit.helpers.Checkpointable):
 
     def get_model(self):
         model = AutoModelForCausalLM.from_pretrained(
-            self.args.model_name if self.checkpoint == "" else self.checkpoint,
+            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path,
             torch_dtype="auto",
             device_map="auto",
             local_files_only=self.args.local_files_only,
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name if self.checkpoint == "" else self.checkpoint,
+            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path,
             local_files_only=self.args.local_files_only,
         )
         return model, tokenizer
@@ -55,5 +55,5 @@ class MolTrainer(submitit.helpers.Checkpointable):
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
         return trainer.train(
-            resume_from_checkpoint=False if self.checkpoint == "" else self.checkpoint
+            resume_from_checkpoint=False if self.checkpoint_path == "" else self.checkpoint_path
         )
