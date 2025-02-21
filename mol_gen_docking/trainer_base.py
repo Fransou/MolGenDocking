@@ -22,7 +22,8 @@ class MolTrainer(submitit.helpers.Checkpointable):
 
         for step in checkpoints_step:
             path_ckpt = os.path.join(self.args.output_dir, "checkpoint-" + str(step))
-            if len(os.listdir(path_ckpt)) >= 3:
+            files = list(os.listdir(path_ckpt))
+            if len(files) >= 3 and "trainer_state.json" in files:
                 print("Recovering Checkpoint :" + path_ckpt)
                 return path_ckpt
         return ""
