@@ -55,6 +55,6 @@ class MolTrainer(submitit.helpers.Checkpointable):
         os.environ["WANDB_MODE"] = "offline"
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
-        return trainer.train(
+        trainer.train(
             resume_from_checkpoint=False if self.checkpoint_path == "" else self.checkpoint_path
         )
