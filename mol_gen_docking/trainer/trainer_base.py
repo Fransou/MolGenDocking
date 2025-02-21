@@ -1,13 +1,19 @@
+"""Base class for the trainer."""
 import os
 import argparse
 from typing import Tuple, Optional
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
 import submitit
 
 
 class MolTrainer(submitit.helpers.Checkpointable):
+    """Base class for the trainer."""
     def __init__(self, args: argparse.Namespace, datasets:Optional[Tuple[Dataset]]=None):
+        """
+        :param args: Parameters for the training
+        :param datasets: training and evaluation datasets (if None, will be loaded)
+        """
         super().__init__()
 
         self.args = args
@@ -19,7 +25,11 @@ class MolTrainer(submitit.helpers.Checkpointable):
         else:
             self.dataset, self.eval_dataset = datasets
 
-    def retrieve_checkpoint_step(self):
+    def retrieve_checkpoint_step(self) -> str:
+        """
+        Retrieve the last checkpoint step
+        :return: path of the last checkpoint
+        """
         checkpoints_step = sorted(
             [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir)],
             reverse=True,
@@ -33,7 +43,8 @@ class MolTrainer(submitit.helpers.Checkpointable):
                 return path_ckpt
         return ""
 
-    def get_model(self):
+    def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
+        """Load the model and tokenizer."""
         model = AutoModelForCausalLM.from_pretrained(
             self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path,
             torch_dtype="auto",
@@ -47,16 +58,22 @@ class MolTrainer(submitit.helpers.Checkpointable):
         return model, tokenizer
 
     def get_dataset(self) -> Tuple[Dataset]:
+        """Loads the dataset."""
         raise NotImplementedError
 
-    def get_trainer(self):
+    def get_trainer(self) -> Trainer:
+        """Get the trainer."""
         raise NotImplementedError
 
-    def checkpoint(self):
+    def checkpoint(self) -> submitit.helpers.DelayedSubmission:
+        """Checkpoint the training."""
         training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
+        """
+        Launch the training
+        """
         os.environ["WANDB_MODE"] = "offline"
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")

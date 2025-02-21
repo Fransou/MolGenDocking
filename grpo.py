@@ -1,8 +1,9 @@
+"""GRPO training script"""
 import argparse
 import submitit
 
 from mol_gen_docking.parser import add_trainer_args, add_model_data_args, add_slurm_args
-from mol_gen_docking.grpo_trainer import GRPOMolTrainer
+from MolGenDocking.mol_gen_docking.trainer.grpo_trainer import GRPOMolTrainer
 
 
 if __name__ == "__main__":

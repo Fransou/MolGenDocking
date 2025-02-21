@@ -1,3 +1,6 @@
+"""Preprocess the instruction dataset for the model training."""
+from typing import Tuple
+
 from datasets import load_dataset, Dataset
 
 import selfies as sf
@@ -21,7 +24,13 @@ special_tok = {
 
 
 class InstructionDatasetProcessor:
+    """
+    Preprocess the instruction dataset for the model training.
+    """
     def __init__(self, name: str):
+        """
+        :param name: Name of the dataset
+        """
         if name == "SMolInstruct":
             self.dataset = load_dataset("osunlp/SMolInstruct")
         elif name == "Mol-Instructions":
@@ -32,19 +41,29 @@ class InstructionDatasetProcessor:
         else:
             raise ValueError("Unknown dataset")
 
-    def is_selfies(self, string):
-        for spe_tok in special_tok.keys():
+    def is_selfies(self, string) -> bool:
+        """
+        Check if the string is a valid SELFIES.
+        :param string: Input string
+        :return: True if the string is a valid SELFIES, False otherwise
+        """
+        for spe_tok in special_tok.values():
             if spe_tok in string:
                 return False
         try:
             if sf.decoder(string) == "":
                 return False
             return True
-        except Exception:
+        except Exception as e:
             return False
 
-    def is_smiles(self, string):
-        for spe_tok in special_tok.keys():
+    def is_smiles(self, string) -> bool:
+        """
+        Check if the string is a valid SMILES.
+        :param string: Input string
+        :return: True if the string is a valid SMILES, False otherwise
+        """
+        for spe_tok in special_tok.values():
             if spe_tok in string:
                 return False
         try:
@@ -54,10 +73,15 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def get_training_corpus(self, train_size, test_size):
+    def get_training_corpus(self, train_size, test_size) -> Tuple[Dataset]:
+        """
+        Get the training corpus.
+        :param train_size: Amount of training data
+        :param test_size: Amount of testing data
+        :return: Training and testing datasets
+        """
         corpus = []
-        for k in self.dataset.keys():
-            print(self.dataset[k])
+        for k in self.dataset:
             for i in trange(len(self.dataset[k])):
                 instruction = self.dataset[k][i].get("instruction", "")
                 inp = self.dataset[k][i].get("input", "")
@@ -71,6 +95,7 @@ class InstructionDatasetProcessor:
                 if i > 100:
                     break
         dataset = Dataset.from_list(corpus)
+        train_size = min(train_size, len(dataset))
         dataset = dataset.train_test_split(
             train_size=train_size, test_size=test_size, seed=42
         )

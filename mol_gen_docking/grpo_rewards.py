@@ -1,13 +1,14 @@
+"""Rewards for the GRPO task."""
 from typing import List, Any
-from mol_gen_docking.molecular_properties import get_oracle, KNOWN_PROPERTIES
 import re
-
 import torch
 
+from mol_gen_docking.molecular_properties import get_oracle, KNOWN_PROPERTIES
 
-def molecular_properties(completion: Any, oracle: str, **kwargs):
+def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor:
     """
-    Strip smiles located between the <SMILES> and </SMILES> tags or selfies located between the <selfies> and </selfies> tags.
+    Strip smiles located between the <SMILES> and </SMILES>
+    tags or selfies located between the <selfies> and </selfies> tags.
     """
     if isinstance(completion, list):
         assert len(completion) == 1

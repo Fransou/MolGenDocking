@@ -4,7 +4,7 @@ import argparse
 import submitit
 
 from mol_gen_docking.parser import add_trainer_args, add_model_data_args, add_slurm_args
-from mol_gen_docking.sft_trainer import SFTMolTrainer
+from MolGenDocking.mol_gen_docking.trainer.sft_trainer import SFTMolTrainer
 
 
 if __name__ == "__main__":

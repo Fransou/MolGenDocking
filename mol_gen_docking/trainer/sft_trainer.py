@@ -1,3 +1,4 @@
+"""Trainer callable for SFT."""
 import argparse
 from typing import Tuple, Optional
 
@@ -6,20 +7,28 @@ from peft import LoraConfig, TaskType, get_peft_model
 from datasets import Dataset
 
 from mol_gen_docking.sft_data import InstructionDatasetProcessor, special_tok
-from mol_gen_docking.trainer_base import MolTrainer
+from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
 class SFTMolTrainer(MolTrainer):
+    """
+    Trainer for SFT for molecular instructions.
+    """
     def __init__(self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]]=None):
+        """
+        :param args: Parameters for the training
+        :param datasets: training and evaluation datasets (if None, will be loaded)
+        """
         super().__init__(args, datasets)
 
-    def get_dataset(self):
-        # Load the dataset
+    def get_dataset(self) -> Tuple[Dataset]:
+        """Loads the dataset."""
         return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
             self.args.train_size, int(0.1 * self.args.train_size)
         )
 
-    def get_trainer(self):
+    def get_trainer(self) -> SFTTrainer:
+        """:return: Trainer for SFT."""
         # Expand model vocab
         self.tokenizer.add_special_tokens(
             {"additional_special_tokens": list(special_tok.values())}

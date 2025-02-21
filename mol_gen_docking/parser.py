@@ -1,7 +1,13 @@
+"""Common Parser modifications for CLI"""
 import json
 
 
 def add_trainer_args(parser):
+    """
+    Add the arguments for the trainer
+    :param parser: parser to modify
+    :return:
+    """
     parser.add_argument(
         "--train_size",
         type=int,
@@ -26,6 +32,11 @@ def add_trainer_args(parser):
 
 
 def add_model_data_args(parser):
+    """
+    Add the arguments for the model and data
+    :param parser: parser to modify
+    :return:
+    """
     parser.add_argument(
         "--model_name",
         type=str,
@@ -42,6 +53,11 @@ def add_model_data_args(parser):
 
 
 def add_slurm_args(parser):
+    """
+    Add the arguments for the SLURM configuration
+    :param parser: parser to modify
+    :return:
+    """
     parser.add_argument("--timeout-min", type=int, default=15)
     parser.add_argument("--nodes", type=int, default=1)
     parser.add_argument("--mem-gb", type=int, default=200)
