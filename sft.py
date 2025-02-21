@@ -1,3 +1,4 @@
+"""Launches SFT training"""
 import argparse
 import submitit
 
@@ -17,7 +18,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset", type=str, default="Mol-Instructions", help="The dataset to use"
     )
-
 
     args = parser.parse_args()
     trainer = SFTMolTrainer(args)

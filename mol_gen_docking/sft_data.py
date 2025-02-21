@@ -56,6 +56,7 @@ class InstructionDatasetProcessor:
     def get_training_corpus(self, train_size, test_size):
         corpus = []
         for k in self.dataset.keys():
+            print(self.dataset[k])
             for i in trange(len(self.dataset[k])):
                 instruction = self.dataset[k][i].get("instruction", "")
                 inp = self.dataset[k][i].get("input", "")
