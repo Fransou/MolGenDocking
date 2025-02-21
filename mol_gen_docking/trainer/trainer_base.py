@@ -80,6 +80,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
     def checkpoint(self) -> submitit.helpers.DelayedSubmission:
         """Checkpoint the training."""
         training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
+        print("RESUMING TRAINING")
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
