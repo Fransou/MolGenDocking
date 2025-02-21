@@ -1,4 +1,5 @@
 """Base class for the trainer."""
+
 import os
 import argparse
 from typing import Tuple, Optional
@@ -9,7 +10,10 @@ import submitit
 
 class MolTrainer(submitit.helpers.Checkpointable):
     """Base class for the trainer."""
-    def __init__(self, args: argparse.Namespace, datasets:Optional[Tuple[Dataset]]=None):
+
+    def __init__(
+        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+    ):
         """
         :param args: Parameters for the training
         :param datasets: training and evaluation datasets (if None, will be loaded)
@@ -46,13 +50,21 @@ class MolTrainer(submitit.helpers.Checkpointable):
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
         model = AutoModelForCausalLM.from_pretrained(
-            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path,
+            (
+                self.args.model_name
+                if self.checkpoint_path == ""
+                else self.checkpoint_path
+            ),
             torch_dtype="auto",
             device_map="auto",
             local_files_only=self.args.local_files_only,
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path,
+            (
+                self.args.model_name
+                if self.checkpoint_path == ""
+                else self.checkpoint_path
+            ),
             local_files_only=self.args.local_files_only,
         )
         return model, tokenizer
@@ -78,5 +90,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
         trainer = self.get_trainer()
         print("LAUNCHING TRAINING")
         trainer.train(
-            resume_from_checkpoint=False if self.checkpoint_path == "" else self.checkpoint_path
+            resume_from_checkpoint=(
+                False if self.checkpoint_path == "" else self.checkpoint_path
+            )
         )

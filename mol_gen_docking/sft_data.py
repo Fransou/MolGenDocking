@@ -1,4 +1,5 @@
 """Preprocess the instruction dataset for the model training."""
+
 from typing import Tuple
 
 from datasets import load_dataset, Dataset
@@ -27,6 +28,7 @@ class InstructionDatasetProcessor:
     """
     Preprocess the instruction dataset for the model training.
     """
+
     def __init__(self, name: str):
         """
         :param name: Name of the dataset
@@ -54,7 +56,7 @@ class InstructionDatasetProcessor:
             if sf.decoder(string) == "":
                 return False
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def is_smiles(self, string) -> bool:

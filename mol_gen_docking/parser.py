@@ -1,4 +1,5 @@
 """Common Parser modifications for CLI"""
+
 import json
 
 

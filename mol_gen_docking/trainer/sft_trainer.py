@@ -1,4 +1,5 @@
 """Trainer callable for SFT."""
+
 import argparse
 from typing import Tuple, Optional
 
@@ -14,7 +15,10 @@ class SFTMolTrainer(MolTrainer):
     """
     Trainer for SFT for molecular instructions.
     """
-    def __init__(self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]]=None):
+
+    def __init__(
+        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+    ):
         """
         :param args: Parameters for the training
         :param datasets: training and evaluation datasets (if None, will be loaded)

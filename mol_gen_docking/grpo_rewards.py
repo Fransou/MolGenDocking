@@ -1,9 +1,11 @@
 """Rewards for the GRPO task."""
+
 from typing import List, Any
 import re
 import torch
 
 from mol_gen_docking.molecular_properties import get_oracle, KNOWN_PROPERTIES
+
 
 def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor:
     """

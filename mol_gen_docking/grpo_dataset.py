@@ -1,4 +1,5 @@
 """Dataset for generating prompts for molecule generation"""
+
 from typing import Iterator
 from numpy import random
 
@@ -9,6 +10,7 @@ OBJECTIVES = ["maximize", "minimize"]
 
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
+
     def __init__(self, max_n_props: int = 3):
         """
         :param max_n_props: Maximal number of properties to optimize

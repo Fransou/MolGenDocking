@@ -1,10 +1,11 @@
 """Reward functions for molecular optimization."""
+
 from typing import List, Union
 
 from tdc import Oracle
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
-from rdkit.Chem.rdmolfiles import  MolFromSmiles, MolToSmiles
+from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
 
 from mol_gen_docking.logger import create_logger
 

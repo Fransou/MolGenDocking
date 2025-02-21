@@ -1,4 +1,5 @@
 """Trainer callable for GRPO."""
+
 import argparse
 from typing import Tuple, Optional
 
@@ -14,7 +15,10 @@ class GRPOMolTrainer(MolTrainer):
     """
     Trainer for GRPO for molecular generation.
     """
-    def __init__(self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None):
+
+    def __init__(
+        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+    ):
         """
         :param args: Parameters for the training
         :param datasets: training and evaluation datasets (if None, will be loaded)

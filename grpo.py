@@ -1,4 +1,5 @@
 """GRPO training script"""
+
 import argparse
 import submitit
 
