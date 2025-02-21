@@ -1,11 +1,10 @@
 """Launches SFT training"""
+
 import argparse
 import submitit
 
-from mol_gen_docking.parser import add_trainer_args, add_model_data_args,add_slurm_args
+from mol_gen_docking.parser import add_trainer_args, add_model_data_args, add_slurm_args
 from mol_gen_docking.sft_trainer import SFTMolTrainer
-
-
 
 
 if __name__ == "__main__":
@@ -35,5 +34,5 @@ if __name__ == "__main__":
         slurm_account=args.slurm_account,
     )
 
-    job=executor.submit(trainer)
+    job = executor.submit(trainer)
     job.result()

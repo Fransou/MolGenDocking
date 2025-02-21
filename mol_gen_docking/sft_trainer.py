@@ -1,4 +1,3 @@
-import os
 import argparse
 
 from trl import SFTTrainer, SFTConfig, setup_chat_format
@@ -8,7 +7,6 @@ from mol_gen_docking.sft_data import InstructionDatasetProcessor, special_tok
 from mol_gen_docking.trainer_base import MolTrainer
 
 
-
 class SFTMolTrainer(MolTrainer):
     def __init__(self, args: argparse.Namespace):
         super().__init__(args)
@@ -16,7 +14,7 @@ class SFTMolTrainer(MolTrainer):
     def get_dataset(self):
         # Load the dataset
         return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
-            self.args.train_size,int(0.1*self.args.train_size)
+            self.args.train_size, int(0.1 * self.args.train_size)
         )
 
     def get_trainer(self):
@@ -35,9 +33,7 @@ class SFTMolTrainer(MolTrainer):
         )
         self.model = get_peft_model(self.model, peft_config)
         try:
-            self.model, self.tokenizer = setup_chat_format(
-                self.model, self.tokenizer
-            )
+            self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
         except ValueError:
             pass
 
@@ -52,7 +48,7 @@ class SFTMolTrainer(MolTrainer):
             per_device_eval_batch_size=self.args.batch_size,
             push_to_hub=False,
             logging_steps=len(self.dataset) // self.args.batch_size,
-            save_strategy="epoch"
+            save_strategy="epoch",
         )
 
         trainer = SFTTrainer(

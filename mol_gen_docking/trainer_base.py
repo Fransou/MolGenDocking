@@ -1,8 +1,8 @@
 import os
-from typing import Optional
 import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import submitit
+
 
 class MolTrainer(submitit.helpers.Checkpointable):
     def __init__(self, args: argparse.Namespace):
@@ -15,9 +15,10 @@ class MolTrainer(submitit.helpers.Checkpointable):
         self.dataset, self.eval_dataset = self.get_dataset()
 
     def retrieve_checkpoint_step(self):
-        checkpoints_step = sorted([
-            int(d.split('-')[-1]) for d in os.listdir(self.args.output_dir)
-        ], reverse=True)
+        checkpoints_step = sorted(
+            [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir)],
+            reverse=True,
+        )
 
         for step in checkpoints_step:
             path_ckpt = os.path.join(self.args.output_dir, "checkpoint-" + str(step))
@@ -31,16 +32,16 @@ class MolTrainer(submitit.helpers.Checkpointable):
             self.args.model_name if self.checkpoint == "" else self.checkpoint,
             torch_dtype="auto",
             device_map="auto",
-            local_files_only=self.args.local_files_only
+            local_files_only=self.args.local_files_only,
         )
         tokenizer = AutoTokenizer.from_pretrained(
             self.args.model_name if self.checkpoint == "" else self.checkpoint,
-            local_files_only=self.args.local_files_only
+            local_files_only=self.args.local_files_only,
         )
         return model, tokenizer
 
     def get_dataset(self):
-       raise NotImplementedError
+        raise NotImplementedError
 
     def get_trainer(self):
         raise NotImplementedError
@@ -50,9 +51,9 @@ class MolTrainer(submitit.helpers.Checkpointable):
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
-        os.environ["WANDB_MODE"]="offline"
+        os.environ["WANDB_MODE"] = "offline"
         trainer = self.get_trainer()
-        print(
-            "LAUNCHING TRAINING"
+        print("LAUNCHING TRAINING")
+        return trainer.train(
+            resume_from_checkpoint=False if self.checkpoint == "" else self.checkpoint
         )
-        return trainer.train(resume_from_checkpoint=False if self.checkpoint=="" else self.checkpoint)

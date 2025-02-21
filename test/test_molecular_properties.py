@@ -15,7 +15,8 @@ from mol_gen_docking.logger import create_logger
 
 logger = create_logger(__name__)
 
-def is_rdkit_use(name:str):
+
+def is_rdkit_use(name: str):
     return name in KNOWN_PROPERTIES or name in PROPERTIES_NAMES_SIMPLE.values()
 
 
@@ -23,29 +24,30 @@ def is_rdkit_use(name:str):
     params=[
         "hERG*Tox",
         pytest.param("BBB_Martins*ADME", marks=pytest.mark.skip),
-        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.skip)
+        pytest.param("Caco2_Wang*ADME", marks=pytest.mark.skip),
     ],
-    scope="module"
+    scope="module",
 )
 def smiles_data(request) -> List[str]:
     name, task_or = request.param.split("*")
     task_mod = getattr(single_pred, task_or)
     return task_mod(name=name).get_data().sample(100)["Drug"].tolist()
 
+
 @pytest.fixture(
-    params= [
-        prop for prop in dir(rdMolDescriptors) if ("Calc" in prop and (is_rdkit_use(prop)))
+    params=[
+        prop
+        for prop in dir(rdMolDescriptors)
+        if ("Calc" in prop and (is_rdkit_use(prop)))
     ]
 )
 def rdkit_oracle(request) -> RDKITOracle:
     return RDKITOracle(name=request.param)
 
-@pytest.fixture(
-    params= KNOWN_PROPERTIES
-)
+
+@pytest.fixture(params=KNOWN_PROPERTIES)
 def oracle(request: str):
     return get_oracle(request.param)
-
 
 
 def test_RDKITOracle(rdkit_oracle, smiles_data):
@@ -56,7 +58,6 @@ def test_RDKITOracle(rdkit_oracle, smiles_data):
     assert isinstance(props, list)
     assert len(props) == len(smiles_data)
     assert isinstance(props[0], float)
-
 
 
 def test_oracles(oracle, smiles_data):
