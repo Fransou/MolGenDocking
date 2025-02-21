@@ -35,7 +35,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
         :return: path of the last checkpoint
         """
         checkpoints_step = sorted(
-            [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir)],
+            [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir) if d.startswith("checkpoint-")],
             reverse=True,
         )
 

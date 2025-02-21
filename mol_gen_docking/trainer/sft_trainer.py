@@ -33,12 +33,6 @@ class SFTMolTrainer(MolTrainer):
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        # Expand model vocab
-        self.tokenizer.add_special_tokens(
-            {"additional_special_tokens": list(special_tok.values())}
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
-
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             r=self.args.lora_config.get("r", 8),
