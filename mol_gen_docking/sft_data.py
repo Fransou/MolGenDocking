@@ -29,7 +29,7 @@ class InstructionDatasetProcessor:
     Preprocess the instruction dataset for the model training.
     """
 
-    def __init__(self, name: str, n_proc:int=1):
+    def __init__(self, name: str, n_proc:int=8):
         """
         :param name: Name of the dataset
         """
