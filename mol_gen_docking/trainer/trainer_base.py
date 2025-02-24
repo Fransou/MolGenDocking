@@ -12,7 +12,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
     """Base class for the trainer."""
 
     def __init__(
-        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset, Dataset]] = None
     ):
         """
         :param args: Parameters for the training
@@ -21,9 +21,10 @@ class MolTrainer(submitit.helpers.Checkpointable):
         super().__init__()
 
         self.args = args
-        self.checkpoint_path = self.retrieve_checkpoint_step()
+        self.checkpoint_path = ""
+        self.model = None
+        self.tokenizer = None
 
-        self.model, self.tokenizer = self.get_model()
         if datasets is None:
             self.dataset, self.eval_dataset = self.get_dataset()
         else:
@@ -35,7 +36,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
         :return: path of the last checkpoint
         """
         checkpoints_step = sorted(
-            [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir)],
+            [int(d.split("-")[-1]) for d in os.listdir(self.args.output_dir) if d.startswith("checkpoint-")],
             reverse=True,
         )
 
@@ -69,7 +70,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
         )
         return model, tokenizer
 
-    def get_dataset(self) -> Tuple[Dataset]:
+    def get_dataset(self) -> Tuple[Dataset, Dataset]:
         """Loads the dataset."""
         raise NotImplementedError
 
@@ -80,6 +81,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
     def checkpoint(self) -> submitit.helpers.DelayedSubmission:
         """Checkpoint the training."""
         training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
+        print("RESUMING TRAINING")
         return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
@@ -87,7 +89,11 @@ class MolTrainer(submitit.helpers.Checkpointable):
         Launch the training
         """
         os.environ["WANDB_MODE"] = "offline"
+
+        self.checkpoint_path = self.retrieve_checkpoint_step()
+        self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
+
         print("LAUNCHING TRAINING")
         trainer.train(
             resume_from_checkpoint=(

@@ -28,20 +28,13 @@ class SFTMolTrainer(MolTrainer):
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
         return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
-            self.args.train_size, int(0.1 * self.args.train_size)
+            self.args.train_size
         )
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        # Expand model vocab
-        self.tokenizer.add_special_tokens(
-            {"additional_special_tokens": list(special_tok.values())}
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
-
         peft_config = LoraConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            inference_mode=False,
+            task_type=TaskType.CAUSAL_LM,
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
@@ -56,7 +49,7 @@ class SFTMolTrainer(MolTrainer):
             output_dir=self.args.output_dir,
             num_train_epochs=self.args.num_train_epochs,
             overwrite_output_dir=True,
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
@@ -64,6 +57,7 @@ class SFTMolTrainer(MolTrainer):
             push_to_hub=False,
             logging_steps=len(self.dataset) // self.args.batch_size,
             save_strategy="epoch",
+            run_name=self.args.output_dir,
         )
 
         trainer = SFTTrainer(
@@ -71,6 +65,6 @@ class SFTMolTrainer(MolTrainer):
             args=training_args,
             train_dataset=self.dataset,
             eval_dataset=self.eval_dataset,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
         )
         return trainer

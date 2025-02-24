@@ -1,13 +1,13 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple
+from typing import Tuple, Dict, Optional
 
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, concatenate_datasets
 
 import selfies as sf
 from rdkit import Chem
 
-from tqdm import trange
+from tqdm import trange, tqdm
 
 
 special_tok = {
@@ -29,10 +29,13 @@ class InstructionDatasetProcessor:
     Preprocess the instruction dataset for the model training.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, n_proc:int=1):
         """
         :param name: Name of the dataset
         """
+        self.name = name
+        self.n_proc = n_proc
+
         if name == "SMolInstruct":
             self.dataset = load_dataset("osunlp/SMolInstruct")
         elif name == "Mol-Instructions":
@@ -75,30 +78,47 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def get_training_corpus(self, train_size, test_size) -> Tuple[Dataset]:
+    def process_str(self, line:Dict[str, str]) -> Dict[str, str]:
+        """
+        Process a line of the dataset.
+        :param line: Line of the dataset
+        :return: An instruction and a completion
+        """
+
+        instruction = line.get("instruction", "")
+        inp = line.get("input", "")
+        out = line["output"]
+        if self.is_selfies(inp):
+            inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
+        elif self.is_selfies(out):
+            out = special_tok["selfies"] + out + special_tok["selfies_end"]
+        return {"prompt": instruction + inp, "completion": out}
+
+    def get_training_corpus(
+            self,
+            train_size:int=-1,
+    ) -> Tuple[Dataset, Dataset]:
         """
         Get the training corpus.
         :param train_size: Amount of training data
         :param test_size: Amount of testing data
         :return: Training and testing datasets
         """
-        corpus = []
-        for k in self.dataset:
-            for i in trange(len(self.dataset[k])):
-                instruction = self.dataset[k][i].get("instruction", "")
-                inp = self.dataset[k][i].get("input", "")
-                out = self.dataset[k][i]["output"]
-                if self.is_selfies(inp):
-                    inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
-                elif self.is_selfies(out):
-                    out = special_tok["selfies"] + out + special_tok["selfies_end"]
-                corpus.append({"prompt": instruction + inp, "completion": out})
+        self.dataset = self.dataset.map(self.process_str, num_proc=self.n_proc)
 
-                if i > 100:
-                    break
-        dataset = Dataset.from_list(corpus)
-        train_size = min(train_size, len(dataset))
-        dataset = dataset.train_test_split(
-            train_size=train_size, test_size=test_size, seed=42
-        )
-        return dataset["train"], dataset["test"]
+        # If train and test are not specified, flatten the dataset and split it
+        if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
+            self.dataset = concatenate_datasets(
+                [self.dataset[k] for k in self.dataset.keys()]
+            )
+            if train_size == -1:
+                train_size = int(0.9 * len(self.dataset))
+            else:
+                train_size= min(train_size, int(0.9*len(self.dataset)))
+            test_size = len(self.dataset) - train_size
+
+            self.dataset = self.dataset.train_test_split(
+                train_size=train_size, test_size=test_size, seed=42
+            )
+            self.dataset.flatten_indices()
+        return self.dataset["train"], self.dataset["test"]
