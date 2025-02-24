@@ -105,7 +105,7 @@ class InstructionDatasetProcessor:
         :return: Training and testing datasets
         """
         self.dataset = self.dataset.map(self.process_str, num_proc=self.n_proc)
-
+        print(self.dataset)
         # If train and test are not specified, flatten the dataset and split it
         if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
             self.dataset = concatenate_datasets(
