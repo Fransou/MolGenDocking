@@ -12,7 +12,7 @@ def add_trainer_args(parser):
     parser.add_argument(
         "--train_size",
         type=int,
-        default=100,
+        default=10000000,
         help="The number of training examples to use",
     )
     parser.add_argument(
