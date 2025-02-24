@@ -1,13 +1,11 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict
 
 from datasets import load_dataset, Dataset, concatenate_datasets
 
 import selfies as sf
 from rdkit import Chem
-
-from tqdm import trange, tqdm
 
 
 special_tok = {
@@ -29,7 +27,7 @@ class InstructionDatasetProcessor:
     Preprocess the instruction dataset for the model training.
     """
 
-    def __init__(self, name: str, n_proc:int=8):
+    def __init__(self, name: str, n_proc: int = 8):
         """
         :param name: Name of the dataset
         """
@@ -78,7 +76,7 @@ class InstructionDatasetProcessor:
         except Exception:
             return False
 
-    def process_str(self, line:Dict[str, str]) -> Dict[str, str]:
+    def process_str(self, line: Dict[str, str]) -> Dict[str, str]:
         """
         Process a line of the dataset.
         :param line: Line of the dataset
@@ -95,8 +93,8 @@ class InstructionDatasetProcessor:
         return {"prompt": instruction + inp, "completion": out}
 
     def get_training_corpus(
-            self,
-            train_size:int=-1,
+        self,
+        train_size: int = -1,
     ) -> Tuple[Dataset, Dataset]:
         """
         Get the training corpus.
@@ -114,7 +112,7 @@ class InstructionDatasetProcessor:
             if train_size == -1:
                 train_size = int(0.9 * len(self.dataset))
             else:
-                train_size= min(train_size, int(0.9*len(self.dataset)))
+                train_size = min(train_size, int(0.9 * len(self.dataset)))
             test_size = len(self.dataset) - train_size
 
             self.dataset = self.dataset.train_test_split(

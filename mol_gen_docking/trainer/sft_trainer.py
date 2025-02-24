@@ -7,7 +7,7 @@ from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
 from datasets import Dataset
 
-from mol_gen_docking.sft_data import InstructionDatasetProcessor, special_tok
+from mol_gen_docking.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
