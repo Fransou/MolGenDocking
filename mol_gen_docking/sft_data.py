@@ -118,5 +118,4 @@ class InstructionDatasetProcessor:
             self.dataset = self.dataset.train_test_split(
                 train_size=train_size, test_size=test_size, seed=42
             )
-            self.dataset.flatten_indices()
         return self.dataset["train"], self.dataset["test"]
