@@ -33,6 +33,7 @@ class InstructionDatasetProcessor:
         """
         self.name = name
         self.n_proc = n_proc
+        self.processed = False
 
         if name == "SMolInstruct":
             self.dataset = load_dataset("osunlp/SMolInstruct")
@@ -90,6 +91,7 @@ class InstructionDatasetProcessor:
             inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
         elif self.is_selfies(out):
             out = special_tok["selfies"] + out + special_tok["selfies_end"]
+
         return {"prompt": instruction + inp, "completion": out}
 
     def get_training_corpus(
@@ -102,7 +104,17 @@ class InstructionDatasetProcessor:
         :param test_size: Amount of testing data
         :return: Training and testing datasets
         """
-        self.dataset = self.dataset.map(self.process_str, num_proc=self.n_proc)
+        if self.processed:
+            return self.dataset["train"], self.dataset["test"]
+
+        cols_to_remove = [
+            col
+            for col in ["input", "instruction", "output"]
+            if col in self.dataset.column_names
+        ]
+        self.dataset = self.dataset.map(
+            self.process_str, num_proc=self.n_proc, remove_columns=cols_to_remove
+        )
         # If train and test are not specified, flatten the dataset and split it
         if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
             self.dataset = concatenate_datasets(
@@ -117,4 +129,5 @@ class InstructionDatasetProcessor:
             self.dataset = self.dataset.train_test_split(
                 train_size=train_size, test_size=test_size, seed=42
             )
+        self.processed = True
         return self.dataset["train"], self.dataset["test"]
