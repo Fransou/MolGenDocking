@@ -1,6 +1,6 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
 
 from datasets import load_dataset, Dataset, concatenate_datasets
 
@@ -94,7 +94,10 @@ class InstructionDatasetProcessor:
             out = special_tok["selfies"] + out + special_tok["selfies_end"]
         return {"prompt": instruction + inp, "completion": out}
 
-    def get_training_corpus(self, train_size, test_size) -> Tuple[Dataset, Dataset]:
+    def get_training_corpus(
+            self,
+            train_size:int=-1,
+    ) -> Tuple[Dataset, Dataset]:
         """
         Get the training corpus.
         :param train_size: Amount of training data
@@ -108,6 +111,12 @@ class InstructionDatasetProcessor:
             self.dataset = concatenate_datasets(
                 [self.dataset[k] for k in self.dataset.keys()]
             )
+            if train_size == -1:
+                train_size = int(0.9 * len(self.dataset))
+            else:
+                train_size= min(train_size, int(0.9*len(self.dataset)))
+            test_size = len(self.dataset) - train_size
+
             self.dataset = self.dataset.train_test_split(
                 train_size=train_size, test_size=test_size, seed=42
             )

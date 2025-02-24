@@ -28,7 +28,7 @@ class SFTMolTrainer(MolTrainer):
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
         return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
-            self.args.train_size, int(0.1 * self.args.train_size)
+            self.args.train_size
         )
 
     def get_trainer(self) -> SFTTrainer:
