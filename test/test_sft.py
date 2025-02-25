@@ -21,6 +21,7 @@ def test_instruction_dataset_processor(processor):
     assert len(train) == 100
     assert len(test) == 10
 
+
 def test_init_trainer(processor):
     model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B-Instruct")

@@ -5,7 +5,6 @@ import argparse
 from typing import Tuple, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
-import submitit
 
 
 class MolTrainer:
@@ -85,7 +84,6 @@ class MolTrainer:
     def get_trainer(self) -> Trainer:
         """Get the trainer."""
         raise NotImplementedError
-
 
     def __call__(self):
         """

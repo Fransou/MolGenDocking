@@ -44,4 +44,3 @@ if __name__ == "__main__":
         current_epoch = trainer.last_epoch
         n_runs += 1
     print("Finished training")
-
