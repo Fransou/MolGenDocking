@@ -47,17 +47,16 @@ class SFTMolTrainer(MolTrainer):
 
         training_args = SFTConfig(
             output_dir=self.args.output_dir,
+            run_name=self.args.output_dir,
             num_train_epochs=self.args.num_train_epochs,
             overwrite_output_dir=True,
             eval_strategy="epoch",
+            save_strategy="epoch",
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
-            push_to_hub=False,
             logging_steps=len(self.dataset) // self.args.batch_size,
-            save_strategy="epoch",
-            run_name=self.args.output_dir,
         )
 
         trainer = SFTTrainer(

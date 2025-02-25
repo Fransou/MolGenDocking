@@ -3,26 +3,30 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTTrainer
 from mol_gen_docking.sft_data import InstructionDatasetProcessor
 
-@pytest.fixture(params=["SMolInstruct", "Mol-Instructions"])
-def processor(name):
+
+@pytest.fixture(
+    params=["SMolInstruct", "Mol-Instructions"],
+    scope="module",
+)
+def processor(request):
+    name = request.param
     return InstructionDatasetProcessor(name, 8)
 
-def test_instruction_dataset_processor(name):
+
+def test_instruction_dataset_processor(processor):
     """Test the InstructionDatasetProcessor with 1 process."""
-    processor = InstructionDatasetProcessor(name, 8)
-    train, test = processor.get_training_corpus()
+    train, test = processor.get_training_corpus(100)
     assert "prompt" in train.column_names
     assert "completion" in train.column_names
+    assert len(train) == 100
+    assert len(test) == 10
 
-def test_init_trainer(name):
+def test_init_trainer(processor):
     model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
 
-    processor = InstructionDatasetProcessor(name, 8)
-    train, test = processor.get_training_corpus()
-
-
-    trainer = SFTTrainer(
+    train, test = processor.get_training_corpus(100)
+    SFTTrainer(
         model=model,
         processing_class=tokenizer,
         train_dataset=train,

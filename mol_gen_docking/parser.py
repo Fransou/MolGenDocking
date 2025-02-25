@@ -67,3 +67,4 @@ def add_slurm_args(parser):
     parser.add_argument("--gpus-per-node", type=int, default=1)
     parser.add_argument("--slurm-account", type=str, default="def-ibenayed")
     parser.add_argument("--slurm-job-name", type=str, default="MolGenDocking")
+    parser.add_argument("--max-slurm-runs", type=int, default=5)

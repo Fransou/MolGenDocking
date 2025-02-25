@@ -122,12 +122,19 @@ class InstructionDatasetProcessor:
             )
             if train_size == -1:
                 train_size = int(0.9 * len(self.dataset))
+                test_size = len(self.dataset) - train_size
             else:
                 train_size = min(train_size, int(0.9 * len(self.dataset)))
-            test_size = len(self.dataset) - train_size
+                test_size = int(0.1* train_size)
 
             self.dataset = self.dataset.train_test_split(
                 train_size=train_size, test_size=test_size, seed=42
             )
+        elif train_size < 0.9*len(self.dataset["train"]):
+            self.dataset = self.dataset["train"].train_test_split(
+                train_size=train_size, test_size=int(0.1*train_size), seed=42
+            )
+
         self.processed = True
+        print(self.dataset)
         return self.dataset["train"], self.dataset["test"]

@@ -8,7 +8,7 @@ from datasets import Dataset
 import submitit
 
 
-class MolTrainer(submitit.helpers.Checkpointable):
+class MolTrainer:
     """Base class for the trainer."""
 
     def __init__(
@@ -24,6 +24,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
 
         self.args = args
         self.checkpoint_path = ""
+        self.last_epoch = 0
         self.model = None
         self.tokenizer = None
 
@@ -51,6 +52,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
             files = list(os.listdir(path_ckpt))
             if len(files) >= 3 and "trainer_state.json" in files:
                 print("Recovering Checkpoint :" + path_ckpt)
+                self.last_epoch = step * self.args.batch_size // len(self.dataset)
                 return path_ckpt
         return ""
 
@@ -84,11 +86,6 @@ class MolTrainer(submitit.helpers.Checkpointable):
         """Get the trainer."""
         raise NotImplementedError
 
-    def checkpoint(self) -> submitit.helpers.DelayedSubmission:
-        """Checkpoint the training."""
-        training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
-        print("RESUMING TRAINING")
-        return submitit.helpers.DelayedSubmission(training_callable)
 
     def __call__(self):
         """
