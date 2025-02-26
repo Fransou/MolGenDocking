@@ -15,7 +15,6 @@ class SlurmArgs:
     gpus_per_node: int = 1
     slurm_account: str = "def-ibenayed"
     slurm_job_name: str = "MolGenDocking"
-    max_slurm_runs: int = 5
 
 
 class MolTrainerParser:
@@ -123,7 +122,6 @@ class MolTrainerParser:
             gpus_per_node=args.gpus_per_node,
             slurm_account=args.slurm_account,
             slurm_job_name=args.slurm_job_name,
-            max_slurm_runs=args.max_slurm_runs
         )
         return args, slurm_args
 
