@@ -95,7 +95,7 @@ class MolTrainer:
         self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
 
-        print("LAUNCHING TRAINING")
+        print("LAUNCHING TRAINING with checkpoint: ", self.checkpoint_path if self.checkpoint_path != "" else "None")
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

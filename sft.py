@@ -37,10 +37,12 @@ if __name__ == "__main__":
             gpus_per_node=args.gpus_per_node,
             slurm_account=args.slurm_account,
         )
-
-        job = executor.submit(trainer)
-        job.result()
-
-        current_epoch = trainer.last_epoch
-        n_runs += 1
+        try:
+            job = executor.submit(trainer)
+            job.result()
+        except submitit.core.utils.UncompetedJobError:
+            current_epoch = trainer.last_epoch
+            n_runs += 1
+        except Exception as e:
+            raise e
     print("Finished training")
