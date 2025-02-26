@@ -31,7 +31,8 @@ if __name__ == "__main__":
         try:
             job = executor.submit(trainer)
             job.result()
-        except submitit.core.utils.UncompetedJobError:
+            break
+        except submitit.core.utils.UncompletedJobError:
             current_epoch = trainer.last_epoch
             n_runs += 1
         except Exception as e:
