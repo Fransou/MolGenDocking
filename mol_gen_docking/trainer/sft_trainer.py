@@ -58,7 +58,7 @@ class SFTMolTrainer(MolTrainer):
             per_device_eval_batch_size=self.args.batch_size,
             logging_steps=len(self.dataset) // self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
-            save_steps=len(self.dataset) // self.args.batch_size//2,
+            save_steps=len(self.dataset) // self.args.batch_size//4,
         )
 
         trainer = SFTTrainer(

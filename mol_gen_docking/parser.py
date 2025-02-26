@@ -58,7 +58,7 @@ class MolTrainerParser:
             "--num-train-epochs", type=int, default=100, help="The number of epochs to use"
         )
         self.add_argument(
-        "--dataloader-num-workers", type=int, default=8, help="The number of workers to use for the dataloader"
+        "--dataloader-num-workers", type=int, default=4, help="The number of workers to use for the dataloader"
         )
 
     def add_model_data_args(self):
