@@ -5,7 +5,9 @@ from mol_gen_docking.sft_data import InstructionDatasetProcessor
 
 
 @pytest.fixture(
-    params=["SMolInstruct",], # "Mol-Instructions"],
+    params=[
+        "SMolInstruct",
+    ],  # "Mol-Instructions"],
     scope="module",
 )
 def processor(request):
