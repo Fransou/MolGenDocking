@@ -51,6 +51,7 @@ class SFTMolTrainer(MolTrainer):
             num_train_epochs=self.args.num_train_epochs,
             eval_strategy="epoch",
             save_strategy="epoch",
+            logging_strategy="epoch",
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
