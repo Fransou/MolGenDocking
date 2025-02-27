@@ -47,11 +47,3 @@ def test_init_trainer(processor):
 
     print(trainer.train_dataset)
     print(tokenizer.decode(trainer.train_dataset[0]["input_ids"]))
-
-
-
-
-
-
-
-
