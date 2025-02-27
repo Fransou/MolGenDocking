@@ -58,7 +58,7 @@ class MolTrainer:
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
         ckpt = self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
-        if self.args.attnention == "vanilla":
+        if self.args.attention == "vanilla":
             model = AutoModelForCausalLM.from_pretrained(
                 ckpt,
                 torch_dtype="auto",
