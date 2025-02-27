@@ -24,6 +24,7 @@ def test_instruction_dataset_processor(processor):
     assert len(test) == 10
 
     print(train[0])
+    print(train[1])
 
 
 def test_init_trainer(processor):
@@ -32,7 +33,7 @@ def test_init_trainer(processor):
 
     train, test = processor.get_training_corpus(100)
     training_args = SFTConfig(
-        max_seq_length=512,
+        max_seq_length=1024,
         dataset_num_proc=8,
         packing=True,
     )
