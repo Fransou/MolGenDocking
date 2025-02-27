@@ -76,6 +76,7 @@ class MolTrainer:
         tokenizer = AutoTokenizer.from_pretrained(
             ckpt,
             local_files_only=self.args.local_files_only,
+            padding_side="left"
         )
         return model, tokenizer
 
