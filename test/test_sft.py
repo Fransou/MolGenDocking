@@ -1,6 +1,6 @@
 import pytest
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 from mol_gen_docking.sft_data import InstructionDatasetProcessor
 
 
@@ -31,9 +31,24 @@ def test_init_trainer(processor):
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B-Instruct")
 
     train, test = processor.get_training_corpus(100)
-    SFTTrainer(
+    training_args = SFTConfig(
+        max_seq_length=512,
+        dataset_num_proc=8,
+        packing=True,
+    )
+    trainer = SFTTrainer(
         model=model,
         processing_class=tokenizer,
         train_dataset=train,
         eval_dataset=test,
+        args=training_args,
     )
+
+    print(trainer.train_dataset)
+
+
+
+
+
+
+
