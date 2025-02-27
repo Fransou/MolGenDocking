@@ -79,6 +79,9 @@ class MolTrainerParser:
             default={"r": 8, "lora_alpha": 32, "lora_dropout": 0.1},
             help="The LoRA configuration to use",
         )
+        self.add_argument(
+            "--attention", type=str, default="vanilla", help="The attention to use"
+        )
         self.add_argument("--local-files-only", action="store_true")
 
 

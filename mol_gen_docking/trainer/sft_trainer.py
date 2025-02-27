@@ -59,6 +59,7 @@ class SFTMolTrainer(MolTrainer):
             logging_steps=len(self.dataset) // self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
             save_steps=len(self.dataset) // self.args.batch_size//4,
+            max_seq_length=512,
         )
 
         trainer = SFTTrainer(

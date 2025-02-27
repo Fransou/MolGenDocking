@@ -57,22 +57,24 @@ class MolTrainer:
 
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
-        model = AutoModelForCausalLM.from_pretrained(
-            (
-                self.args.model_name
-                if self.checkpoint_path == ""
-                else self.checkpoint_path
-            ),
-            torch_dtype="auto",
-            device_map="auto",
-            local_files_only=self.args.local_files_only,
-        )
+        ckpt = self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
+        if self.args.attnention == "vanilla":
+            model = AutoModelForCausalLM.from_pretrained(
+                ckpt,
+                torch_dtype="auto",
+                device_map="auto",
+                local_files_only=self.args.local_files_only,
+            )
+        elif self.args.attnention == "flash_attention_2":
+            model = AutoModelForCausalLM.from_pretrained(
+                ckpt,
+                torch_dtype="auto",
+                device_map="auto",
+                local_files_only=self.args.local_files_only,
+                attn_implementation="flash_attention_2",
+            )
         tokenizer = AutoTokenizer.from_pretrained(
-            (
-                self.args.model_name
-                if self.checkpoint_path == ""
-                else self.checkpoint_path
-            ),
+            ckpt,
             local_files_only=self.args.local_files_only,
         )
         return model, tokenizer
