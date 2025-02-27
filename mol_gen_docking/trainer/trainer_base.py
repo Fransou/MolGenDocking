@@ -68,7 +68,7 @@ class MolTrainer:
         elif self.args.attention == "flash_attention_2":
             model = AutoModelForCausalLM.from_pretrained(
                 ckpt,
-                torch_dtype="auto",
+                torch_dtype="float16",
                 device_map="auto",
                 local_files_only=self.args.local_files_only,
                 attn_implementation="flash_attention_2",
