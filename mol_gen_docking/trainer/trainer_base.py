@@ -57,7 +57,9 @@ class MolTrainer:
 
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
-        ckpt = self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
+        ckpt = (
+            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
+        )
         if self.args.attention == "vanilla":
             model = AutoModelForCausalLM.from_pretrained(
                 ckpt,
@@ -74,9 +76,7 @@ class MolTrainer:
                 attn_implementation="flash_attention_2",
             )
         tokenizer = AutoTokenizer.from_pretrained(
-            ckpt,
-            local_files_only=self.args.local_files_only,
-            padding_side="left"
+            ckpt, local_files_only=self.args.local_files_only, padding_side="left"
         )
         return model, tokenizer
 
@@ -94,13 +94,17 @@ class MolTrainer:
         """
         os.environ["WANDB_MODE"] = "offline"
         import wandb
+
         wandb.require("legacy-service")
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
 
-        print("LAUNCHING TRAINING with checkpoint: ", self.checkpoint_path if self.checkpoint_path != "" else "None")
+        print(
+            "LAUNCHING TRAINING with checkpoint: ",
+            self.checkpoint_path if self.checkpoint_path != "" else "None",
+        )
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

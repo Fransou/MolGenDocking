@@ -1,6 +1,5 @@
 """Launches SFT training"""
 
-import argparse
 import submitit
 
 from mol_gen_docking.parser import MolTrainerParser
@@ -16,7 +15,6 @@ if __name__ == "__main__":
         "--dataset", type=str, default="Mol-Instructions", help="The dataset to use"
     )
 
-
     args, slurm_args = mol_parser.parse_args()
     trainer = SFTMolTrainer(args)
 
@@ -28,9 +26,7 @@ if __name__ == "__main__":
             executor = submitit.AutoExecutor(
                 folder="log_test",
             )
-            executor.update_parameters(
-                **slurm_args.__dict__
-            )
+            executor.update_parameters(**slurm_args.__dict__)
             try:
                 job = executor.submit(trainer)
                 job.result()

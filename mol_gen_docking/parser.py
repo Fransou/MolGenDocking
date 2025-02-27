@@ -1,8 +1,9 @@
 """Common Parser modifications for CLI"""
+
 import argparse
 import json
-from dataclasses import dataclass, field
-from typing import Tuple, Optional
+from dataclasses import dataclass
+from typing import Tuple
 
 
 @dataclass
@@ -21,10 +22,9 @@ class MolTrainerParser:
     """
     Parser for the MolGenDocking training scripts
     """
+
     def __init__(self, description: str = "Train a model"):
-        self.parser = argparse.ArgumentParser(
-            description=description
-        )
+        self.parser = argparse.ArgumentParser(description=description)
         self.add_trainer_args()
         self.add_model_data_args()
         self.add_slurm_args()
@@ -33,10 +33,12 @@ class MolTrainerParser:
             "--slurm", dest="slurm", action="store_true", help="Use SLURM for training"
         )
         self.add_argument(
-            "--no-slurm", dest="slurm", action="store_false", help="Do not use SLURM for training"
+            "--no-slurm",
+            dest="slurm",
+            action="store_false",
+            help="Do not use SLURM for training",
         )
         self.parser.set_defaults(slurm=True)
-
 
     def add_trainer_args(self):
         """
@@ -63,10 +65,16 @@ class MolTrainerParser:
             "--output_dir", type=str, default="test", help="The output directory to use"
         )
         self.add_argument(
-            "--num-train-epochs", type=int, default=100, help="The number of epochs to use"
+            "--num-train-epochs",
+            type=int,
+            default=100,
+            help="The number of epochs to use",
         )
         self.add_argument(
-        "--dataloader-num-workers", type=int, default=4, help="The number of workers to use for the dataloader"
+            "--dataloader-num-workers",
+            type=int,
+            default=4,
+            help="The number of workers to use for the dataloader",
         )
 
     def add_model_data_args(self):
@@ -91,7 +99,6 @@ class MolTrainerParser:
             "--attention", type=str, default="vanilla", help="The attention to use"
         )
         self.add_argument("--local-files-only", action="store_true")
-
 
     def add_slurm_args(self):
         """
@@ -123,7 +130,7 @@ class MolTrainerParser:
         Parse the arguments
         :return: The parsed arguments
         """
-        args= self.parser.parse_args()
+        args = self.parser.parse_args()
         slurm_args = SlurmArgs(
             timeout_min=args.timeout_min,
             nodes=args.nodes,
@@ -135,6 +142,3 @@ class MolTrainerParser:
             slurm_job_name=args.slurm_job_name,
         )
         return args, slurm_args
-
-
-
