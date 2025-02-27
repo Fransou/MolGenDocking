@@ -29,6 +29,14 @@ class MolTrainerParser:
         self.add_model_data_args()
         self.add_slurm_args()
 
+        self.add_argument(
+            "--slurm", dest="slurm", action="store_true", help="Use SLURM for training"
+        )
+        self.add_argument(
+            "--no-slurm", dest="slurm", action="store_false", help="Do not use SLURM for training"
+        )
+        self.parser.set_defaults(slurm=True)
+
 
     def add_trainer_args(self):
         """
