@@ -109,7 +109,8 @@ class InstructionDatasetProcessor:
 
         cols_to_remove = [
             col
-            for col in self.dataset.column_names
+            for col in ["input", "instruction", "output"]
+            if col in self.dataset.column_names
         ]
         self.dataset = self.dataset.map(
             self.process_str, num_proc=self.n_proc, remove_columns=cols_to_remove
@@ -133,6 +134,9 @@ class InstructionDatasetProcessor:
             self.dataset = self.dataset["train"].train_test_split(
                 train_size=train_size, test_size=int(0.1 * train_size), seed=42
             )
+
+        for k in self.dataset.keys():
+            self.dataset[k] = self.dataset[k].select_columns(["prompt", "completion"])
 
         self.processed = True
         print(self.dataset)
