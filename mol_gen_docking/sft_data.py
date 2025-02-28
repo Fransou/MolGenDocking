@@ -140,4 +140,7 @@ class InstructionDatasetProcessor:
 
         self.processed = True
         print(self.dataset)
+
+        self.dataset["train"].shuffle()
+        self.dataset["train"].flatten_indices()
         return self.dataset["train"], self.dataset["test"]
