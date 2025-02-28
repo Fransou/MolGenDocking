@@ -57,7 +57,7 @@ class SFTMolTrainer(MolTrainer):
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
-            max_seq_length=512,
+            max_seq_length=1024,
             dataset_num_proc=8,
             packing=True,
         )
