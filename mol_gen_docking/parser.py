@@ -67,7 +67,7 @@ class MolTrainerParser:
         self.add_argument(
             "--num-train-epochs",
             type=int,
-            default=100,
+            default=10,
             help="The number of epochs to use",
         )
         self.add_argument(

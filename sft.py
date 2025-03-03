@@ -1,7 +1,7 @@
 """Launches SFT training"""
+import os
 
 import submitit
-
 from mol_gen_docking.parser import MolTrainerParser
 from mol_gen_docking.trainer.sft_trainer import SFTMolTrainer
 
@@ -39,3 +39,9 @@ if __name__ == "__main__":
         print("Finished training")
     else:
         trainer()
+
+    model = trainer.model
+    tokenizer = trainer.tokenizer
+    os.makedirs(args.output_dir, exist_ok=True)
+    model.save_pretrained(os.path.join(args.output_dir, "model"))
+    tokenizer.save_pretrained(os.path.join(args.output_dir, "tokenizer"))
