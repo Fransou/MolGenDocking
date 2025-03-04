@@ -1,6 +1,7 @@
 """Base class for the trainer."""
 
 import os
+import json
 import argparse
 from typing import Tuple, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
@@ -52,7 +53,10 @@ class MolTrainer:
             files = list(os.listdir(path_ckpt))
             if len(files) >= 3 and "trainer_state.json" in files:
                 print("Recovering Checkpoint :" + path_ckpt)
-                self.last_epoch = step * self.args.batch_size // len(self.dataset)
+                trainer_state = json.load(
+                    open(os.path.join(path_ckpt, "trainer_state.json"))
+                )
+                self.last_epoch = trainer_state["epoch"]
                 return path_ckpt
         return ""
 
