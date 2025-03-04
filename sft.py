@@ -40,8 +40,7 @@ if __name__ == "__main__":
     else:
         trainer()
 
-    model = trainer.model
-    tokenizer = trainer.tokenizer
+    model, tokenizer = trainer.get_model()
     os.makedirs(args.output_dir, exist_ok=True)
     model.save_pretrained(os.path.join(args.output_dir, "model"))
     tokenizer.save_pretrained(os.path.join(args.output_dir, "tokenizer"))
