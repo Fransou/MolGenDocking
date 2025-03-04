@@ -31,6 +31,7 @@ class MolTrainer:
             self.dataset, self.eval_dataset = self.get_dataset()
         else:
             self.dataset, self.eval_dataset = datasets
+        self.checkpoint_path = self.retrieve_checkpoint_step()
 
     def retrieve_checkpoint_step(self) -> str:
         """
