@@ -100,7 +100,7 @@ class MolTrainer:
         os.environ["WANDB_MODE"] = "offline"
         import wandb
 
-        wandb.require("legacy-service")
+        # wandb.require("legacy-service")
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
