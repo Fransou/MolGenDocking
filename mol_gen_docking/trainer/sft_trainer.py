@@ -70,4 +70,5 @@ class SFTMolTrainer(MolTrainer):
             eval_dataset=self.eval_dataset,
             processing_class=self.tokenizer,
         )
+        print(trainer.train_dataset)
         return trainer
