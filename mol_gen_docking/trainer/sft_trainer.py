@@ -60,7 +60,7 @@ class SFTMolTrainer(MolTrainer):
             dataloader_num_workers=self.args.dataloader_num_workers,
             max_seq_length=1024,
             dataset_num_proc=8,
-            #packing=True,
+            packing=True,
         )
 
         trainer = SFTTrainer(
