@@ -67,7 +67,7 @@ def get_reward_molecular_property(
     Get reward for molecular properties
     """
     objectives_prompts = get_mol_props_from_prompt(prompts)
-    print(objectives_prompts)
+    print("objective :", objectives_prompts)
     rewards = []
     for objective, completion in zip(objectives_prompts, completions):
         reward = 0
