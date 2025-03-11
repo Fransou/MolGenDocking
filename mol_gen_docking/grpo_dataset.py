@@ -20,7 +20,7 @@ class MolInstructionsDataset:
             self.known_properties = [k for k in KNOWN_PROPERTIES if not "docking" in k]
         else:
             self.known_properties = KNOWN_PROPERTIES
-        self.template = "Generate a molecule optimizing the following properties:"
+        self.template = "Generate the SMILES representation of a molecule optimizing the following properties:"
 
     def fill_prompt(self, prompt: str, property: str, objective: str) -> str:
         """Fills a prompt with a property and objective"""
