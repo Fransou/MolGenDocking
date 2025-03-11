@@ -28,7 +28,8 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
     oracle_fn = get_oracle(oracle)
 
     smiles = parse_smiles(completion)
-    print("smiles:", smiles)
+    if smiles == []:
+        return torch.tensor([-100])
     return torch.tensor(oracle_fn(smiles))
 
 
