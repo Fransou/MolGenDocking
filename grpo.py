@@ -17,5 +17,8 @@ if __name__ == "__main__":
     executor.update_parameters(**slurm_args.__dict__)
 
     trainer = GRPOMolTrainer(args)
-    job = executor.submit(trainer)
-    job.result()
+    if args.slurm:
+        job = executor.submit(trainer)
+        job.result()
+    else:
+        trainer()
