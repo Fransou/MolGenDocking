@@ -17,8 +17,10 @@ if __name__ == "__main__":
     )
 
     args, slurm_args = mol_parser.parse_args()
-    trainer = SFTMolTrainer(args)
+
     os.makedirs(args.output_dir, exist_ok=True)
+
+    trainer = SFTMolTrainer(args)
 
     if args.slurm:
         current_epoch = trainer.last_epoch
