@@ -1,4 +1,5 @@
 """GRPO training script"""
+
 import submitit
 from mol_gen_docking.parser import MolTrainerParser
 from mol_gen_docking.trainer.grpo_trainer import GRPOMolTrainer

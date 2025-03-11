@@ -177,7 +177,7 @@ def get_oracle(oracle: str):
             oracle_wrapper.assign_evaluator(
                 Oracle(name=oracle),
             )
-        except ValueError as e:
+        except ValueError:
             oracle_wrapper.assign_evaluator(
                 RDKITOracle(oracle),
             )

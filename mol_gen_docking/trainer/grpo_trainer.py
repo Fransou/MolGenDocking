@@ -28,7 +28,13 @@ class GRPOMolTrainer(MolTrainer):
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
         dataset = Dataset.from_dict(
-            {"prompt": list(MolInstructionsDataset(vina=self.args.vina).generate(self.args.n_prompts))}
+            {
+                "prompt": list(
+                    MolInstructionsDataset(vina=self.args.vina).generate(
+                        self.args.n_prompts
+                    )
+                )
+            }
         )
         eval_dataset = Dataset.from_dict(
             {"prompt": list(MolInstructionsDataset(vina=self.args.vina).generate(10))}

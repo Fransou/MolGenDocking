@@ -100,7 +100,6 @@ class MolTrainer:
         Launch the training
         """
         os.environ["WANDB_MODE"] = "offline"
-        import wandb
 
         # wandb.require("legacy-service")
 

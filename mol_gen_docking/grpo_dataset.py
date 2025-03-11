@@ -11,13 +11,13 @@ OBJECTIVES = ["maximize", "minimize"]
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 3, vina:bool=False):
+    def __init__(self, max_n_props: int = 3, vina: bool = False):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
         self.max_n_props = max_n_props
         if not vina:
-            self.known_properties = [k for k in KNOWN_PROPERTIES if not "docking" in k]
+            self.known_properties = [k for k in KNOWN_PROPERTIES if "docking" not in k]
         else:
             self.known_properties = KNOWN_PROPERTIES
         self.template = "Generate the SMILES representation of a molecule optimizing the following properties:"
