@@ -38,13 +38,14 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            modules_to_save=["embed_tokens"],
+            target_modules=["embed_tokens", "lm_head", "q_proj", "v_proj"],
         )
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
         except ValueError:
             pass
+        self.model.print_trainable_parameters()
 
         training_args = SFTConfig(
             output_dir=self.args.output_dir,
@@ -70,10 +71,5 @@ class SFTMolTrainer(MolTrainer):
             eval_dataset=self.eval_dataset,
             processing_class=self.tokenizer,
         )
-        print(trainer.train_dataset)
-        lens = [len(trainer.train_dataset[i]["input_ids"]) for i in range(len(trainer.train_dataset))]
-        import numpy as np
-        print(np.mean(lens), np.median(lens))
-        print(np.max(lens))
 
         return trainer
