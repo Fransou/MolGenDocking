@@ -38,6 +38,7 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
+            modules_to_save=["lm_head", "embed_tokens"],
         )
         self.model = get_peft_model(self.model, peft_config)
         try:

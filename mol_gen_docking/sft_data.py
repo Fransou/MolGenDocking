@@ -141,7 +141,7 @@ class InstructionDatasetProcessor:
             )
 
         for k in self.dataset.keys():
-            self.dataset[k] = self.dataset[k].select_columns(["prompt", "completion"])
+            self.dataset[k] = self.dataset[k].select_columns(["messages"])
 
         self.processed = True
         print(self.dataset)
