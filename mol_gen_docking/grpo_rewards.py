@@ -28,6 +28,7 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
     oracle_fn = get_oracle(oracle)
 
     smiles = parse_smiles(completion)
+    print("smiles:", smiles)
     return torch.tensor(oracle_fn(smiles))
 
 
@@ -83,6 +84,7 @@ def get_reward_molecular_property(
                 reward += mol_prop.mean()
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
+            print(reward)
         rewards.append(reward)
     print(rewards)
     return rewards
