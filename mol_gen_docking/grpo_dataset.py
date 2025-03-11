@@ -11,12 +11,15 @@ OBJECTIVES = ["maximize", "minimize"]
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 3):
+    def __init__(self, max_n_props: int = 3, vina:bool=False):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
         self.max_n_props = max_n_props
-        self.known_properties = KNOWN_PROPERTIES
+        if not vina:
+            self.known_properties = [k for k in KNOWN_PROPERTIES if not "vina" in k]
+        else:
+            self.known_properties = KNOWN_PROPERTIES
         self.template = "Generate a molecule optimizing the following properties:"
 
     def fill_prompt(self, prompt: str, property: str, objective: str) -> str:

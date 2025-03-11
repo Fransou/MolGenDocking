@@ -11,6 +11,9 @@ if __name__ == "__main__":
     mol_parser.add_argument(
         "--n_prompts", type=int, default=16, help="The number of prompts to generate"
     )
+    mol_parser.add_argument("--vina", action="store_true", dest="vina")
+    mol_parser.add_argument("--no-vina", action="store_false", dest="vina")
+
     args, slurm_args = mol_parser.parse_args()
 
     executor = submitit.AutoExecutor(folder="log_test")
