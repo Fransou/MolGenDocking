@@ -83,7 +83,9 @@ def get_reward_molecular_property(
                 reward += mol_prop.mean()
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
+
             print(reward)
         rewards.append(reward)
+    rewards = torch.tensor(rewards)
     print(rewards)
     return rewards
