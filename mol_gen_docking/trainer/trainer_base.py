@@ -106,6 +106,7 @@ class MolTrainer:
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
+        print(self.model)
 
         print(
             "LAUNCHING TRAINING with checkpoint: ",
