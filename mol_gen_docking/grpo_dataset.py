@@ -17,7 +17,7 @@ class MolInstructionsDataset:
         """
         self.max_n_props = max_n_props
         if not vina:
-            self.known_properties = [k for k in KNOWN_PROPERTIES if not "vina" in k]
+            self.known_properties = [k for k in KNOWN_PROPERTIES if not "docking" in k]
         else:
             self.known_properties = KNOWN_PROPERTIES
         self.template = "Generate a molecule optimizing the following properties:"
