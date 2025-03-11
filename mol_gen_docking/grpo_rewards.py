@@ -12,7 +12,6 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
     Strip smiles located between the <SMILES> and </SMILES>
     tags or selfies located between the <selfies> and </selfies> tags.
     """
-    print(completion)
     if isinstance(completion, list):
         assert len(completion) == 1
         completion = completion[0]
@@ -68,11 +67,9 @@ def get_reward_molecular_property(
     Get reward for molecular properties
     """
     objectives_prompts = get_mol_props_from_prompt(prompts)
-    print("objectives :", objectives_prompts)
     rewards = []
     for objective, completion in zip(objectives_prompts, completions):
         reward = 0
-        print("objective :", objective)
         for prop in objective:
             mol_prop = molecular_properties(completion, prop)
             if objective[prop][0] == "below":
@@ -84,10 +81,8 @@ def get_reward_molecular_property(
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
 
-            print(reward)
         rewards.append(reward)
     rewards = torch.tensor(rewards)
     # Replace nan with -1000
     rewards[torch.isnan(rewards)] = -1000
-    print(rewards)
     return rewards
