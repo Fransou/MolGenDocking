@@ -38,7 +38,7 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            modules_to_save=["lm_head", "embed_tokens"],
+            # modules_to_save=["lm_head", "embed_tokens"],
         )
         self.model = get_peft_model(self.model, peft_config)
         try:
@@ -58,9 +58,9 @@ class SFTMolTrainer(MolTrainer):
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
-            max_seq_length=1024,
+            max_seq_length=256,
             dataset_num_proc=8,
-            packing=True,
+            #packing=True,
         )
 
         trainer = SFTTrainer(

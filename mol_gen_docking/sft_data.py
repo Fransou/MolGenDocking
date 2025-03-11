@@ -125,7 +125,10 @@ class InstructionDatasetProcessor:
         print(self.dataset)
         for k in self.dataset.keys():
             self.dataset[k] = self.dataset[k].map(
-                self.process_str, num_proc=self.n_proc, remove_columns=cols_to_remove, load_from_cache_file = False
+                self.process_str,
+                num_proc=self.n_proc,
+                remove_columns=cols_to_remove,
+                # load_from_cache_file = False
             )
         print(self.dataset)
         # If train and test are not specified, flatten the dataset and split it
