@@ -102,6 +102,7 @@ class InstructionDatasetProcessor:
             },
             {"role": "assistant", "content": out},
         ]
+        print(message)
         return {"messages": message}
 
     def get_training_corpus(
