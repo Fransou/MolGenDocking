@@ -82,4 +82,5 @@ def get_reward_molecular_property(
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
         rewards.append(reward)
+    print(rewards)
     return rewards
