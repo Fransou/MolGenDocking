@@ -124,9 +124,10 @@ class InstructionDatasetProcessor:
             if col in self.dataset.column_names
         ]
         print(self.dataset)
-        self.dataset = self.dataset.map(
-            self.process_str, num_proc=self.n_proc, remove_columns=cols_to_remove,
-        )
+        for k in self.dataset.keys():
+            self.dataset[k] = self.dataset[k].map(
+                self.process_str, num_proc=self.n_proc, remove_columns=cols_to_remove,
+            )
         # If train and test are not specified, flatten the dataset and split it
         if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
             self.dataset = concatenate_datasets(
