@@ -87,5 +87,7 @@ def get_reward_molecular_property(
             print(reward)
         rewards.append(reward)
     rewards = torch.tensor(rewards)
+    # Replace nan with -1000
+    rewards[torch.isnan(rewards)] = -1000
     print(rewards)
     return rewards
