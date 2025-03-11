@@ -92,7 +92,12 @@ class InstructionDatasetProcessor:
         elif self.is_selfies(out):
             out = special_tok["selfies"] + out + special_tok["selfies_end"]
 
-        return {"prompt": instruction + inp, "completion": out}
+        message = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "I am a chemist working in drug discovery." + instruction + inp},
+            {"role": "assistant", "content": out},
+        ]
+        return {"messages" : message}
 
     def get_training_corpus(
         self,
