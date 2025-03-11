@@ -94,10 +94,15 @@ class InstructionDatasetProcessor:
 
         message = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "I am a chemist working in drug discovery." + instruction + inp},
+            {
+                "role": "user",
+                "content": "I am a chemist working in drug discovery."
+                + instruction
+                + inp,
+            },
             {"role": "assistant", "content": out},
         ]
-        return {"messages" : message}
+        return {"messages": message}
 
     def get_training_corpus(
         self,
