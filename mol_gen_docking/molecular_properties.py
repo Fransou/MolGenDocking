@@ -181,4 +181,5 @@ def get_oracle(oracle: str):
             oracle_wrapper.assign_evaluator(
                 RDKITOracle(oracle),
             )
+    print("YOYO")
     return oracle_wrapper
