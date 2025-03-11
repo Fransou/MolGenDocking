@@ -45,6 +45,7 @@ if __name__ == "__main__":
         trainer()
 
     model, tokenizer = trainer.model, trainer.tokenizer
+    print(model)
     os.makedirs(args.output_dir, exist_ok=True)
     model.merge_and_unload()
     model.save_pretrained(os.path.join(args.output_dir, "model"))
