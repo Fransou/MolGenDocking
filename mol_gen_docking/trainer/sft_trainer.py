@@ -71,4 +71,9 @@ class SFTMolTrainer(MolTrainer):
             processing_class=self.tokenizer,
         )
         print(trainer.train_dataset)
+        lens = [len(trainer.train_dataset[i]["input_ids"]) for i in range(len(trainer.train_dataset))]
+        import numpy as np
+        print(np.mean(lens), np.median(lens))
+        print(np.max(lens))
+
         return trainer
