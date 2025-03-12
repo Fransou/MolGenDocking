@@ -4,6 +4,8 @@ import os
 import json
 import argparse
 from typing import Tuple, Optional
+
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
 
@@ -68,20 +70,25 @@ class MolTrainer:
         if self.args.attention == "vanilla":
             model = AutoModelForCausalLM.from_pretrained(
                 ckpt,
-                torch_dtype="float16",
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
                 local_files_only=self.args.local_files_only,
+                use_cache=False,
             )
         elif self.args.attention == "flash_attention_2":
             model = AutoModelForCausalLM.from_pretrained(
                 ckpt,
-                torch_dtype="float16",
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
                 local_files_only=self.args.local_files_only,
                 attn_implementation="flash_attention_2",
+                use_cache=False,
             )
         tokenizer = AutoTokenizer.from_pretrained(
-            ckpt, local_files_only=self.args.local_files_only, padding_side="left"
+            ckpt,
+            local_files_only=self.args.local_files_only,
+            padding_side="left",
+            use_cache=False,
         )
         model = model.train()
         return model, tokenizer
@@ -98,19 +105,21 @@ class MolTrainer:
         """
         Launch the training
         """
-        os.environ["WANDB_MODE"] = "offline"
+        if self.args.slurm:
+            os.environ["WANDB_MODE"] = "offline"
 
         # wandb.require("legacy-service")
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
-        print(self.model)
 
         print(
             "LAUNCHING TRAINING with checkpoint: ",
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
+        self.tokenizer.padding_side = "left"
+        print(trainer.train_dataset[0])
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

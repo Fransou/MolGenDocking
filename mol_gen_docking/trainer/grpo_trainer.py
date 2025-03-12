@@ -54,7 +54,7 @@ class GRPOMolTrainer(MolTrainer):
             num_generations=2,
             push_to_hub=False,
         )
-
+        print(self.tokenizer.padding_side)
         return GRPOTrainer(
             model=self.model,
             reward_funcs=[get_reward_molecular_property],

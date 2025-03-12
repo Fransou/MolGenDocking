@@ -167,8 +167,7 @@ def get_oracle(oracle_name: str):
     """
     oracle_wrapper = OracleWrapper()
     oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-
-    if oracle_name.endswith("docking") or oracle_name in oracle_names:
+    if oracle_name.endswith("docking") or oracle_name.lower() in oracle_names:
         oracle_wrapper.assign_evaluator(
             Oracle(name=oracle_name, ncpus=1),
         )
