@@ -2,7 +2,7 @@
 
 from typing import List, Union
 
-from tdc import Oracle
+from tdc import Oracle, oracle_names
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
@@ -159,26 +159,21 @@ class OracleWrapper:
         return score_list
 
 
-def get_oracle(oracle: str):
+def get_oracle(oracle_name: str):
     """
     Get the Oracle object for the specified name.
     :param name: Name of the Oracle
     :return: OracleWrapper object
     """
     oracle_wrapper = OracleWrapper()
-    oracle = PROPERTIES_NAMES_SIMPLE.get(oracle, oracle)
+    oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
 
-    if oracle.endswith("docking"):
+    if oracle_name.endswith("docking") or oracle_name in oracle_names:
         oracle_wrapper.assign_evaluator(
-            Oracle(name=oracle, ncpus=1),
+            Oracle(name=oracle_name, ncpus=1),
         )
     else:
-        try:
-            oracle_wrapper.assign_evaluator(
-                Oracle(name=oracle),
-            )
-        except ValueError:
-            oracle_wrapper.assign_evaluator(
-                RDKITOracle(oracle),
-            )
+        oracle_wrapper.assign_evaluator(
+            RDKITOracle(oracle_name),
+        )
     return oracle_wrapper
