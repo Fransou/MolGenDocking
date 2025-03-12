@@ -2,7 +2,7 @@
 
 from typing import List, Union
 
-from tdc import Oracle, oracle_names
+from tdc.oracles import Oracle, oracle_names
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
