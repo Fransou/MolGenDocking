@@ -40,8 +40,14 @@ def get_mol_props_from_prompt(prompts: Any) -> List[dict]:
     objectives = []
     for prompt in prompts:
         if isinstance(prompt, list):
-            assert len(prompt) == 1
-            prompt = prompt[0]
+            if len(prompt) == 1:
+                prompt = prompt[0]
+            else:
+                prompt = [p for p in prompt if "role" in p and p["role"] == "user"]
+                if len(prompt) == 1:
+                    prompt = prompt[0]["content"]
+                else:
+                    raise ValueError("Prompt not found correctly.")
         if isinstance(prompt, dict):
             assert "content" in prompt
             prompt = prompt["content"]

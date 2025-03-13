@@ -51,11 +51,12 @@ class SFTMolTrainer(MolTrainer):
             output_dir=self.args.output_dir,
             run_name=self.args.output_dir,
             num_train_epochs=self.args.num_train_epochs,
-            eval_strategy="epoch",
+            eval_strategy="steps",
             save_strategy="steps",
             logging_strategy="steps",
             save_steps=100,
-            logging_steps=1,
+            eval_steps=100,
+            logging_steps=10,
             gradient_checkpointing=True,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
@@ -66,7 +67,7 @@ class SFTMolTrainer(MolTrainer):
             dataset_num_proc=8,
             packing=True,
             bf16=True,
-            gradient_accumulation_steps=1,
+            gradient_accumulation_steps=2,
         )
 
         trainer = SFTTrainer(

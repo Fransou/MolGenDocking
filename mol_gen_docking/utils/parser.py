@@ -53,7 +53,7 @@ class MolTrainerParser:
             help="The number of training examples to use",
         )
         self.add_argument(
-            "--batch_size", type=int, default=2, help="The batch size to use"
+            "--batch_size", type=int, default=8, help="The batch size to use"
         )
         self.add_argument(
             "--learning_rate", type=float, default=5e-4, help="The learning rate to use"
