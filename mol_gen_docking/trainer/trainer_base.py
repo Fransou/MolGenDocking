@@ -8,6 +8,7 @@ from typing import Tuple, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
+from peft import AutoPeftModelForCausalLM
 
 
 class MolTrainer:
@@ -64,26 +65,36 @@ class MolTrainer:
 
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
-        ckpt = (
-            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
-        )
         if self.args.attention == "vanilla":
-            model = AutoModelForCausalLM.from_pretrained(
-                ckpt,
+            args = dict(
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
                 local_files_only=self.args.local_files_only,
                 use_cache=False,
             )
         elif self.args.attention == "flash_attention_2":
-            model = AutoModelForCausalLM.from_pretrained(
-                ckpt,
+            args = dict(
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
                 local_files_only=self.args.local_files_only,
                 attn_implementation="flash_attention_2",
                 use_cache=False,
             )
+        else:
+            raise ValueError("Attention mechanism not recognized")
+
+        ckpt = (
+            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
+        )
+        if self.checkpoint_path != "" and os.path.exists(
+            os.path.join(ckpt, "adapter_config.json")
+        ):
+            print("Loading PEFT model")
+            model = AutoPeftModelForCausalLM.from_pretrained(ckpt, **args)
+        else:
+            model = AutoModelForCausalLM.from_pretrained(ckpt, **args)
+
+        model.save_pretrained(os.path.join(self.args.output_dir, "model"))
         tokenizer = AutoTokenizer.from_pretrained(
             ckpt,
             local_files_only=self.args.local_files_only,

@@ -73,7 +73,7 @@ class MolTrainerParser:
         self.add_argument(
             "--dataloader-num-workers",
             type=int,
-            default=4,
+            default=0,
             help="The number of workers to use for the dataloader",
         )
 
