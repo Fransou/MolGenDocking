@@ -7,7 +7,7 @@ from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
 
-from mol_gen_docking.logger import create_logger
+from mol_gen_docking.utils.logger import create_logger
 
 KNOWN_PROPERTIES = [
     "JNK3",

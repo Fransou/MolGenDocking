@@ -1,7 +1,7 @@
 import pytest
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTTrainer, SFTConfig
-from mol_gen_docking.sft_data import InstructionDatasetProcessor
+from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 
 
 @pytest.fixture(

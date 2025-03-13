@@ -6,8 +6,8 @@ from typing import Tuple, Optional
 from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
-from mol_gen_docking.grpo_dataset import MolInstructionsDataset
-from mol_gen_docking.grpo_rewards import get_reward_molecular_property
+from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
+from mol_gen_docking.utils.grpo_rewards import get_reward_molecular_property
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 

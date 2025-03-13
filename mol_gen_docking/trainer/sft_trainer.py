@@ -7,7 +7,7 @@ from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
 from datasets import Dataset
 
-from mol_gen_docking.sft_data import InstructionDatasetProcessor
+from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
@@ -38,7 +38,7 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            target_modules=["embed_tokens", "lm_head", "q_proj", "v_proj"],
+            modules_to_save=["embed_tokens", "lm_head"],
         )
         self.model = get_peft_model(self.model, peft_config)
         try:

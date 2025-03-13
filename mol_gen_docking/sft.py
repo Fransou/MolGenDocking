@@ -3,7 +3,7 @@
 import os
 
 import submitit
-from mol_gen_docking.parser import MolTrainerParser
+from mol_gen_docking.utils.parser import MolTrainerParser
 from mol_gen_docking.trainer.sft_trainer import SFTMolTrainer
 
 
@@ -46,8 +46,13 @@ if __name__ == "__main__":
 
     model, tokenizer = trainer.model, trainer.tokenizer
     print(model)
+    if args.output_dir == "debug":
+        import shutil
+
+        if os.path.exists(args.output_dir):
+            shutil.rmtree(args.output_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
-    model.merge_and_unload()
+    model = model.merge_and_unload()
     model.save_pretrained(os.path.join(args.output_dir, "model"))
     tokenizer.save_pretrained(os.path.join(args.output_dir, "model"))
