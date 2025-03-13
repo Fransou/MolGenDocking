@@ -56,7 +56,7 @@ class MolTrainerParser:
             "--batch_size", type=int, default=2, help="The batch size to use"
         )
         self.add_argument(
-            "--learning_rate", type=float, default=2e-5, help="The learning rate to use"
+            "--learning_rate", type=float, default=5e-4, help="The learning rate to use"
         )
         self.add_argument(
             "--weight_decay", type=float, default=0.01, help="The weight decay to use"
@@ -73,7 +73,7 @@ class MolTrainerParser:
         self.add_argument(
             "--dataloader-num-workers",
             type=int,
-            default=1,
+            default=4,
             help="The number of workers to use for the dataloader",
         )
 
@@ -92,7 +92,7 @@ class MolTrainerParser:
         self.add_argument(
             "--lora-config",
             type=json.loads,
-            default={"r": 8, "lora_alpha": 32, "lora_dropout": 0.1},
+            default={"r": 8, "lora_alpha": 32, "lora_dropout": 0.0},
             help="The LoRA configuration to use",
         )
         self.add_argument(

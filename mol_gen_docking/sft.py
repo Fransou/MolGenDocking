@@ -45,7 +45,6 @@ if __name__ == "__main__":
         trainer()
 
     model, tokenizer = trainer.model, trainer.tokenizer
-    print(model)
     if args.output_dir == "debug":
         import shutil
 

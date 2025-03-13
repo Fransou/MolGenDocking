@@ -12,14 +12,13 @@ def resize_model(model_path: str, output_path: str):
     model = AutoModelForCausalLM.from_pretrained(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    tokenizer.add_special_tokens(
-        [
-            tokenizers.AddedToken(t, special=True, lstrip=True, rstrip=True)
-            for _, t in special_tok.items()
-        ]
-    )
+    special_tokens = [
+        tokenizers.AddedToken(t, special=True, lstrip=True, rstrip=True)
+        for _, t in special_tok.items()
+    ]
+    tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
     model.resize_token_embeddings(len(tokenizer))
-
+    model.tie_weights()
     model.save_pretrained(output_path)
     tokenizer.save_pretrained(output_path)
 

@@ -119,9 +119,6 @@ class MolTrainer:
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
         self.tokenizer.padding_side = "left"
-        for i in range(10):
-            print(151646 in trainer.train_dataset[i]["input_ids"])
-
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

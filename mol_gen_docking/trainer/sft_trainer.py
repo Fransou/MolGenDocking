@@ -66,7 +66,7 @@ class SFTMolTrainer(MolTrainer):
             dataset_num_proc=8,
             packing=True,
             bf16=True,
-            gradient_accumulation_steps=4,
+            gradient_accumulation_steps=1,
         )
 
         trainer = SFTTrainer(
