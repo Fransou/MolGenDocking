@@ -6,8 +6,8 @@ from typing import Tuple, Optional
 from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
 
-from mol_gen_docking.grpo_dataset import MolInstructionsDataset
-from mol_gen_docking.grpo_rewards import get_reward_molecular_property
+from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
+from mol_gen_docking.utils.grpo_rewards import get_reward_molecular_property
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
@@ -28,10 +28,16 @@ class GRPOMolTrainer(MolTrainer):
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
         dataset = Dataset.from_dict(
-            {"prompt": list(MolInstructionsDataset().generate(self.args.n_prompts))}
+            {
+                "prompt": list(
+                    MolInstructionsDataset(vina=self.args.vina).generate(
+                        self.args.n_prompts
+                    )
+                )
+            }
         )
         eval_dataset = Dataset.from_dict(
-            {"prompt": list(MolInstructionsDataset().generate(10))}
+            {"prompt": list(MolInstructionsDataset(vina=self.args.vina).generate(10))}
         )
         return dataset, eval_dataset
 
@@ -48,7 +54,6 @@ class GRPOMolTrainer(MolTrainer):
             num_generations=2,
             push_to_hub=False,
         )
-
         return GRPOTrainer(
             model=self.model,
             reward_funcs=[get_reward_molecular_property],

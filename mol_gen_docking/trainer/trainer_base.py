@@ -1,14 +1,17 @@
 """Base class for the trainer."""
 
 import os
+import json
 import argparse
 from typing import Tuple, Optional
+
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
-import submitit
+from peft import AutoPeftModelForCausalLM
 
 
-class MolTrainer(submitit.helpers.Checkpointable):
+class MolTrainer:
     """Base class for the trainer."""
 
     def __init__(
@@ -24,6 +27,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
 
         self.args = args
         self.checkpoint_path = ""
+        self.last_epoch = 0
         self.model = None
         self.tokenizer = None
 
@@ -31,6 +35,7 @@ class MolTrainer(submitit.helpers.Checkpointable):
             self.dataset, self.eval_dataset = self.get_dataset()
         else:
             self.dataset, self.eval_dataset = datasets
+        self.checkpoint_path = self.retrieve_checkpoint_step()
 
     def retrieve_checkpoint_step(self) -> str:
         """
@@ -51,29 +56,52 @@ class MolTrainer(submitit.helpers.Checkpointable):
             files = list(os.listdir(path_ckpt))
             if len(files) >= 3 and "trainer_state.json" in files:
                 print("Recovering Checkpoint :" + path_ckpt)
+                trainer_state = json.load(
+                    open(os.path.join(path_ckpt, "trainer_state.json"))
+                )
+                self.last_epoch = trainer_state["epoch"]
                 return path_ckpt
         return ""
 
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
-        model = AutoModelForCausalLM.from_pretrained(
-            (
-                self.args.model_name
-                if self.checkpoint_path == ""
-                else self.checkpoint_path
-            ),
-            torch_dtype="auto",
-            device_map="auto",
-            local_files_only=self.args.local_files_only,
+        if self.args.attention == "vanilla":
+            args = dict(
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+                local_files_only=self.args.local_files_only,
+                use_cache=False,
+            )
+        elif self.args.attention == "flash_attention_2":
+            args = dict(
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+                local_files_only=self.args.local_files_only,
+                attn_implementation="flash_attention_2",
+                use_cache=False,
+            )
+        else:
+            raise ValueError("Attention mechanism not recognized")
+
+        ckpt = (
+            self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
         )
+        if self.checkpoint_path != "" and os.path.exists(
+            os.path.join(ckpt, "adapter_config.json")
+        ):
+            print("Loading PEFT model")
+            model = AutoPeftModelForCausalLM.from_pretrained(ckpt, **args)
+        else:
+            model = AutoModelForCausalLM.from_pretrained(ckpt, **args)
+
+        model.save_pretrained(os.path.join(self.args.output_dir, "model"))
         tokenizer = AutoTokenizer.from_pretrained(
-            (
-                self.args.model_name
-                if self.checkpoint_path == ""
-                else self.checkpoint_path
-            ),
+            ckpt,
             local_files_only=self.args.local_files_only,
+            padding_side="left",
+            use_cache=False,
         )
+        model = model.train()
         return model, tokenizer
 
     def get_dataset(self) -> Tuple[Dataset, Dataset]:
@@ -84,23 +112,24 @@ class MolTrainer(submitit.helpers.Checkpointable):
         """Get the trainer."""
         raise NotImplementedError
 
-    def checkpoint(self) -> submitit.helpers.DelayedSubmission:
-        """Checkpoint the training."""
-        training_callable = type(self)(self.args, (self.dataset, self.eval_dataset))
-        print("RESUMING TRAINING")
-        return submitit.helpers.DelayedSubmission(training_callable)
-
     def __call__(self):
         """
         Launch the training
         """
-        os.environ["WANDB_MODE"] = "offline"
+        if self.args.slurm:
+            os.environ["WANDB_MODE"] = "offline"
+
+        # wandb.require("legacy-service")
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
         trainer = self.get_trainer()
 
-        print("LAUNCHING TRAINING")
+        print(
+            "LAUNCHING TRAINING with checkpoint: ",
+            self.checkpoint_path if self.checkpoint_path != "" else "None",
+        )
+        self.tokenizer.padding_side = "left"
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

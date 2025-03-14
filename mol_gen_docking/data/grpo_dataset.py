@@ -3,7 +3,7 @@
 from typing import Iterator
 from numpy import random
 
-from mol_gen_docking.grpo_rewards import KNOWN_PROPERTIES
+from mol_gen_docking.utils.grpo_rewards import KNOWN_PROPERTIES
 
 OBJECTIVES = ["maximize", "minimize"]
 
@@ -11,13 +11,16 @@ OBJECTIVES = ["maximize", "minimize"]
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 3):
+    def __init__(self, max_n_props: int = 3, vina: bool = False):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
         self.max_n_props = max_n_props
-        self.known_properties = KNOWN_PROPERTIES
-        self.template = "Generate a molecule optimizing the following properties:"
+        if not vina:
+            self.known_properties = [k for k in KNOWN_PROPERTIES if "docking" not in k]
+        else:
+            self.known_properties = KNOWN_PROPERTIES
+        self.template = "I am a chemist working in drug discovery. Can you generate the SMILES representation of a molecule optimizing the following properties:"
 
     def fill_prompt(self, prompt: str, property: str, objective: str) -> str:
         """Fills a prompt with a property and objective"""
@@ -37,7 +40,18 @@ class MolInstructionsDataset:
             prompt = self.template
             for prop, obj in zip(properties, objectives):
                 prompt = self.fill_prompt(prompt, prop, obj)
+
+            prompt = [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant.",  # Remove the last comma
+                },
+                {
+                    "role": "user",
+                    "content": prompt[:-1] + ".",  # Remove the last comma
+                },
+            ]
             if not return_n_props:
-                yield prompt[:-1] + "."
+                yield prompt
             else:
-                yield prompt[:-1] + ".", n_props
+                yield prompt, n_props

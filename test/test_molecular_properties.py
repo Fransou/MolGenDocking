@@ -5,13 +5,13 @@ import pytest
 from tdc import single_pred
 from rdkit.Chem import rdMolDescriptors
 
-from mol_gen_docking.molecular_properties import (
+from mol_gen_docking.utils.molecular_properties import (
     KNOWN_PROPERTIES,
     PROPERTIES_NAMES_SIMPLE,
     RDKITOracle,
     get_oracle,
 )
-from mol_gen_docking.logger import create_logger
+from mol_gen_docking.utils.logger import create_logger
 
 logger = create_logger(__name__)
 

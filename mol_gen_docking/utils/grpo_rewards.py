@@ -4,7 +4,7 @@ from typing import List, Any
 import re
 import torch
 
-from mol_gen_docking.molecular_properties import get_oracle, KNOWN_PROPERTIES
+from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERTIES
 
 
 def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor:
@@ -40,8 +40,14 @@ def get_mol_props_from_prompt(prompts: Any) -> List[dict]:
     objectives = []
     for prompt in prompts:
         if isinstance(prompt, list):
-            assert len(prompt) == 1
-            prompt = prompt[0]
+            if len(prompt) == 1:
+                prompt = prompt[0]
+            else:
+                prompt = [p for p in prompt if "role" in p and p["role"] == "user"]
+                if len(prompt) == 1:
+                    prompt = prompt[0]["content"]
+                else:
+                    raise ValueError("Prompt not found correctly.")
         if isinstance(prompt, dict):
             assert "content" in prompt
             prompt = prompt["content"]
@@ -66,8 +72,9 @@ def get_reward_molecular_property(
     """
     Get reward for molecular properties
     """
+    print(prompts)
+    print(completions)
     objectives_prompts = get_mol_props_from_prompt(prompts)
-    print(objectives_prompts)
     rewards = []
     for objective, completion in zip(objectives_prompts, completions):
         reward = 0
@@ -81,5 +88,9 @@ def get_reward_molecular_property(
                 reward += mol_prop.mean()
             elif objective[prop][0] == "minimize":
                 reward += -mol_prop.mean()
+
         rewards.append(reward)
+    rewards = torch.tensor(rewards)
+    # Replace nan with -1000
+    rewards[torch.isnan(rewards)] = -1000
     return rewards

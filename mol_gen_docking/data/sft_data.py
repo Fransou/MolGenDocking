@@ -33,6 +33,7 @@ class InstructionDatasetProcessor:
         """
         self.name = name
         self.n_proc = n_proc
+        self.processed = False
 
         if name == "SMolInstruct":
             self.dataset = load_dataset("osunlp/SMolInstruct")
@@ -90,7 +91,17 @@ class InstructionDatasetProcessor:
             inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
         elif self.is_selfies(out):
             out = special_tok["selfies"] + out + special_tok["selfies_end"]
-        return {"prompt": instruction + inp, "completion": out}
+        message = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {
+                "role": "user",
+                "content": "I am a chemist working in drug discovery."
+                + instruction
+                + inp,
+            },
+            {"role": "assistant", "content": out},
+        ]
+        return {"messages": message}
 
     def get_training_corpus(
         self,
@@ -102,7 +113,21 @@ class InstructionDatasetProcessor:
         :param test_size: Amount of testing data
         :return: Training and testing datasets
         """
-        self.dataset = self.dataset.map(self.process_str, num_proc=self.n_proc)
+        if self.processed:
+            return self.dataset["train"], self.dataset["test"]
+
+        cols_to_remove = [
+            col
+            for col in ["input", "instruction", "output"]
+            if col in self.dataset.column_names
+        ]
+        for k in self.dataset.keys():
+            self.dataset[k] = self.dataset[k].map(
+                self.process_str,
+                num_proc=self.n_proc,
+                remove_columns=cols_to_remove,
+                # load_from_cache_file = False
+            )
         # If train and test are not specified, flatten the dataset and split it
         if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
             self.dataset = concatenate_datasets(
@@ -110,11 +135,24 @@ class InstructionDatasetProcessor:
             )
             if train_size == -1:
                 train_size = int(0.9 * len(self.dataset))
+                test_size = len(self.dataset) - train_size
             else:
                 train_size = min(train_size, int(0.9 * len(self.dataset)))
-            test_size = len(self.dataset) - train_size
+                test_size = int(0.1 * train_size)
 
             self.dataset = self.dataset.train_test_split(
                 train_size=train_size, test_size=test_size, seed=42
             )
+        elif train_size < 0.9 * len(self.dataset["train"]):
+            self.dataset = self.dataset["train"].train_test_split(
+                train_size=train_size, test_size=int(0.1 * train_size), seed=42
+            )
+
+        for k in self.dataset.keys():
+            self.dataset[k] = self.dataset[k].select_columns(["messages"])
+
+        self.processed = True
+
+        self.dataset["train"].shuffle()
+        self.dataset["train"].flatten_indices()
         return self.dataset["train"], self.dataset["test"]

@@ -7,7 +7,7 @@ from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
 from datasets import Dataset
 
-from mol_gen_docking.sft_data import InstructionDatasetProcessor
+from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
@@ -38,26 +38,36 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
+            modules_to_save=["embed_tokens", "lm_head"],
         )
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
         except ValueError:
             pass
+        self.model.print_trainable_parameters()
 
         training_args = SFTConfig(
             output_dir=self.args.output_dir,
+            run_name=self.args.output_dir,
             num_train_epochs=self.args.num_train_epochs,
-            overwrite_output_dir=True,
-            eval_strategy="epoch",
+            eval_strategy="steps",
+            save_strategy="steps",
+            logging_strategy="steps",
+            save_steps=1000,
+            eval_steps=1000,
+            logging_steps=10,
+            gradient_checkpointing=True,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
-            push_to_hub=False,
-            logging_steps=len(self.dataset) // self.args.batch_size,
-            save_strategy="epoch",
-            run_name=self.args.output_dir,
+            dataloader_num_workers=self.args.dataloader_num_workers,
+            max_seq_length=512,
+            dataset_num_proc=8,
+            packing=True,
+            bf16=True,
+            gradient_accumulation_steps=2,
         )
 
         trainer = SFTTrainer(
@@ -67,4 +77,5 @@ class SFTMolTrainer(MolTrainer):
             eval_dataset=self.eval_dataset,
             processing_class=self.tokenizer,
         )
+
         return trainer
