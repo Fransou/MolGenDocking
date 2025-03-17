@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 
 from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
-from datasets import Dataset
+from datasets import Dataset, concatenate_datasets
 
 from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer
@@ -27,6 +27,17 @@ class SFTMolTrainer(MolTrainer):
 
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
+        if "||" in self.args.dataset:
+            datasets = self.args.dataset.split("||")
+            tuple_datasets = tuple(
+                InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)
+                for d in datasets
+            )
+            # Concatenate the datasets
+            return (
+                concatenate_datasets([d[0] for d in tuple_datasets]),
+                concatenate_datasets([d[1] for d in tuple_datasets]),
+            )
         return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
             self.args.train_size
         )

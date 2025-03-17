@@ -24,12 +24,11 @@ class MolInstructionsDataset:
         else:
             self.known_properties = KNOWN_PROPERTIES
         self.template = (
-            "I am a chemist working in drug discovery. Can you generate a molecule"
-            + " optimizing the following properties:"
+            "Can you generate a molecule optimizing the following properties:"
         )
         self.system_prompt = (
-            "You are a helpful assistant aiming at generating drug-like molecules"
-            + " in the SMILES format between the <SMILES> and </SMILES> tags."
+            "You are a helpful assistant. You can generate drug-like molecules"
+            + " in the SMILES format between <SMILES> and </SMILES> tags."
         )
 
     def fill_prompt(self, prompt: str, property: str, objective: str) -> str:
