@@ -27,19 +27,14 @@ class SFTMolTrainer(MolTrainer):
 
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
-        if "||" in self.args.dataset:
-            datasets = self.args.dataset.split("||")
-            tuple_datasets = tuple(
-                InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)
-                for d in datasets
-            )
-            # Concatenate the datasets
-            return (
-                concatenate_datasets([d[0] for d in tuple_datasets]),
-                concatenate_datasets([d[1] for d in tuple_datasets]),
-            )
-        return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
-            self.args.train_size
+        tuple_datasets = tuple(
+            InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)
+            for d in self.args.dataset
+        )
+        # Concatenate the datasets
+        return (
+            concatenate_datasets([d[0] for d in tuple_datasets]),
+            concatenate_datasets([d[1] for d in tuple_datasets]),
         )
 
     def get_trainer(self) -> SFTTrainer:
@@ -73,7 +68,7 @@ class SFTMolTrainer(MolTrainer):
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
-            max_seq_length=512,
+            max_seq_length=1024,
             dataset_num_proc=8,
             packing=True,
             bf16=True,

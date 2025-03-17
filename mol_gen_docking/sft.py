@@ -13,7 +13,10 @@ if __name__ == "__main__":
     )
 
     mol_parser.add_argument(
-        "--dataset", type=str, default="Mol-Instructions", help="The dataset to use"
+        "--dataset",
+        nargs="+",
+        default=["Mol-Instructions", "SMolInstruct"],
+        help="Dataset to use",
     )
 
     args, slurm_args = mol_parser.parse_args()
@@ -21,7 +24,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     trainer = SFTMolTrainer(args)
-
+    print(args)
     if args.slurm:
         current_epoch = trainer.last_epoch
         n_runs = 0

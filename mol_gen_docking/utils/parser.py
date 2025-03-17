@@ -38,7 +38,7 @@ class MolTrainerParser:
             action="store_false",
             help="Do not use SLURM for training",
         )
-        self.parser.set_defaults(slurm=True)
+        self.parser.set_defaults(slurm=False)
 
     def add_trainer_args(self):
         """
@@ -96,7 +96,10 @@ class MolTrainerParser:
             help="The LoRA configuration to use",
         )
         self.add_argument(
-            "--attention", type=str, default="vanilla", help="The attention to use"
+            "--attention",
+            type=str,
+            default="flash_attention_2",
+            help="The attention to use",
         )
         self.add_argument("--local-files-only", action="store_true")
 
