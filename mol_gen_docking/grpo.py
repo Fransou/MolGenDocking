@@ -1,5 +1,6 @@
 """GRPO training script"""
 
+import os
 import submitit
 from mol_gen_docking.utils.parser import MolTrainerParser
 from mol_gen_docking.trainer.grpo_trainer import GRPOMolTrainer
@@ -16,6 +17,8 @@ if __name__ == "__main__":
     mol_parser.add_argument("--no-vina", action="store_false", dest="vina")
 
     args, slurm_args = mol_parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     executor = submitit.AutoExecutor(folder="log_test")
     executor.update_parameters(**slurm_args.__dict__)

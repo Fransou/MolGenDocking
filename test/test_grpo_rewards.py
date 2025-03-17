@@ -46,7 +46,7 @@ def test_prompts():
     dataset = MolInstructionsDataset()
     prompts = []
     n_props = []
-    for prompt, n_prop in dataset.generate(100, return_n_props=True):
+    for prompt, completion, n_prop in dataset.generate(100, return_n_props=True):
         prompts.append(prompt)
         n_props.append(n_prop)
 
@@ -60,7 +60,7 @@ def test_get_reward_molecular_property():
     """Test the function get_reward_molecular_property."""
     dataset = MolInstructionsDataset()
     prompts = []
-    for prompt in dataset.generate(100):
+    for prompt, _ in dataset.generate(100):
         prompts.append(prompt)
     completions = []
     for completion, smi in zip(prompts, SMILES):

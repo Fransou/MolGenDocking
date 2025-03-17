@@ -1,11 +1,13 @@
 """Reward functions for molecular optimization."""
 
 from typing import List, Union
-
+import numpy as np
 from tdc.oracles import Oracle, oracle_names
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
+
+from tqdm import tqdm
 
 from mol_gen_docking.utils.logger import create_logger
 
@@ -140,12 +142,16 @@ class OracleWrapper:
         inp = MolToSmiles(mol)
         return float(self.evaluator(inp))
 
-    def __call__(self, smis: Union[str, List[str]]) -> Union[float, List[float]]:
+    def __call__(
+        self, smis: Union[str, List[str]], p_bar: bool = False
+    ) -> Union[float, List[float]]:
         """
         Score
         """
         if isinstance(smis, list):
             score_list = []
+            if p_bar:
+                smis = tqdm(smis)
             for smi in smis:
                 score_list.append(self.score(smi))
 
@@ -176,3 +182,30 @@ def get_oracle(oracle_name: str):
             RDKITOracle(oracle_name),
         )
     return oracle_wrapper
+
+
+if __name__ == "__main__":
+    """Create a dataset with molecules and the property they could be optimizing."""
+    from tdc.generation import MolGen
+
+    molgen = MolGen(name="MOSES").get_data()
+
+    for oracle_name in tqdm(KNOWN_PROPERTIES):
+        oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
+        oracle = get_oracle(oracle_name)
+        props = []
+        i = 0
+        p_bar = tqdm(total=len(molgen))
+        while i < len(molgen):
+            props.append(
+                oracle(
+                    molgen["smiles"].tolist()[i * 128 : max((i + 1) * 128, len(molgen))]
+                )
+            )
+            i += 1
+            p_bar.update(128)
+        properties = np.concatenate(props)
+
+        molgen[oracle_name] = properties
+
+    print(molgen)

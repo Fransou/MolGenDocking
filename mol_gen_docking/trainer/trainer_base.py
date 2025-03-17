@@ -30,11 +30,11 @@ class MolTrainer:
         self.last_epoch = 0
         self.model = None
         self.tokenizer = None
-
         if datasets is None:
-            self.dataset, self.eval_dataset = self.get_dataset()
-        else:
-            self.dataset, self.eval_dataset = datasets
+            datasets = None, None
+
+        self.dataset, self.eval_dataset = datasets
+
         self.checkpoint_path = self.retrieve_checkpoint_step()
 
     def retrieve_checkpoint_step(self) -> str:
@@ -89,19 +89,18 @@ class MolTrainer:
         if self.checkpoint_path != "" and os.path.exists(
             os.path.join(ckpt, "adapter_config.json")
         ):
-            print("Loading PEFT model")
+            print("============= Loading PEFT model =================")
             model = AutoPeftModelForCausalLM.from_pretrained(ckpt, **args)
         else:
             model = AutoModelForCausalLM.from_pretrained(ckpt, **args)
 
-        model.save_pretrained(os.path.join(self.args.output_dir, "model"))
+        print(model)
         tokenizer = AutoTokenizer.from_pretrained(
             ckpt,
             local_files_only=self.args.local_files_only,
             padding_side="left",
             use_cache=False,
         )
-        model = model.train()
         return model, tokenizer
 
     def get_dataset(self) -> Tuple[Dataset, Dataset]:
@@ -123,6 +122,10 @@ class MolTrainer:
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
+
+        if self.dataset is None:
+            self.dataset, self.eval_dataset = self.get_dataset()
+
         trainer = self.get_trainer()
 
         print(

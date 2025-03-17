@@ -57,7 +57,6 @@ class SFTMolTrainer(MolTrainer):
             save_steps=1000,
             eval_steps=1000,
             logging_steps=10,
-            gradient_checkpointing=True,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,

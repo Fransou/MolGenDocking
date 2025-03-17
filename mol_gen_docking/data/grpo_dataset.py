@@ -2,6 +2,9 @@
 
 from typing import Iterator
 from numpy import random
+from datasets import Dataset
+from tokenizers import Tokenizer
+from trl.data_utils import maybe_apply_chat_template
 
 from mol_gen_docking.utils.grpo_rewards import KNOWN_PROPERTIES
 
@@ -20,7 +23,14 @@ class MolInstructionsDataset:
             self.known_properties = [k for k in KNOWN_PROPERTIES if "docking" not in k]
         else:
             self.known_properties = KNOWN_PROPERTIES
-        self.template = "I am a chemist working in drug discovery. Can you generate the SMILES representation of a molecule optimizing the following properties:"
+        self.template = (
+            "I am a chemist working in drug discovery. Can you generate the SMILES representation"
+            + " of a molecule optimizing the following properties:"
+        )
+        self.system_prompt = (
+            "You are a helpful assistant aiming at generating drug-like molecules"
+            + " in the SMILES format between the <SMILES> and </SMILES> tags."
+        )
 
     def fill_prompt(self, prompt: str, property: str, objective: str) -> str:
         """Fills a prompt with a property and objective"""
@@ -51,7 +61,28 @@ class MolInstructionsDataset:
                     "content": prompt[:-1] + ".",  # Remove the last comma
                 },
             ]
+            completion = [
+                {
+                    "role": "assistant",
+                    "content": r"<SMILES>O=C(NCc1ccc(Cl)cc1)c1ccc2c(c1)OCCO2</SMILES>",
+                }
+            ]
             if not return_n_props:
-                yield prompt
+                yield prompt, completion
             else:
-                yield prompt, n_props
+                yield prompt, completion, n_props
+
+    def __call__(self, n: int, tokenizer: Tokenizer):
+        out_dictionary = {"prompt": [], "completion": []}
+        for prompt, completion in self.generate(n):
+            out_dictionary["prompt"].append(prompt)
+            out_dictionary["completion"].append(completion)
+        del out_dictionary["completion"]
+
+        dataset = Dataset.from_dict(out_dictionary)
+        # Apply chat template and tokenize
+        dataset = dataset.map(
+            lambda example: maybe_apply_chat_template(example, tokenizer)
+        )
+
+        return dataset
