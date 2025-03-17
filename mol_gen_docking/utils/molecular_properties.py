@@ -207,5 +207,3 @@ if __name__ == "__main__":
         properties = np.concatenate(props)
 
         molgen[oracle_name] = properties
-
-    print(molgen)

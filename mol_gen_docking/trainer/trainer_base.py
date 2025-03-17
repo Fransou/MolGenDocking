@@ -55,7 +55,6 @@ class MolTrainer:
             path_ckpt = os.path.join(self.args.output_dir, "checkpoint-" + str(step))
             files = list(os.listdir(path_ckpt))
             if len(files) >= 3 and "trainer_state.json" in files:
-                print("Recovering Checkpoint :" + path_ckpt)
                 trainer_state = json.load(
                     open(os.path.join(path_ckpt, "trainer_state.json"))
                 )
@@ -94,7 +93,6 @@ class MolTrainer:
         else:
             model = AutoModelForCausalLM.from_pretrained(ckpt, **args)
 
-        print(model)
         tokenizer = AutoTokenizer.from_pretrained(
             ckpt,
             local_files_only=self.args.local_files_only,

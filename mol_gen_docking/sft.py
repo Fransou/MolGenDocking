@@ -26,7 +26,6 @@ if __name__ == "__main__":
         current_epoch = trainer.last_epoch
         n_runs = 0
         while current_epoch < args.num_train_epochs and n_runs < args.max_slurm_runs:
-            print(f"Starting run {n_runs} at epoch {current_epoch}")
             executor = submitit.AutoExecutor(
                 folder="log_test",
             )
@@ -40,7 +39,6 @@ if __name__ == "__main__":
                 n_runs += 1
             except Exception as e:
                 raise e
-        print("Finished training")
     else:
         trainer()
 
