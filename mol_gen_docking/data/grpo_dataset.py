@@ -24,8 +24,8 @@ class MolInstructionsDataset:
         else:
             self.known_properties = KNOWN_PROPERTIES
         self.template = (
-            "I am a chemist working in drug discovery. Can you generate the SMILES representation"
-            + " of a molecule optimizing the following properties:"
+            "I am a chemist working in drug discovery. Can you generate a molecule"
+            + " optimizing the following properties:"
         )
         self.system_prompt = (
             "You are a helpful assistant aiming at generating drug-like molecules"
