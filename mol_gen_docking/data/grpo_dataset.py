@@ -52,10 +52,7 @@ class MolInstructionsDataset:
                 prompt = self.fill_prompt(prompt, prop, obj)
 
             prompt = [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant.",  # Remove the last comma
-                },
+                {"role": "system", "content": self.system_prompt},
                 {
                     "role": "user",
                     "content": prompt[:-1] + ".",  # Remove the last comma
