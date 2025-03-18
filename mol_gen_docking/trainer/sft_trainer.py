@@ -51,7 +51,6 @@ class SFTMolTrainer(MolTrainer):
                     for t in special_tok.values()
                 ],
             },
-            init_lora_weights="olora",
         )
 
         self.model = get_peft_model(self.model, peft_config)
