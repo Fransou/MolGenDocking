@@ -7,7 +7,7 @@ from trl import SFTTrainer, SFTConfig, setup_chat_format
 from peft import LoraConfig, TaskType, get_peft_model
 from datasets import Dataset, concatenate_datasets
 
-from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
+from mol_gen_docking.data.sft_data import InstructionDatasetProcessor, special_tok
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 
 
@@ -44,8 +44,16 @@ class SFTMolTrainer(MolTrainer):
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            target_modules=["embed_tokens", "lm_head", "q_proj", "v_proj"],
+            target_modules=["q_proj", "v_proj"],
+            trainable_token_indices={
+                "embed_tokens": [
+                    self.tokenizer.convert_tokens_to_ids(t)
+                    for t in special_tok.values()
+                ],
+            },
+            init_lora_weights="olora",
         )
+
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
@@ -73,6 +81,8 @@ class SFTMolTrainer(MolTrainer):
             packing=True,
             bf16=True,
             gradient_accumulation_steps=2,
+            save_total_limit=3,
+            dataloader_prefetch_factor=2,
         )
 
         trainer = SFTTrainer(
