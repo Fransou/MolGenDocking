@@ -15,27 +15,6 @@ from tqdm import tqdm
 
 from mol_gen_docking.utils.logger import create_logger
 
-KNOWN_PROPERTIES = [
-    "Inhibition against glycogen synthase kinase-3 beta",
-    "Inhibition against c-Jun N-terminal kinase-3",
-    "Bioactivity against dopamine receptor D2",
-    "Synthetic accessibility",
-    "Quantitative estimate of drug-likeness",
-    "logP",
-    "Molecular Weight",
-    "Number of Aromatic Rings",
-    "Number of H-bond acceptors",
-    "Number of H-bond donors",
-    "Number of Rotatable Bonds",
-    "Fraction C atoms Sp3 hybridised",
-    "Topological Polar Surface Area",
-    "Hall-Kier alpha",
-    "Hall-Kier kappa 1",
-    "Hall-Kier kappa 2",
-    "Hall-Kier kappa 3",
-    "Kier Phi",
-]
-
 PROPERTIES_NAMES_SIMPLE = {
     "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
     "Inhibition against c-Jun N-terminal kinase-3": "JNK3",
@@ -55,6 +34,10 @@ PROPERTIES_NAMES_SIMPLE = {
     "Hall-Kier kappa 3": "CalcKappa3",
     "Kier Phi": "CalcPhi",
 }
+
+KNOWN_PROPERTIES = [
+    "logP",
+] + list(PROPERTIES_NAMES_SIMPLE.keys())
 
 
 class RDKITOracle:
