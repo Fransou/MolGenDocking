@@ -4,7 +4,6 @@ from typing import Iterator
 from numpy import random
 from datasets import Dataset
 from tokenizers import Tokenizer
-from trl.data_utils import maybe_apply_chat_template
 
 from mol_gen_docking.utils.grpo_rewards import KNOWN_PROPERTIES
 
@@ -77,8 +76,8 @@ class MolInstructionsDataset:
 
         dataset = Dataset.from_dict(out_dictionary)
         # Apply chat template and tokenize
-        dataset = dataset.map(
-            lambda example: maybe_apply_chat_template(example, tokenizer)
-        )
+        # dataset = dataset.map(
+        #     lambda example: maybe_apply_chat_template(example, tokenizer)
+        # )
 
         return dataset

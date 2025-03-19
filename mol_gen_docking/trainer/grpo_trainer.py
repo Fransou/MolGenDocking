@@ -9,6 +9,7 @@ from datasets import Dataset
 from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
 from mol_gen_docking.utils.grpo_rewards import get_reward_molecular_property
 from mol_gen_docking.trainer.trainer_base import MolTrainer
+from mol_gen_docking.utils.grpo_reward_tokenizer import wrap_tokenizer
 
 
 class GRPOMolTrainer(MolTrainer):
@@ -41,17 +42,18 @@ class GRPOMolTrainer(MolTrainer):
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
-            num_generations=2,
+            num_generations=8,
             push_to_hub=False,
         )
+
         trainer = GRPOTrainer(
             model=self.model,
             reward_funcs=[get_reward_molecular_property],
             args=training_args,
             train_dataset=self.dataset,
             eval_dataset=self.eval_dataset,
-            processing_class=self.tokenizer,
-            reward_processing_classes=self.tokenizer,
+            processing_class=wrap_tokenizer(self.tokenizer),
+            reward_processing_classes=wrap_tokenizer(self.tokenizer),
         )
 
         return trainer

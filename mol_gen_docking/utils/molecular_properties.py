@@ -1,8 +1,12 @@
 """Reward functions for molecular optimization."""
 
+import argparse
+
 from typing import List, Union
-import numpy as np
 from tdc.oracles import Oracle, oracle_names
+from tdc.generation import MolGen
+from multiprocessing import Pool
+
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
@@ -131,29 +135,31 @@ class OracleWrapper:
         """
         if inp is None:
             return 0
-        elif isinstance(inp, str):
-            mol = MolFromSmiles(inp)
-        elif isinstance(inp, Mol):
-            mol = inp
-        else:
+        if isinstance(inp, Mol):
+            inp = MolToSmiles(inp)
+        elif not isinstance(inp, str):
             raise ValueError(f"{inp} cannot be transformed into mol")
-        if mol is None or len(inp) == 0:
-            return 0
-        inp = MolToSmiles(mol)
+
         return float(self.evaluator(inp))
 
-    def __call__(
-        self, smis: Union[str, List[str]], p_bar: bool = False
-    ) -> Union[float, List[float]]:
+    def score_smiles_list(self, inps: List[str]) -> List[float]:
+        """
+        Function to score a list of molecules
+
+        Arguments:
+            inps: A list of SMILES strings represents molecules.
+
+        Return:
+            score_list: a list of floats represents the properties of the molecules.
+        """
+        return self.evaluator(inps)
+
+    def __call__(self, smis: Union[str, List[str]]) -> Union[float, List[float]]:
         """
         Score
         """
         if isinstance(smis, list):
-            score_list = []
-            if p_bar:
-                smis = tqdm(smis)
-            for smi in smis:
-                score_list.append(self.score(smi))
+            score_list = self.score_smiles_list(smis)
 
         elif isinstance(smis, str):
             score_list = self.score(smis)
@@ -186,24 +192,61 @@ def get_oracle(oracle_name: str):
 
 if __name__ == "__main__":
     """Create a dataset with molecules and the property they could be optimizing."""
-    from tdc.generation import MolGen
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--name",
+        type=str,
+        default="ZINC",
+        help="Name of the dataset to use for the generation",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=128,
+        help="Batch size for the property calculation",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=8,
+        help="Number of workers for the property calculation",
+    )
+    parser.add_argument("--sub-sample", type=int, default=None, help="Sub-sample size")
 
-    molgen = MolGen(name="MOSES").get_data()
+    args = parser.parse_args()
 
-    for oracle_name in tqdm(KNOWN_PROPERTIES):
-        oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-        oracle = get_oracle(oracle_name)
-        props = []
-        i = 0
-        p_bar = tqdm(total=len(molgen))
-        while i < len(molgen):
-            props.append(
-                oracle(
-                    molgen["smiles"].tolist()[i * 128 : max((i + 1) * 128, len(molgen))]
-                )
-            )
-            i += 1
-            p_bar.update(128)
-        properties = np.concatenate(props)
+    molgen = MolGen(name=args.name).get_data()
+    if args.sub_sample:
+        molgen = molgen.sample(args.sub_sample)
+    # Limits the dataframe to a multiple of the batch size
+    molgen = molgen.iloc[: len(molgen) - (len(molgen) % args.batch_size)]
 
-        molgen[oracle_name] = properties
+    smiles_batches = [
+        molgen["smiles"].tolist()[i * args.batch_size : (i + 1) * args.batch_size]
+        for i in range(len(molgen) // args.batch_size)
+    ]
+
+    for i_name, oracle_name in enumerate(KNOWN_PROPERTIES):
+        oracle = get_oracle(PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name))
+
+        p_bar = tqdm(
+            total=len(molgen),
+            desc=f"[{i_name}/{len(KNOWN_PROPERTIES)}] Calculating {oracle_name}",
+        )
+
+        def get_property(batch: List[str]) -> dict:
+            """Get the property for a batch of SMILES strings."""
+            props = oracle(batch)
+            return {smi: prop for smi, prop in zip(batch, props)}
+
+        pool = Pool(args.num_workers)
+        props = tqdm(
+            pool.imap_unordered(get_property, smiles_batches),
+            total=len(smiles_batches),
+            desc=f"[{i_name}/{len(KNOWN_PROPERTIES)}] | Calculating {oracle_name}",
+        )
+
+        props = {k: v for d in props for k, v in d.items()}
+        molgen[oracle_name] = molgen["smiles"].map(props)
+
+    print(molgen.sample(10))
