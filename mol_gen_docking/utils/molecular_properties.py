@@ -1,11 +1,16 @@
 """Reward functions for molecular optimization."""
 
 import argparse
+import os.path
 
 from typing import List, Union
+from multiprocessing import Pool
+
+import pandas as pd
+import numpy as np
+
 from tdc.oracles import Oracle, oracle_names
 from tdc.generation import MolGen
-from multiprocessing import Pool
 
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdchem import Mol
@@ -38,6 +43,13 @@ PROPERTIES_NAMES_SIMPLE = {
 KNOWN_PROPERTIES = [
     "logP",
 ] + list(PROPERTIES_NAMES_SIMPLE.keys())
+
+if not os.path.exists("properties.csv"):
+    # Raise a warning, the properties file is not found
+    print("The properties file is not found. Launch this file to generate it.")
+    propeties_csv = pd.DataFrame(columns=["smiles"])
+else:
+    propeties_csv = pd.read_csv("properties.csv")
 
 
 class RDKITOracle:
@@ -107,9 +119,10 @@ class OracleWrapper:
         self.evaluator = None
         self.task_label = None
 
-    def assign_evaluator(self, evaluator: Union[Oracle, RDKITOracle]):
+    def assign_evaluator(self, evaluator: Union[Oracle, RDKITOracle], name: str = None):
         """Assign the evaluator to the OracleWrapper."""
         self.evaluator = evaluator
+        self.name = name
 
     def score(self, inp: Union[str, Mol]) -> float:
         """
@@ -142,7 +155,9 @@ class OracleWrapper:
         """
         return self.evaluator(inps)
 
-    def __call__(self, smis: Union[str, List[str]]) -> Union[float, List[float]]:
+    def __call__(
+        self, smis: Union[str, List[str]], rescale: bool = False
+    ) -> Union[float, List[float]]:
         """
         Score
         """
@@ -156,6 +171,20 @@ class OracleWrapper:
             raise ValueError(
                 "Input must be a SMILES string or a list of SMILES strings."
             )
+
+        score_list = np.array(score_list)
+        if rescale:
+            if self.name is None and self.name in propeties_csv.columns:
+                prop_typical_values = propeties_csv[self.name]
+                # Rescale the values
+                score_list = (score_list - prop_typical_values.quantile(0.1)) / (
+                    prop_typical_values.quantile(0.9)
+                    - prop_typical_values.quantile(0.1)
+                )
+            else:
+                print(
+                    "Typical values not found for the property. Returning the raw values."
+                )
         return score_list
 
 
@@ -168,13 +197,9 @@ def get_oracle(oracle_name: str):
     oracle_wrapper = OracleWrapper()
     oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
     if oracle_name.endswith("docking") or oracle_name.lower() in oracle_names:
-        oracle_wrapper.assign_evaluator(
-            Oracle(name=oracle_name, ncpus=1),
-        )
+        oracle_wrapper.assign_evaluator(Oracle(name=oracle_name, ncpus=1), oracle_name)
     else:
-        oracle_wrapper.assign_evaluator(
-            RDKITOracle(oracle_name),
-        )
+        oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name), oracle_name)
     return oracle_wrapper
 
 
