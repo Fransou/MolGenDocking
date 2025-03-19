@@ -16,17 +16,17 @@ from tqdm import tqdm
 from mol_gen_docking.utils.logger import create_logger
 
 KNOWN_PROPERTIES = [
-    "JNK3",
-    "DRD2",
-    "GSK3B",
-    "SA",
-    "QED",
+    "Inhibition against glycogen synthase kinase-3 beta",
+    "Inhibition against c-Jun N-terminal kinase-3",
+    "Bioactivity against dopamine receptor D2",
+    "Synthetic accessibility",
+    "Quantitative estimate of drug-likeness",
     "logP",
     "Molecular Weight",
-    "Num Aromatic Rings",
-    "Num H-bond acceptors",
-    "Num H-bond donors",
-    "Num Rotatable Bonds",
+    "Number of Aromatic Rings",
+    "Number of H-bond acceptors",
+    "Number of H-bond donors",
+    "Number of Rotatable Bonds",
     "Fraction C atoms Sp3 hybridised",
     "Topological Polar Surface Area",
     "Hall-Kier alpha",
@@ -37,12 +37,17 @@ KNOWN_PROPERTIES = [
 ]
 
 PROPERTIES_NAMES_SIMPLE = {
+    "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
+    "Inhibition against c-Jun N-terminal kinase-3": "JNK3",
+    "Bioactivity against dopamine receptor D2": "DRD2",
+    "Synthetic accessibility": "SA",
+    "Quantitative estimate of drug-likeness": "QED",
     "Molecular Weight": "CalcExactMolWt",
-    "Num Aromatic Rings": "CalcNumAromaticRings",
-    "Num H-bond acceptors": "CalcNumHBA",
-    "Num H-bond donors": "CalcNumHBD",
-    "Num Rotatable Bonds": "CalcNumRotatableBonds",
-    "Fraction C atoms Sp3 hybridised": "CalcFractionCSP3",
+    "Number of Aromatic Rings": "CalcNumAromaticRings",
+    "Number of H-bond acceptors": "CalcNumHBA",
+    "Number of H-bond donors": "CalcNumHBD",
+    "Number of Rotatable Bonds": "CalcNumRotatableBonds",
+    "Fraction of C atoms Sp3 hybridised": "CalcFractionCSP3",
     "Topological Polar Surface Area": "CalcTPSA",
     "Hall-Kier alpha": "CalcHallKierAlpha",
     "Hall-Kier kappa 1": "CalcKappa1",
@@ -227,7 +232,8 @@ if __name__ == "__main__":
     ]
 
     for i_name, oracle_name in enumerate(KNOWN_PROPERTIES):
-        oracle = get_oracle(PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name))
+        oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
+        oracle = get_oracle(oracle_name)
 
         p_bar = tqdm(
             total=len(molgen),
@@ -250,3 +256,5 @@ if __name__ == "__main__":
         molgen[oracle_name] = molgen["smiles"].map(props)
 
     print(molgen.sample(10))
+
+    molgen.to_csv("properties.csv", index=False)
