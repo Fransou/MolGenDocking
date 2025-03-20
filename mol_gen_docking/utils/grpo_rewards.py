@@ -4,6 +4,8 @@ from typing import List, Any
 import re
 import torch
 
+from rdkit import Chem
+
 from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERTIES
 
 ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
@@ -29,9 +31,18 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
     oracle_fn = ALL_ORACLES[oracle]
 
     smiles = parse_smiles(completion)
+    able_to_generate_smiles_reward = float(len(smiles) > 0)
 
-    return torch.tensor(oracle_fn(smiles, rescale=True) + (len(smiles) > 0) * 0.1).clip(
-        0, 1.5
+    # Check validity of the smiles
+    smiles = [smi for smi in smiles if Chem.MolFromSmiles(smi) is not None]
+    able_to_generate_valid_smiles_reward = float(len(smiles) > 0) * 0.5
+
+    property_reward = oracle_fn(smiles, rescale=True).clip(0, 1.5)
+
+    return torch.tensor(
+        property_reward
+        + able_to_generate_smiles_reward
+        + able_to_generate_valid_smiles_reward
     )
 
 

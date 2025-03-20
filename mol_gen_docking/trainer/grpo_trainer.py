@@ -64,6 +64,7 @@ class GRPOMolTrainer(MolTrainer):
             save_total_limit=3,
             use_vllm=self.args.vllm,
             report_to="wandb",
+            log_completions=True,
         )
 
         trainer = GRPOTrainer(

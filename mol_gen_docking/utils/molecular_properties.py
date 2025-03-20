@@ -146,7 +146,6 @@ class OracleWrapper:
             inp = MolToSmiles(inp)
         elif not isinstance(inp, str):
             raise ValueError(f"{inp} cannot be transformed into mol")
-
         return float(self.evaluator(inp))
 
     def score_smiles_list(self, inps: List[str]) -> List[float]:
@@ -170,7 +169,7 @@ class OracleWrapper:
         if isinstance(smis, list):
             score_list = self.score_smiles_list(smis)
         elif isinstance(smis, str):
-            score_list = self.score(smis)
+            score_list = [self.score(smis)]
         else:
             raise ValueError(
                 "Input must be a SMILES string or a list of SMILES strings."
