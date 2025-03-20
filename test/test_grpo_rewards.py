@@ -1,7 +1,7 @@
 from typing import List
 
 from mol_gen_docking.utils.grpo_rewards import (
-    molecular_properties,
+    molecular_reward,
     KNOWN_PROPERTIES,
     get_mol_props_from_prompt,
     get_reward_molecular_property,
@@ -36,7 +36,7 @@ def test_molecular_properties():
     for prop_name in KNOWN_PROPERTIES:
         for smiles, completion in zip(SMILES, COMPLETIONS):
             completion = fill_completion(smiles, completion)
-            properties = molecular_properties(completion, prop_name)
+            properties = molecular_reward(completion, prop_name)
             assert isinstance(properties, torch.Tensor)
             assert properties.shape == (len(smiles),)
 

@@ -1,6 +1,6 @@
 """Rewards for the GRPO task."""
 
-from typing import List, Any
+from typing import List, Any, Tuple
 import re
 import torch
 
@@ -11,7 +11,9 @@ from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERT
 ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
 
 
-def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor:
+def molecular_reward(
+    completion: Any, oracle: str, **kwargs
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Strip smiles located between the <SMILES> and </SMILES>
     tags or selfies located between the <selfies> and </selfies> tags.
@@ -31,18 +33,17 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
     oracle_fn = ALL_ORACLES[oracle]
 
     smiles = parse_smiles(completion)
-    able_to_generate_smiles_reward = float(len(smiles) > 0)
+    able_to_generate_smiles_reward = torch.tensor(float(len(smiles) > 0))
 
     # Check validity of the smiles
     smiles = [smi for smi in smiles if Chem.MolFromSmiles(smi) is not None]
-    able_to_generate_valid_smiles_reward = float(len(smiles) > 0) * 0.5
+    able_to_generate_valid_smiles_reward = torch.tensor(float(len(smiles) > 0))
 
-    property_reward = oracle_fn(smiles, rescale=True).clip(0, 1.5)
+    property_reward = torch.tensor(oracle_fn(smiles, rescale=True).clip(0, 1.5))
 
-    return torch.tensor(
-        property_reward
-        + able_to_generate_smiles_reward
-        + able_to_generate_valid_smiles_reward
+    return (
+        property_reward,
+        able_to_generate_smiles_reward + able_to_generate_valid_smiles_reward,
     )
 
 
@@ -93,15 +94,21 @@ def get_reward_molecular_property(
     for objective, completion in zip(objectives_prompts, completions):
         reward = 0
         for prop in objective:
-            mol_prop = molecular_properties(completion, prop)
+            mol_prop, validity_reward = molecular_reward(completion, prop)
             if objective[prop][0] == "below":
-                reward += torch.mean((mol_prop < objective[prop][1]).float())
+                reward += (
+                    torch.mean((mol_prop < objective[prop][1]).float())
+                    + validity_reward
+                )
             elif objective[prop][0] == "above":
-                reward += torch.mean((mol_prop > objective[prop][1]).float())
+                reward += (
+                    torch.mean((mol_prop > objective[prop][1]).float())
+                    + validity_reward
+                )
             elif objective[prop][0] == "maximize":
-                reward += mol_prop.mean()
+                reward += mol_prop.mean() + validity_reward
             elif objective[prop][0] == "minimize":
-                reward += 1 - mol_prop.mean()
+                reward += 1 - mol_prop.mean() + validity_reward
 
         rewards.append(reward)
     rewards = torch.tensor(rewards)
