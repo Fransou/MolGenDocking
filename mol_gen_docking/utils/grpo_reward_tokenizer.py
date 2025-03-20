@@ -18,7 +18,9 @@ def wrap_tokenizer(tokenizer: Tokenizer) -> Tokenizer:
         """
         kwargs["skip_special_tokens"] = False
         out = old_batch_decode(*args, **kwargs)
-        out = [x.replace(new_tokenizer.special_token_map["pad_token"], "") for x in out]
+        out = [
+            x.replace(new_tokenizer.special_tokens_map["pad_token"], "") for x in out
+        ]
         return out
 
     new_tokenizer.batch_decode = batch_decode
