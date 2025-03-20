@@ -23,8 +23,15 @@ if __name__ == "__main__":
     mol_parser.add_argument("--vina", action="store_true", dest="vina")
     mol_parser.add_argument("--no-vina", action="store_false", dest="vina")
 
+    mol_parser.add_argument("--vllm", action="store_true", dest="vllm")
+    mol_parser.add_argument("--no-vllm", action="store_false", dest="vllm")
+
     args, slurm_args = mol_parser.parse_args()
 
+    if args.output_dir == "debug" and os.path.exists(args.output_dir):
+        import shutil
+
+        shutil.rmtree(args.output_dir)
     os.makedirs(args.output_dir, exist_ok=True)
 
     executor = submitit.AutoExecutor(folder="log_test")

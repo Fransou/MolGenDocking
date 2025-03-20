@@ -30,7 +30,9 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
 
     smiles = parse_smiles(completion)
 
-    return torch.tensor(oracle_fn(smiles, rescale=True) + (len(smiles) > 0) * 0.1)
+    return torch.tensor(oracle_fn(smiles, rescale=True) + (len(smiles) > 0) * 0.1).clip(
+        0, 1.5
+    )
 
 
 def get_mol_props_from_prompt(prompts: Any) -> List[dict]:
@@ -92,6 +94,6 @@ def get_reward_molecular_property(
 
         rewards.append(reward)
     rewards = torch.tensor(rewards)
-    # Replace nan with -1000
+    # Replace nan with 0
     rewards[torch.isnan(rewards)] = 0
     return rewards

@@ -13,7 +13,7 @@ OBJECTIVES = ["maximize", "minimize"]
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 3, vina: bool = False):
+    def __init__(self, max_n_props: int = 2, vina: bool = False):
         """
         :param max_n_props: Maximal number of properties to optimize
         """

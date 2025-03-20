@@ -66,24 +66,16 @@ class MolTrainer:
 
     def get_model(self) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         """Load the model and tokenizer."""
-        if self.args.attention == "vanilla":
-            args = dict(
-                torch_dtype=torch.bfloat16,
-                device_map="auto",
-                local_files_only=self.args.local_files_only,
-                use_cache=False,
-            )
-        elif self.args.attention == "flash_attention_2":
-            args = dict(
-                torch_dtype=torch.bfloat16,
-                device_map="auto",
-                local_files_only=self.args.local_files_only,
-                attn_implementation="flash_attention_2",
-                use_cache=False,
-            )
-        else:
-            raise ValueError("Attention mechanism not recognized")
-
+        args = dict(
+            torch_dtype=torch.bfloat16,
+            local_files_only=self.args.local_files_only,
+            use_cache=False,
+            attn_implementation=(
+                self.args.attention if not self.args.attention == "vanilla" else None
+            ),
+        )
+        if not hasattr(self.args, "vllm") or not self.args.vllm:
+            args["device_map"] = "auto"
         ckpt = (
             self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
         )

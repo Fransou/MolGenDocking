@@ -62,7 +62,8 @@ class GRPOMolTrainer(MolTrainer):
             bf16=True,
             gradient_accumulation_steps=self.args.gradient_accumulation_steps,
             save_total_limit=3,
-            use_vllm=False,
+            use_vllm=self.args.vllm,
+            report_to="wandb",
         )
 
         trainer = GRPOTrainer(
@@ -72,7 +73,6 @@ class GRPOMolTrainer(MolTrainer):
             train_dataset=self.dataset,
             eval_dataset=self.eval_dataset,
             processing_class=wrap_tokenizer(self.tokenizer),
-            reward_processing_classes=wrap_tokenizer(self.tokenizer),
             peft_config=peft_config,
         )
 
