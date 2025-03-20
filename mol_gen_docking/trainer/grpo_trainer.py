@@ -53,8 +53,9 @@ class GRPOMolTrainer(MolTrainer):
             logging_steps=1,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
-            per_device_train_batch_size=self.args.batch_size,
-            per_device_eval_batch_size=self.args.batch_size,
+            per_device_train_batch_size=self.args.batch_size
+            * self.args.num_generations,
+            per_device_eval_batch_size=self.args.batch_size * self.args.num_generations,
             dataloader_num_workers=self.args.dataloader_num_workers,
             num_generations=self.args.num_generations,
             push_to_hub=False,

@@ -6,6 +6,8 @@ import torch
 
 from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERTIES
 
+ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+
 
 def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor:
     """
@@ -24,7 +26,7 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
         s_spl = [x.split("</SMILES>")[0] for x in s_spl]
         return s_spl
 
-    oracle_fn = get_oracle(oracle)
+    oracle_fn = ALL_ORACLES[oracle]
 
     smiles = parse_smiles(completion)
 
