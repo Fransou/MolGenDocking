@@ -8,7 +8,9 @@ from typing import Tuple, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
-from peft import AutoPeftModelForCausalLM
+from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType
+
+from mol_gen_docking.data import special_tok
 
 
 class MolTrainer:
@@ -108,6 +110,25 @@ class MolTrainer:
     def get_trainer(self) -> Trainer:
         """Get the trainer."""
         raise NotImplementedError
+
+    def get_peft_config(self, train_tokens: bool = False) -> LoraConfig:
+        return LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            r=self.args.lora_config.get("r", 8),
+            lora_alpha=self.args.lora_config.get("lora_alpha", 32),
+            lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
+            target_modules=["q_proj", "v_proj"],
+            trainable_token_indices=(
+                {
+                    "embed_tokens": [
+                        self.tokenizer.convert_tokens_to_ids(t)
+                        for t in special_tok.values()
+                    ],
+                }
+                if train_tokens
+                else {}
+            ),
+        )
 
     def __call__(self):
         """

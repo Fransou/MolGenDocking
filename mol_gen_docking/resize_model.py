@@ -5,7 +5,7 @@ import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import tokenizers
 
-from mol_gen_docking.data.sft_data import special_tok
+from mol_gen_docking.data import special_tok
 
 
 def resize_model(model_path: str, output_path: str):

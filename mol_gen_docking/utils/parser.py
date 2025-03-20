@@ -76,6 +76,12 @@ class MolTrainerParser:
             default=0,
             help="The number of workers to use for the dataloader",
         )
+        self.add_argument(
+            "--gradient_accumulation_steps",
+            type=int,
+            default=2,
+            help="The number of gradient accumulation steps",
+        )
 
     def add_model_data_args(self):
         """

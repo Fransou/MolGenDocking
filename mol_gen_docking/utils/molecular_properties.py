@@ -72,6 +72,8 @@ class RDKITOracle:
     ) -> Union[float, List[float]]:
         """Get the descriptor value for the molecule."""
         if isinstance(smi_mol, list):
+            if len(smi_mol) == 0:
+                return []
             if isinstance(smi_mol[0], str):
                 mols = [MolFromSmiles(smi) for smi in smi_mol]
             elif isinstance(smi_mol[0], Mol):
@@ -80,7 +82,9 @@ class RDKITOracle:
                 raise ValueError(
                     "Input must be a list of SMILES strings or a list of RDKit molecule objects."
                 )
-            return [float(self.descriptor(mol)) for mol in mols]
+            return [
+                float(self.descriptor(mol)) if mol is not None else 0 for mol in mols
+            ]
 
         if isinstance(smi_mol, str):
             mol = MolFromSmiles(smi_mol)
@@ -90,6 +94,8 @@ class RDKITOracle:
             raise ValueError(
                 "Input must be a SMILES string or a RDKit molecule object."
             )
+        if mol is None:
+            return 0
         return float(self.descriptor(mol))
 
 
@@ -163,10 +169,8 @@ class OracleWrapper:
         """
         if isinstance(smis, list):
             score_list = self.score_smiles_list(smis)
-
         elif isinstance(smis, str):
             score_list = self.score(smis)
-
         else:
             raise ValueError(
                 "Input must be a SMILES string or a list of SMILES strings."
@@ -174,12 +178,12 @@ class OracleWrapper:
 
         score_list = np.array(score_list)
         if rescale:
-            if self.name is None and self.name in propeties_csv.columns:
+            if self.name is not None and self.name in propeties_csv.columns:
                 prop_typical_values = propeties_csv[self.name]
                 # Rescale the values
-                score_list = (score_list - prop_typical_values.quantile(0.1)) / (
-                    prop_typical_values.quantile(0.9)
-                    - prop_typical_values.quantile(0.1)
+                score_list = (score_list - prop_typical_values.quantile(0.01)) / (
+                    prop_typical_values.quantile(0.99)
+                    - prop_typical_values.quantile(0.01)
                 )
             else:
                 print(

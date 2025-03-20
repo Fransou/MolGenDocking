@@ -7,8 +7,8 @@ from datasets import load_dataset, Dataset, concatenate_datasets
 import selfies as sf
 from rdkit import Chem
 
+from mol_gen_docking.data import special_tok
 
-special_tok = {"smiles": "<SMILES>", "smiles_end": "</SMILES>"}
 
 SMolInstruct_tasks = [
     "forward_synthesis",

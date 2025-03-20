@@ -75,9 +75,4 @@ class MolInstructionsDataset:
         del out_dictionary["completion"]
 
         dataset = Dataset.from_dict(out_dictionary)
-        # Apply chat template and tokenize
-        # dataset = dataset.map(
-        #     lambda example: maybe_apply_chat_template(example, tokenizer)
-        # )
-
         return dataset

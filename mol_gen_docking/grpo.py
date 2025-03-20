@@ -11,8 +11,15 @@ if __name__ == "__main__":
         description="Train a model on the Mol-Instructions dataset"
     )
     mol_parser.add_argument(
-        "--n_prompts", type=int, default=16, help="The number of prompts to generate"
+        "--n-prompts", type=int, default=2048, help="The number of prompts to generate"
     )
+    mol_parser.add_argument(
+        "--num-generations",
+        type=int,
+        default=8,
+        help="The number of generations to use for the training",
+    )
+
     mol_parser.add_argument("--vina", action="store_true", dest="vina")
     mol_parser.add_argument("--no-vina", action="store_false", dest="vina")
 

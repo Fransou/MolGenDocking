@@ -28,7 +28,7 @@ def molecular_properties(completion: Any, oracle: str, **kwargs) -> torch.Tensor
 
     smiles = parse_smiles(completion)
 
-    return torch.tensor(oracle_fn(smiles))
+    return torch.tensor(oracle_fn(smiles, rescale=True) + (len(smiles) > 0) * 0.1)
 
 
 def get_mol_props_from_prompt(prompts: Any) -> List[dict]:
@@ -86,10 +86,10 @@ def get_reward_molecular_property(
             elif objective[prop][0] == "maximize":
                 reward += mol_prop.mean()
             elif objective[prop][0] == "minimize":
-                reward += -mol_prop.mean()
+                reward += 1 - mol_prop.mean()
 
         rewards.append(reward)
     rewards = torch.tensor(rewards)
     # Replace nan with -1000
-    rewards[torch.isnan(rewards)] = -1000
+    rewards[torch.isnan(rewards)] = 0
     return rewards

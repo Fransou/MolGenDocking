@@ -28,22 +28,40 @@ class GRPOMolTrainer(MolTrainer):
 
     def get_dataset(self) -> Tuple[Dataset]:
         """Loads the dataset."""
-        dataset = MolInstructionsDataset(vina=self.args.vina)(100, self.tokenizer)
-        eval_dataset = MolInstructionsDataset(vina=self.args.vina)(10, self.tokenizer)
+        dataset = MolInstructionsDataset(vina=self.args.vina)(
+            self.args.n_prompts, self.tokenizer
+        )
+        eval_dataset = MolInstructionsDataset(vina=self.args.vina)(
+            self.args.n_prompts // 10, self.tokenizer
+        )
         return dataset, eval_dataset
 
     def get_trainer(self) -> GRPOTrainer:
         """:return: Trainer for GRPO."""
+
+        peft_config = self.get_peft_config(False)
+
         training_args = GRPOConfig(
             output_dir=self.args.output_dir,
-            overwrite_output_dir=True,
-            evaluation_strategy="epoch",
+            run_name=self.args.output_dir,
+            num_train_epochs=self.args.num_train_epochs,
+            eval_strategy="steps",
+            save_strategy="steps",
+            logging_strategy="steps",
+            save_steps=100,
+            eval_steps=100,
+            logging_steps=1,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
-            num_generations=8,
+            dataloader_num_workers=self.args.dataloader_num_workers,
+            num_generations=self.args.num_generations,
             push_to_hub=False,
+            bf16=True,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
+            save_total_limit=3,
+            use_vllm=False,
         )
 
         trainer = GRPOTrainer(
@@ -54,6 +72,7 @@ class GRPOMolTrainer(MolTrainer):
             eval_dataset=self.eval_dataset,
             processing_class=wrap_tokenizer(self.tokenizer),
             reward_processing_classes=wrap_tokenizer(self.tokenizer),
+            peft_config=peft_config,
         )
 
         return trainer
