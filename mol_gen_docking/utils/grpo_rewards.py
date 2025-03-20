@@ -71,8 +71,8 @@ class RewardScorer:
     def get_reward(self, objectives: List[dict], completion: List[str]) -> List[float]:
         smiles = self.get_smiles_from_completion(completion)
         valid_smiles = [smi for smi in smiles if Chem.MolFromSmiles(smi) is not None]
-        reward = torch.tensor(0.0)
         if self.reward == "property":
+            reward = torch.tensor(0.0)
             if len(valid_smiles) > 0:
                 for prop in objectives:
                     mol_prop = self.get_property_reward(valid_smiles, prop)
@@ -86,10 +86,10 @@ class RewardScorer:
                         reward += (1 - mol_prop.mean()).clip(0, 2)
         elif self.reward == "smiles":
             # Add 1 if a smile has been generated
-            reward += torch.tensor(float(len(valid_smiles) > 0))
+            reward = torch.tensor(float(len(smiles) > 0))
         elif self.reward == "valid_smiles":
             # Add 1 if a valid smile has been generated
-            reward += torch.tensor(float(len(valid_smiles) > 0))
+            reward = torch.tensor(float(len(valid_smiles) > 0))
         return reward
 
     def __call__(self, prompts: List[Any], completions: List[Any]) -> List[float]:
