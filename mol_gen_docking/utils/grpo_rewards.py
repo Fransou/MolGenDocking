@@ -1,8 +1,11 @@
 """Rewards for the GRPO task."""
 
-from typing import List, Any
+import requests
+from typing import List, Any, Tuple
 import re
 import torch
+import pandas as pd
+import numpy as np
 
 from rdkit import Chem
 
@@ -12,12 +15,13 @@ ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
 
 
 class RewardScorer:
-    def __init__(self, reward: str):
-        self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+    def __init__(self, reward: str, rescale: bool = True):
+        self.rescale = rescale
         self.reward = reward
+        self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
         self.__name__ = f"RewardScorer/{reward}"
 
-    def get_mol_props_from_prompt(self, prompts: Any) -> List[dict]:
+    def get_mol_props_from_prompt(self, prompts: Any) -> Tuple[List[dict], List[int]]:
         """
         Get molecular properties from prompt
         Locates the properties, and find the following pattern:
@@ -60,45 +64,9 @@ class RewardScorer:
         s_spl = [x.split("</SMILES>")[0] for x in s_spl]
         return s_spl
 
-    def get_property_reward(self, smiles: List[str], prop: str) -> torch.Tensor:
-        """
-        Get property reward
-        """
-        oracle_fn = self.oracles[prop]
-        property_reward = torch.tensor(oracle_fn(smiles, rescale=True))
-        return property_reward
-
-    def get_reward(self, objectives: List[dict], completion: List[str]) -> List[float]:
-        smiles = self.get_smiles_from_completion(completion)
-        valid_smiles = [smi for smi in smiles if Chem.MolFromSmiles(smi) is not None]
-        if self.reward == "property":
-            reward = torch.tensor(0.0)
-            if len(valid_smiles) > 0:
-                for prop in objectives:
-                    mol_prop = self.get_property_reward(valid_smiles, prop)
-                    if objectives[prop][0] == "below":
-                        reward += torch.mean((mol_prop < objectives[prop][1]).float())
-                    elif objectives[prop][0] == "above":
-                        reward += torch.mean((mol_prop > objectives[prop][1]).float())
-                    elif objectives[prop][0] == "maximize":
-                        reward += mol_prop.mean().clip(0, 2)
-                    elif objectives[prop][0] == "minimize":
-                        reward += (1 - mol_prop.mean()).clip(0, 2)
-        elif self.reward == "smiles":
-            # Add 1 if a smile has been generated
-            reward = torch.tensor(float(len(smiles) > 0))
-        elif self.reward == "valid_smiles":
-            # Add 1 if a valid smile has been generated
-            reward = torch.tensor(float(len(valid_smiles) > 0))
-        return reward
-
-    def __call__(self, prompts: List[Any], completions: List[Any]) -> List[float]:
-        """
-        Get reward for molecular properties
-        """
-        objectives_prompts = self.get_mol_props_from_prompt(prompts)
-        rewards = []
-        for objective, completion in zip(objectives_prompts, completions):
+    def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
+        smiles = []
+        for completion in completions:
             if isinstance(completion, list):
                 assert len(completion) == 1
                 completion = completion[0]
@@ -106,9 +74,149 @@ class RewardScorer:
                 assert "content" in completion
                 completion = completion["content"]
 
-            reward = self.get_reward(objective, completion)
+            smiles.append(self.get_smiles_from_completion(completion))
+        return smiles
+
+    def _get_property(self, smiles: List[str], prop: str) -> torch.Tensor:
+        """
+        Get property reward
+        """
+        oracle_fn = self.oracles[prop]
+        property_reward = oracle_fn(smiles, rescale=self.rescale)
+        return property_reward
+
+    def fill_df_properties(self, df_properties: pd.DataFrame):
+        for p in df_properties["property"].unique():
+            smiles = df_properties[df_properties["property"] == p]["smiles"].tolist()
+            values = self._get_property(smiles, p)
+            df_properties.loc[df_properties["property"] == p, "value"] = values
+
+    def get_reward(self, row: pd.Series) -> List[float]:
+        reward: float = 0
+        obj = row["obj"]
+        mol_prop = row["value"]
+        target_value = row["target_value"]
+        if obj == "below":
+            reward += (mol_prop <= target_value).float()
+        elif obj == "above":
+            reward += (mol_prop >= target_value).float()
+        elif obj == "maximize":
+            reward += mol_prop
+        elif obj == "minimize":
+            reward += 1 - mol_prop
+        return reward
+
+    def _get_smiles_list(self, completions: List[Any]) -> List[str]:
+        smiles = self.get_all_completions_smiles(completions)
+        if self.reward == "smiles":
+            # No need to continue
+            return smiles
+        valid_smiles = [
+            [s for s in smiles_c if Chem.MolFromSmiles(s) is not None]
+            for smiles_c in smiles
+        ]
+        return valid_smiles
+
+    def _get_prop_to_smiles_dataframe(
+        self,
+        smiles_list_per_completion: List[List[str]],
+        objectives: List[dict],
+    ) -> pd.DataFrame:
+        df_properties = pd.DataFrame(
+            columns=[
+                "smiles",
+                "property",
+                "value",
+                "obj",
+                "target_value",
+                "id_completion",
+            ]
+        )
+
+        for id_completion, (props, smiles) in enumerate(
+            zip(objectives, smiles_list_per_completion)
+        ):
+            for s in smiles:
+                for p in props:
+                    df_properties.loc[len(df_properties)] = [
+                        s,
+                        p,
+                        None,
+                        props[p][0],
+                        props[p][1],
+                        id_completion,
+                    ]
+        return df_properties
+
+    def __call__(self, prompts: List[Any], completions: List[Any]) -> List[float]:
+        """
+        Get reward for molecular properties
+        """
+        smiles_list_per_completion = self._get_smiles_list(completions)
+        if self.reward == "smiles" or self.reward == "valid_smiles":
+            return torch.tensor(
+                [
+                    float(len(valid_smiles_c) > 0)
+                    for valid_smiles_c in smiles_list_per_completion
+                ]
+            )
+        objectives = self.get_mol_props_from_prompt(prompts)
+        df_properties = self._get_prop_to_smiles_dataframe(
+            smiles_list_per_completion, objectives
+        )
+        self.fill_df_properties(df_properties)
+        df_properties["reward"] = df_properties.apply(
+            lambda x: self.get_reward(x), axis=1
+        )
+
+        rewards = []
+        for id_completion, smiles in enumerate(smiles_list_per_completion):
+            if len(smiles) > 0:
+                reward = df_properties[
+                    (df_properties["id_completion"] == id_completion)
+                    & (df_properties["smiles"].isin(smiles))
+                ]["reward"].mean()
+                if self.rescale:
+                    reward = np.clip(reward, 0, 1)
+            else:
+                reward = 0
             rewards.append(reward)
-        rewards = torch.tensor(rewards)
-        # Replace nan with 0
-        rewards[torch.isnan(rewards)] = 0
-        return rewards
+
+        return torch.tensor(rewards).float()
+
+
+class RewardScorerServer(RewardScorer):
+    def __init__(
+        self, reward: str, rescale: bool = True, address="http://0.0.0.0:8000/"
+    ):
+        super().__init__(reward, rescale=rescale)
+        self.address = address
+
+    def _query_properties(self, smiles: List[str], prop: str) -> List[float]:
+        """
+        Query properties, the server wil then start computing them
+        """
+        data = {"smiles": smiles}
+        requests.post(f"{self.address}/property/{prop}/", params=data)
+
+    def _get_property(self, smiles: List[str], prop: str) -> torch.Tensor:
+        """
+        Get property reward
+        """
+        data = {"smiles": smiles}
+        r = requests.get(f"{self.address}/property/{prop}/", params=data).json()
+        assert r["smiles"] == smiles
+        return r["property"]
+
+    def pre_query_properties(self, prompts: List[str], completions: List[Any]):
+        smiles_list_per_completion = self._get_smiles_list(completions)
+        objectives = self.get_mol_props_from_prompt(prompts)
+        df_properties = self._get_prop_to_smiles_dataframe(
+            smiles_list_per_completion, objectives
+        )
+
+        for props in df_properties["property"].unique():
+            smiles = df_properties[df_properties["property"] == props][
+                "smiles"
+            ].tolist()
+            self._query_properties(smiles, props)

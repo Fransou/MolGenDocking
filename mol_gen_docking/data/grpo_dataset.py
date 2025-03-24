@@ -59,7 +59,7 @@ class MolInstructionsDataset:
             completion = [
                 {
                     "role": "assistant",
-                    "content": r"<SMILES>O=C(NCc1ccc(Cl)cc1)c1ccc2c(c1)OCCO2</SMILES>",
+                    "content": r"<think>",
                 }
             ]
             if not return_n_props:

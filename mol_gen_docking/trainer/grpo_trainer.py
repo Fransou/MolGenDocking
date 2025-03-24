@@ -42,6 +42,7 @@ class GRPOMolTrainer(MolTrainer):
         peft_config = self.get_peft_config(False)
 
         training_args = GRPOConfig(
+            beta=0,
             output_dir=self.args.output_dir,
             run_name=self.args.output_dir,
             num_train_epochs=self.args.num_train_epochs,

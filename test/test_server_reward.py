@@ -4,11 +4,10 @@ import pytest
 import torch
 import numpy as np
 
-from mol_gen_docking.utils.grpo_rewards import RewardScorer
+from mol_gen_docking.utils.grpo_rewards import RewardScorer, RewardScorerServer
 from mol_gen_docking.utils.molecular_properties import (
     propeties_csv,
     KNOWN_PROPERTIES,
-    PROPERTIES_NAMES_SIMPLE,
 )
 
 SMILES = (
@@ -40,7 +39,7 @@ def build_prompt(property: str) -> str:
 @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
 def test_smiles_reward(completion, smiles):
     """Test the function molecular_properties."""
-    scorer = RewardScorer("smiles")
+    scorer = RewardScorerServer("smiles")
     completions = [fill_completion(smiles, completion)]
     prompts = [""] * len(completions)
 
@@ -51,7 +50,7 @@ def test_smiles_reward(completion, smiles):
 @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
 def test_valid_smiles(completion, smiles):
     """Test the function molecular_properties."""
-    scorer = RewardScorer("valid_smiles")
+    scorer = RewardScorerServer("valid_smiles")
     completions = [fill_completion(smiles, completion)]
     prompts = [""] * len(completions)
 
@@ -59,16 +58,6 @@ def test_valid_smiles(completion, smiles):
     assert rewards.sum().item() == float(
         "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
     )
-
-
-def is_reward_valid(rewards, smiles, properties):
-    """Check if the reward is valid."""
-    # Remove "FAKE" from smiles
-    smiles = [s for s in smiles if s != "FAKE"]
-    if len(smiles) > 0:
-        property_names = [PROPERTIES_NAMES_SIMPLE.get(p, p) for p in properties]
-        props = propeties_csv.set_index("smiles").loc[smiles, property_names].values
-        assert torch.isclose(rewards, torch.tensor(props).float().mean()).all()
 
 
 @pytest.mark.parametrize(
@@ -82,18 +71,22 @@ def is_reward_valid(rewards, smiles, properties):
 )
 def test_properties_single_prompt_reward(completion, smiles, property1, property2):
     """Test the function molecular_properties with 2 properties."""
-    scorer = RewardScorer("properties", rescale=False)
+    scorer_gt = RewardScorer("properties")
+    scorer = RewardScorerServer("properties")
     completions = [fill_completion(smiles, completion)]
 
     # 1- Test when optimizing 2 properties simultaneously
     prompts = [build_prompt(property1) + " --- " + build_prompt(property2)] * len(
         completions
     )
+    scorer.pre_query_properties(prompts, completions)
+
     rewards = scorer(prompts, completions)
+    rewards_gt = scorer_gt(prompts, completions)
     if "[SMILES]" in completion:
-        is_reward_valid(rewards, smiles, [property1, property2])
+        assert torch.allclose(rewards, rewards_gt)
     else:
-        assert rewards.sum().item() == 0
+        assert rewards_gt.sum().item() == 0
 
 
 @pytest.mark.parametrize(
@@ -107,7 +100,8 @@ def test_properties_single_prompt_reward(completion, smiles, property1, property
 )
 def test_properties_multi_prompt_rewards(completion, smiles, property1, property2):
     """Test the function molecular_properties with 2 properties."""
-    scorer = RewardScorer("properties", rescale=False)
+    scorer_gt = RewardScorer("properties")
+    scorer = RewardScorerServer("properties")
     completions = [fill_completion(smiles, completion)] * 2
 
     # 2- Test when optimizing 2 properties separately
@@ -115,9 +109,9 @@ def test_properties_multi_prompt_rewards(completion, smiles, property1, property
         build_prompt(property2)
     ] * (len(completions) // 2)
     rewards = scorer(prompts, completions)
+    rewards_gt = scorer_gt(prompts, completions)
     if "[SMILES]" in completion:
-        is_reward_valid(rewards[: (len(completions) // 2)], smiles, [property1])
-        is_reward_valid(rewards[(len(completions) // 2) :], smiles, [property2])
+        assert torch.allclose(rewards, rewards_gt)
     else:
         assert rewards.sum().item() == 0
 
@@ -130,7 +124,8 @@ def test_properties_multi_prompt_rewards(completion, smiles, property1, property
 )
 def test_multip_prompt_multi_generation(property1, property2, n_generations=4):
     """Test the function molecular_properties."""
-    scorer = RewardScorer("properties", rescale=False)
+    scorer_gt = RewardScorer("properties")
+    scorer = RewardScorerServer("properties")
     completion = COMPLETIONS[0]
     prompts = [build_prompt(property1)] * n_generations + [
         build_prompt(property2)
@@ -142,12 +137,9 @@ def test_multip_prompt_multi_generation(property1, property2, n_generations=4):
     completions = [fill_completion(s, completion) for s in smiles]
 
     rewards = scorer(prompts, completions)
-
+    rewards_gt = scorer_gt(prompts, completions)
     for i in range(n_generations * 2):
         if "[SMILES]" in completion:
-            if i < n_generations:
-                is_reward_valid(rewards[i], smiles[i], [property1])
-            else:
-                is_reward_valid(rewards[i], smiles[i], [property2])
+            assert torch.allclose(rewards, rewards_gt)
         else:
             assert rewards[i].sum().item() == 0
