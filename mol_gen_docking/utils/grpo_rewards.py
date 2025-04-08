@@ -74,7 +74,7 @@ class RewardScorer:
             # First we split the completion by newlines and spaces
             re.split("\n| ", comp)
             # Then we filter by removing any string that does not contain "C"
-            s_spl = [x for x in comp.split() if "C" in x]
+            s_spl = [x for x in comp.split() if "C" in x or x.count("c") > 1]
             # Finally we remove any string that is not a valid SMILES
             s_spl = [x for x in s_spl if Chem.MolFromSmiles(x) is not None]
             return s_spl
