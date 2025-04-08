@@ -29,8 +29,8 @@ COMPLETIONS = [
 
 def fill_completion(smiles: List[str], completion: str) -> str:
     """Fill the completion with the smiles."""
-    smiles = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
-    return completion.replace("[SMILES]", smiles)
+    smiles_joined: str = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
+    return completion.replace("[SMILES]", smiles_joined)
 
 
 def build_prompt(property: str) -> str:

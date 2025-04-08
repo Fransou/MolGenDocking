@@ -1,6 +1,6 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 from datasets import load_dataset, Dataset, concatenate_datasets
 
@@ -86,7 +86,7 @@ class InstructionDatasetProcessor:
 
         return string
 
-    def process_line(self, line: Dict[str, str]) -> Dict[str, str]:
+    def process_line(self, line: Dict[str, str]) -> Dict[str, List[Dict[str, str]]]:
         """
         Process a line of the dataset.
         :param line: Line of the dataset

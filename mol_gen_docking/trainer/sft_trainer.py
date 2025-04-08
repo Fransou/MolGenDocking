@@ -17,7 +17,9 @@ class SFTMolTrainer(MolTrainer):
     """
 
     def __init__(
-        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+        self,
+        args: argparse.Namespace,
+        datasets: Optional[Tuple[Dataset, Dataset]] = None,
     ):
         """
         :param args: Parameters for the training
@@ -25,7 +27,7 @@ class SFTMolTrainer(MolTrainer):
         """
         super().__init__(args, datasets)
 
-    def get_dataset(self) -> Tuple[Dataset]:
+    def get_dataset(self) -> Tuple[Dataset, Dataset]:
         """Loads the dataset."""
         tuple_datasets = tuple(
             InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)

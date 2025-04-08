@@ -1,7 +1,7 @@
 """Rewards for the GRPO task."""
 
 import requests
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Dict
 import re
 import torch
 import pandas as pd
@@ -15,20 +15,25 @@ ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
 
 
 class RewardScorer:
-    def __init__(self, reward: str, rescale: bool = True):
+    def __init__(
+        self, reward: str, rescale: bool = True, parse_whole_completion: bool = False
+    ):
         self.rescale = rescale
         self.reward = reward
         self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+        self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
 
-    def get_mol_props_from_prompt(self, prompts: Any) -> Tuple[List[dict], List[int]]:
+    def get_mol_props_from_prompt(
+        self, prompts: Any
+    ) -> List[Dict[str, Tuple[Any, Any]]]:
         """
         Get molecular properties from prompt
         Locates the properties, and find the following pattern:
             "$PROPERTY ($OBJECTIVE)"
         Where objective can be: maximize, minimize, below x or above x
         """
-        objectives = []
+        objectives: List[Dict[str, Tuple[Any, Any]]] = []
         for prompt in prompts:
             if isinstance(prompt, list):
                 if len(prompt) == 1:
@@ -60,9 +65,19 @@ class RewardScorer:
         """
         Get smiles from completion
         """
-        s_spl = comp.split("<SMILES>")[1:]
-        s_spl = [x.split("</SMILES>")[0] for x in s_spl]
-        return s_spl
+        if not self.parse_whole_completion:
+            s_spl = comp.split("<SMILES>")[1:]
+            s_spl = [x.split("</SMILES>")[0] for x in s_spl]
+            return s_spl
+        else:
+            # Parse the whole completion with no "<SMILES>" tag
+            # First we split the completion by newlines and spaces
+            re.split("\n| ", comp)
+            # Then we filter by removing any string that does not contain "C"
+            s_spl = [x for x in comp.split() if "C" in x]
+            # Finally we remove any string that is not a valid SMILES
+            s_spl = [x for x in s_spl if Chem.MolFromSmiles(x) is not None]
+            return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
         smiles = []
@@ -91,7 +106,7 @@ class RewardScorer:
             values = self._get_property(smiles, p)
             df_properties.loc[df_properties["property"] == p, "value"] = values
 
-    def get_reward(self, row: pd.Series) -> List[float]:
+    def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
         obj = row["obj"]
         mol_prop = row["value"]
@@ -106,7 +121,7 @@ class RewardScorer:
             reward += 1 - mol_prop
         return reward
 
-    def _get_smiles_list(self, completions: List[Any]) -> List[str]:
+    def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:
         smiles = self.get_all_completions_smiles(completions)
         if self.reward == "smiles":
             # No need to continue
@@ -192,7 +207,7 @@ class RewardScorerServer(RewardScorer):
         super().__init__(reward, rescale=rescale)
         self.address = address
 
-    def _query_properties(self, smiles: List[str], prop: str) -> List[float]:
+    def _query_properties(self, smiles: List[str], prop: str) -> None:
         """
         Query properties, the server wil then start computing them
         """

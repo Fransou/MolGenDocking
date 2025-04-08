@@ -3,7 +3,7 @@
 import argparse
 import os.path
 
-from typing import List, Union
+from typing import List, Union, Optional, Callable, Any
 from multiprocessing import Pool
 
 import pandas as pd
@@ -121,11 +121,13 @@ class OracleWrapper:
             __name__ + "/" + self.__class__.__name__,
             level="DEBUG" if debug else "WARNING",
         )
-        self.name = None
-        self.evaluator = None
+        self.name: None | str = None
+        self.evaluator: Callable[[Any], Any] | Oracle | RDKITOracle = lambda x: None
         self.task_label = None
 
-    def assign_evaluator(self, evaluator: Union[Oracle, RDKITOracle], name: str = None):
+    def assign_evaluator(
+        self, evaluator: Oracle | RDKITOracle, name: Optional[str] = None
+    ):
         """Assign the evaluator to the OracleWrapper."""
         self.evaluator = evaluator
         self.name = name
@@ -146,7 +148,10 @@ class OracleWrapper:
             inp = MolToSmiles(inp)
         elif not isinstance(inp, str):
             raise ValueError(f"{inp} cannot be transformed into mol")
-        return float(self.evaluator(inp))
+        out: float | List[float] | None = self.evaluator(inp)
+        if isinstance(out, float):
+            return out
+        raise ValueError(f"{out} is a {type(out)}, not a float")
 
     def score_smiles_list(self, inps: List[str]) -> List[float]:
         """
@@ -158,7 +163,10 @@ class OracleWrapper:
         Return:
             score_list: a list of floats represents the properties of the molecules.
         """
-        return self.evaluator(inps)
+        out = self.evaluator(inps)
+        if isinstance(out, list):
+            return out
+        raise ValueError(f"{out} is a {type(out)}, not a list")
 
     def __call__(
         self, smis: Union[str, List[str]], rescale: bool = False

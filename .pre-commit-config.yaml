@@ -5,10 +5,6 @@ repos:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
--   repo: https://github.com/psf/black
-    rev: 25.1.0
-    hooks:
-    -   id: black
 -   repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0  # Use the ref you want to point at
     hooks:
@@ -28,3 +24,8 @@ repos:
     # Run the formatter.
     - id: ruff-format
       types_or: [ python, pyi ]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: ''  # Use the sha / tag you want to point at
+  hooks:
+    - id: mypy
+      args: [ --ignore-missing-imports, --install-types, --non-interactive ]

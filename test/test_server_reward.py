@@ -28,8 +28,8 @@ COMPLETIONS = [
 
 def fill_completion(smiles: List[str], completion: str) -> str:
     """Fill the completion with the smiles."""
-    smiles = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
-    return completion.replace("[SMILES]", smiles)
+    smiles_joined: str = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
+    return completion.replace("[SMILES]", smiles_joined)
 
 
 def build_prompt(property: str) -> str:
@@ -81,8 +81,8 @@ def test_properties_single_prompt_reward(completion, smiles, property1, property
     )
     scorer.pre_query_properties(prompts, completions)
 
-    rewards = scorer(prompts, completions)
     rewards_gt = scorer_gt(prompts, completions)
+    rewards = scorer(prompts, completions)
     if "[SMILES]" in completion:
         assert torch.allclose(rewards, rewards_gt)
     else:
@@ -108,8 +108,10 @@ def test_properties_multi_prompt_rewards(completion, smiles, property1, property
     prompts = [build_prompt(property1)] * (len(completions) // 2) + [
         build_prompt(property2)
     ] * (len(completions) // 2)
-    rewards = scorer(prompts, completions)
+
+    scorer.pre_query_properties(prompts, completions)
     rewards_gt = scorer_gt(prompts, completions)
+    rewards = scorer(prompts, completions)
     if "[SMILES]" in completion:
         assert torch.allclose(rewards, rewards_gt)
     else:
@@ -136,8 +138,9 @@ def test_multip_prompt_multi_generation(property1, property2, n_generations=4):
     ]
     completions = [fill_completion(s, completion) for s in smiles]
 
-    rewards = scorer(prompts, completions)
+    scorer.pre_query_properties(prompts, completions)
     rewards_gt = scorer_gt(prompts, completions)
+    rewards = scorer(prompts, completions)
     for i in range(n_generations * 2):
         if "[SMILES]" in completion:
             assert torch.allclose(rewards, rewards_gt)

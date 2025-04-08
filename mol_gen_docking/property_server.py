@@ -9,7 +9,7 @@ app = FastAPI()
 
 
 class PropertyServer:
-    def __init__(self, max_cache_size_per_property: int = 1e4, rescale: bool = True):
+    def __init__(self, max_cache_size_per_property: int = 10**4, rescale: bool = True):
         self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
         self.smiles_cache = {
             oracle: pd.DataFrame(columns=["smiles", "property"]).set_index("smiles")
@@ -65,6 +65,8 @@ property_server = PropertyServer()
 
 @app.get("/property/{property}/")
 def compute_properties(property: str, smiles: list[str] | None = Query(None)):
+    if smiles is None:
+        return {"message": "No SMILES provided."}
     prop = property_server.compute_properties(smiles, property)
     return {"property": prop, "smiles": smiles}
 

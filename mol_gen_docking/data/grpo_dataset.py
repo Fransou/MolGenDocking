@@ -1,9 +1,9 @@
 """Dataset for generating prompts for molecule generation"""
 
-from typing import Iterator
+from typing import Iterator, Tuple, Dict, List, Literal
 from numpy import random
 from datasets import Dataset
-from tokenizers import Tokenizer
+from tqdm import tqdm
 
 from mol_gen_docking.utils.grpo_rewards import KNOWN_PROPERTIES
 
@@ -13,7 +13,7 @@ OBJECTIVES = ["maximize", "minimize"]
 class MolInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 2, vina: bool = False):
+    def __init__(self, max_n_props: int = 5, vina: bool = False):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
@@ -34,7 +34,9 @@ class MolInstructionsDataset:
         """Fills a prompt with a property and objective"""
         return prompt + f" {property} ({objective}),"
 
-    def generate(self, n: int, return_n_props: bool = False) -> Iterator[str]:
+    def generate(
+        self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
+    ) -> Iterator[Tuple[List[Dict[str, str]], List[Dict[str, str]], int]]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -42,34 +44,62 @@ class MolInstructionsDataset:
         :return:
         """
         for _ in range(n):
-            n_props = random.randint(1, self.max_n_props)
+            n_props: int = int(random.randint(1, self.max_n_props))
             properties = random.choice(self.known_properties, n_props, replace=False)
             objectives = random.choice(OBJECTIVES, n_props)
-            prompt = self.template
+            prompt_text = self.template
             for prop, obj in zip(properties, objectives):
-                prompt = self.fill_prompt(prompt, prop, obj)
-
-            prompt = [
-                {"role": "system", "content": self.system_prompt},
-                {
-                    "role": "user",
-                    "content": prompt[:-1] + ".",  # Remove the last comma
-                },
-            ]
-            completion = [
-                {
-                    "role": "assistant",
-                    "content": r"<think>",
-                }
-            ]
-            if not return_n_props:
-                yield prompt, completion
-            else:
+                prompt_text = self.fill_prompt(prompt_text, prop, obj)
+            prompt: List[Dict[str, str]] = []
+            completion: List[Dict[str, str]] = []
+            if format == "chat_format":
+                prompt = [
+                    {"role": "system", "content": self.system_prompt},
+                    {
+                        "role": "user",
+                        "content": prompt_text[:-1] + ".",  # Remove the last comma
+                    },
+                ]
+                completion = [
+                    {
+                        "role": "assistant",
+                        "content": r"<think>",
+                    }
+                ]
+                yield prompt, completion, n_props
+            elif format == "orz":
+                prompt = [
+                    {"from": "human", "content": prompt_text[:-1] + "."},
+                ]
+                completion = [{}]
                 yield prompt, completion, n_props
 
-    def __call__(self, n: int, tokenizer: Tokenizer):
-        out_dictionary = {"prompt": [], "completion": []}
-        for prompt, completion in self.generate(n):
+    def generate_prompt_json(
+        self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
+    ) -> List[List[Dict[str, str]]]:
+        """Generates n prompts randomly to generate molecules"""
+        out_dictionary = []
+        p_bar = tqdm(total=n)
+        for prompt, *_ in self.generate(n, format=format):
+            if prompt in out_dictionary:
+                for p, *_ in self.generate(n, format=format):
+                    found = False
+                    if p not in out_dictionary:
+                        prompt = p
+                        found = True
+                        break
+                if not found:
+                    break
+            out_dictionary.append(prompt)
+            tqdm.update(p_bar)
+        return out_dictionary
+
+    def __call__(self, n: int) -> Dataset:
+        out_dictionary: Dict[str, List[List[Dict[str, str]]]] = {
+            "prompt": [],
+            "completion": [],
+        }
+        for prompt, completion, _ in self.generate(n):
             out_dictionary["prompt"].append(prompt)
             out_dictionary["completion"].append(completion)
         del out_dictionary["completion"]

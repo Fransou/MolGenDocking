@@ -42,4 +42,4 @@ if __name__ == "__main__":
         job = executor.submit(trainer)
         job.result()
     else:
-        trainer()
+        trainer(True)

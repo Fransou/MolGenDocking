@@ -1,6 +1,7 @@
 from typing import List
 import os
 
+import numpy as np
 import pytest
 from tdc import single_pred
 from rdkit.Chem import rdMolDescriptors
@@ -46,7 +47,7 @@ def rdkit_oracle(request) -> RDKITOracle:
 
 
 @pytest.fixture(params=KNOWN_PROPERTIES)
-def oracle(request: str):
+def oracle(request):
     return get_oracle(request.param)
 
 
@@ -65,12 +66,12 @@ def test_oracles(oracle, smiles_data):
     Test the RDKITOracle class
     """
     props = oracle(smiles_data)
-    assert isinstance(props, list)
+    assert isinstance(props, list) or isinstance(props, np.ndarray)
     assert len(props) == len(smiles_data)
     assert isinstance(props[0], float)
 
 
-@pytest.mark.skipif(False or os.system("vina --help") == 0, reason="requires vina")
+@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 def test_vina(smiles_data):
     """
     Tests the oracle with vina

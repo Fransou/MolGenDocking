@@ -52,7 +52,7 @@ if __name__ == "__main__":
         if os.path.exists(args.output_dir):
             shutil.rmtree(args.output_dir)
     os.makedirs(args.output_dir, exist_ok=True)
-
-    model = model.merge_and_unload()
-    model.save_pretrained(os.path.join(args.output_dir, "model"))
-    tokenizer.save_pretrained(os.path.join(args.output_dir, "model"))
+    if model is not None and tokenizer is not None:
+        model = model.merge_and_unload()
+        model.save_pretrained(os.path.join(args.output_dir, "model"))
+        tokenizer.save_pretrained(os.path.join(args.output_dir, "model"))

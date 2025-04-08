@@ -3,6 +3,7 @@
 import os
 import json
 import argparse
+import functools
 from typing import Tuple, Optional
 
 import torch
@@ -11,6 +12,35 @@ from datasets import Dataset
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType
 
 from mol_gen_docking.data import special_tok
+from torch.profiler import profile, record_function, ProfilerActivity
+
+
+def torch_profiler_decorator(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            record_shapes=False,
+        ) as prof:
+            with record_function("model_inference"):
+                result = func(*args, **kwargs)
+        # Save chrome trace
+        prof.export_chrome_trace("profile.json")
+        return result
+
+    return wrapper
+
+
+def record_function_decorator_builder(name):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with record_function(name):
+                return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class MolTrainer:
@@ -30,12 +60,13 @@ class MolTrainer:
         self.args = args
         self.checkpoint_path = ""
         self.last_epoch = 0
-        self.model = None
-        self.tokenizer = None
+        self.model: AutoModelForCausalLM | None = None
+        self.tokenizer: AutoTokenizer | None = None
         if datasets is None:
             datasets = None, None
 
-        self.dataset, self.eval_dataset = datasets
+        self.dataset: None | Dataset = datasets[0]
+        self.eval_dataset = datasets[1]
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
 
@@ -104,6 +135,9 @@ class MolTrainer:
         raise NotImplementedError
 
     def get_peft_config(self, train_tokens: bool = False) -> LoraConfig:
+        assert self.model is not None or self.tokenizer is not None, (
+            "Model and tokenizer must be initialized before calling get_peft_config"
+        )
         return LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             r=self.args.lora_config.get("r", 8),
@@ -117,12 +151,12 @@ class MolTrainer:
                         for t in special_tok.values()
                     ],
                 }
-                if train_tokens
+                if train_tokens and self.tokenizer is not None
                 else {}
             ),
         )
 
-    def __call__(self):
+    def __call__(self, profile: bool = False):
         """
         Launch the training
         """
@@ -144,6 +178,24 @@ class MolTrainer:
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
         self.tokenizer.padding_side = "left"
+
+        if profile:
+            trainer.train = torch_profiler_decorator(trainer.train)
+            trainer._prepare_inputs = record_function_decorator_builder(
+                "prepare_inputs"
+            )(trainer._prepare_inputs)
+            if hasattr(trainer, "_generate_and_score_completions"):
+                trainer._generate_and_score_completions = (
+                    record_function_decorator_builder("generate_and_score_completions")(
+                        trainer._generate_and_score_completions
+                    )
+                )
+            if hasattr(trainer, "reward_funcs"):
+                for i in range(len(trainer.reward_funcs)):
+                    trainer.reward_funcs[i] = record_function_decorator_builder(
+                        f"reward_func_{i}"
+                    )(trainer.reward_funcs[i])
+
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path
