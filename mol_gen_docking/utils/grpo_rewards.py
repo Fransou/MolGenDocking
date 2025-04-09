@@ -111,7 +111,11 @@ class RewardScorer:
         """
         Get property reward
         """
-        oracle_fn = self.oracles[prop]
+        if prop in self.oracles:
+            oracle_fn = self.oracles[prop]
+        else:
+            oracle_fn = get_oracle(prop)
+            self.oracles[prop] = oracle_fn
         property_reward = oracle_fn(smiles, rescale=self.rescale)
         return property_reward
 
