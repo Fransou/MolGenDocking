@@ -5,6 +5,7 @@ import os.path
 
 from typing import List, Union, Optional, Callable, Any
 from multiprocessing import Pool
+import warnings
 
 import pandas as pd
 import numpy as np
@@ -44,12 +45,15 @@ KNOWN_PROPERTIES = [
     "logP",
 ] + list(PROPERTIES_NAMES_SIMPLE.keys())
 
-if not os.path.exists("properties.csv"):
+property_csv_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "properties.csv"
+)
+if not os.path.exists(property_csv_path):
     # Raise a warning, the properties file is not found
-    print("The properties file is not found. Launch this file to generate it.")
+    warnings.warn("The properties file is not found. Launch this file to generate it.")
     propeties_csv = pd.DataFrame(columns=["smiles"])
 else:
-    propeties_csv = pd.read_csv("properties.csv")
+    propeties_csv = pd.read_csv(property_csv_path)
 
 
 class RDKITOracle:
