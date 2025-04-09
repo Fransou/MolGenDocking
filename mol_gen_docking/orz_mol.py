@@ -49,15 +49,15 @@ class PPOExpConfig(BasePPOExpConfig):
     use_orm_score: bool = False
 
     # Conditional settings with production values first
-    total_num_nodes: int = 8
+    total_num_nodes: int = 1
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
-    ref_num_gpus_per_node: int = 1
+    ref_num_gpus_per_node: int = 2
     actor_num_nodes: int = total_num_nodes
-    actor_num_gpus_per_node: int = 1
+    actor_num_gpus_per_node: int = 2
     critic_num_nodes: int = total_num_nodes
-    critic_num_gpus_per_node: int = 1
+    critic_num_gpus_per_node: int = 2
     colocate_all: bool = True
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
@@ -68,7 +68,7 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # path related settings
     pretrain: Optional[str] = (
-        "Qwen/Qwen2.5-0.5B"  # TODO: or put your downloaded model path here!
+        "Qwen/Qwen2.5-0.5B"  # or put your downloaded model path here!
     )
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
@@ -90,15 +90,15 @@ class PPOExpConfig(BasePPOExpConfig):
     actor_learning_rate: float = 1e-6
     critic_learning_rate: float = 5e-6
     num_warmup_steps: int = 50
-    prompt_max_len: int = 2048
+    prompt_max_len: int = 512
     enable_prefix_caching: bool = True
     update_ref_every_epoch: bool = True
     advantage_normalize: bool = True
 
     num_episodes: int = 20
-    rollout_batch_size: int = 128 if not DEBUG_MODE else 16
+    rollout_batch_size: int = 128 if not DEBUG_MODE else 4
     n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
-    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 128
+    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 16
 
     policy_update_steps: int = 1
     critic_update_steps: int = 12 if not DEBUG_MODE else 1
@@ -115,8 +115,10 @@ class PPOExpConfig(BasePPOExpConfig):
     eval_interval: int = 10
 
     # generate related settings
-    generate_max_len: int = 1024  # TODO: change to larger later
-    max_len: int = 2048  # TODO: change to larger later
+    generate_max_len: int = 512  # change to larger later
+    max_len: int = 512  # change to larger later
+    packing_max_len: int = generate_max_len + max_len
+
     temperature: float = 1.0
     top_p: float = 1.0
     top_k: int = -1

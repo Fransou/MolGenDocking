@@ -7,10 +7,17 @@ name = "mol_gen_docking"
 version = "2025.8.4"
 dependencies = [
     "torch==2.6.0",
-    "torchvision==0.21.0",
-    "torchaudio==2.6.0",
-    "PyTDC>=1.15.0",
-    "vllm==0.8.3",
+    "torchvision",
+    "torchaudio",
+    "PyTDC",
+    "vllm",
+    "loguru",
+    "omegaconf",
+    "hydra-core",
+    "tensorboard",
+    "deepspeed",
+    "flash-attn",
+    "peft"
 ]
 requires-python = ">=3.10"
 description = ""

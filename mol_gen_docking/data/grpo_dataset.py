@@ -1,6 +1,6 @@
 """Dataset for generating prompts for molecule generation"""
 
-from typing import Iterator, Tuple, Dict, List, Literal
+from typing import Iterator, Tuple, Dict, List, Literal, Any
 from numpy import random
 from datasets import Dataset
 from tqdm import tqdm
@@ -36,7 +36,7 @@ class MolInstructionsDataset:
 
     def generate(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
-    ) -> Iterator[Tuple[List[Dict[str, str]], List[Dict[str, str]], int]]:
+    ) -> Iterator[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int]]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -50,8 +50,8 @@ class MolInstructionsDataset:
             prompt_text = self.template
             for prop, obj in zip(properties, objectives):
                 prompt_text = self.fill_prompt(prompt_text, prop, obj)
-            prompt: List[Dict[str, str]] = []
-            completion: List[Dict[str, str]] = []
+            prompt: List[Dict[str, Any]] = []
+            completion: List[Dict[str, Any]] = []
             if format == "chat_format":
                 prompt = [
                     {"role": "system", "content": self.system_prompt},
@@ -69,14 +69,15 @@ class MolInstructionsDataset:
                 yield prompt, completion, n_props
             elif format == "orz":
                 prompt = [
-                    {"from": "human", "content": prompt_text[:-1] + "."},
+                    {"from": "human", "value": prompt_text[:-1] + "."},
+                    {"from": "assistant", "ground_truth": {"value": ""}},
                 ]
                 completion = [{}]
                 yield prompt, completion, n_props
 
     def generate_prompt_json(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
-    ) -> List[List[Dict[str, str]]]:
+    ) -> List[List[Dict[str, Any]]]:
         """Generates n prompts randomly to generate molecules"""
         out_dictionary = []
         p_bar = tqdm(total=n)
