@@ -35,8 +35,6 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
                 for s in smiles
             ]
         )
-        print(smiles)
-        print(smiles_joined)
         return completion.replace("[SMILES]", smiles_joined)
 
     return fill_completion
@@ -211,6 +209,7 @@ def test_properties_single_prompt_vina_reward(
     """Test the function molecular_properties with 2 properties."""
     completions, smiles = completions_smiles
     prompts = [build_prompt(target + "_docking")] * len(completions)
+    print(prompts)
     rewards = property_scorer(prompts, completions)
     if smiles != []:
         assert isinstance(rewards, np.ndarray) or isinstance(rewards, list)
