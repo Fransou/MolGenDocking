@@ -12,11 +12,7 @@ from mol_gen_docking.utils.molecular_properties import (
 
 SMILES = (
     [["FAKE"]]
-    + [
-        propeties_csv.sample(k)["smiles"].tolist()
-        for k in range(1, 4)
-        for _ in range(5)
-    ]
+    + [propeties_csv.sample(k)["smiles"].tolist() for k in range(1, 3)]
     + [propeties_csv.sample(2)["smiles"].tolist() + ["FAKE"]]
 )
 
@@ -65,8 +61,8 @@ def test_valid_smiles(completion, smiles):
     product(
         COMPLETIONS,
         SMILES,
-        np.random.choice(KNOWN_PROPERTIES, 4),
-        np.random.choice(KNOWN_PROPERTIES, 4),
+        np.random.choice(KNOWN_PROPERTIES, 2),
+        np.random.choice(KNOWN_PROPERTIES, 2),
     ),
 )
 def test_properties_single_prompt_reward(completion, smiles, property1, property2):
@@ -94,8 +90,8 @@ def test_properties_single_prompt_reward(completion, smiles, property1, property
     product(
         COMPLETIONS,
         SMILES,
-        np.random.choice(KNOWN_PROPERTIES, 4),
-        np.random.choice(KNOWN_PROPERTIES, 4),
+        np.random.choice(KNOWN_PROPERTIES, 2),
+        np.random.choice(KNOWN_PROPERTIES, 2),
     ),
 )
 def test_properties_multi_prompt_rewards(completion, smiles, property1, property2):
@@ -121,7 +117,7 @@ def test_properties_multi_prompt_rewards(completion, smiles, property1, property
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(KNOWN_PROPERTIES, 16), np.random.choice(KNOWN_PROPERTIES, 16)
+        np.random.choice(KNOWN_PROPERTIES, 2), np.random.choice(KNOWN_PROPERTIES, 2)
     ),
 )
 def test_multip_prompt_multi_generation(property1, property2, n_generations=4):

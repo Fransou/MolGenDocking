@@ -563,13 +563,7 @@ class PPOExp(BasePPOExp):
         dialogues = []
         for file_path in self.cfg.eval_prompt_data:
             with open(file_path) as f:
-                loaded_data = json.load(f)
-                for loaded_data_item in loaded_data:
-                    # only keep file name, without suffix
-                    loaded_data_item["file_name"] = os.path.splitext(
-                        os.path.basename(file_path)
-                    )[0]
-                dialogues.extend(loaded_data)
+                dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
         prompts_dataset = EvalCustomDataset(
             dialogues,
