@@ -210,7 +210,7 @@ def test_properties_single_prompt_vina_reward(
 ):
     """Test the function molecular_properties with 2 properties."""
     completions, smiles = completions_smiles
-    prompts = [build_prompt(target)] * len(completions)
+    prompts = [build_prompt(target + "_docking")] * len(completions)
     rewards = property_scorer(prompts, completions)
     if smiles != []:
         assert isinstance(rewards, np.ndarray) or isinstance(rewards, list)
