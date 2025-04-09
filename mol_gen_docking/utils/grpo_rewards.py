@@ -39,25 +39,40 @@ class RewardScorer:
                 if len(prompt) == 1:
                     prompt = prompt[0]
                 else:
-                    prompt = [p for p in prompt if "role" in p and p["role"] == "user"]
+                    prompt = [
+                        p
+                        for p in prompt
+                        if ("role" in p and p["role"] == "user")
+                        or ("from" in p and p["from"] == "human")
+                    ]
                     if len(prompt) == 1:
-                        prompt = prompt[0]["content"]
+                        prompt = prompt[0]
                     else:
                         raise ValueError("Prompt not found correctly.")
             if isinstance(prompt, dict):
-                assert "content" in prompt
-                prompt = prompt["content"]
+                if "content" in prompt:
+                    prompt = prompt["content"]
+                elif "value" in prompt:
+                    prompt = prompt["value"]
+                else:
+                    raise ValueError("Prompt not found correctly.")
             props = {}
-            for prop in KNOWN_PROPERTIES:
-                pattern = r"{} \((below|above) ([0-9.]+)\)".format(prop)
-                match = re.search(pattern, prompt)
-                if match:
-                    props[prop] = (match.group(1), float(match.group(2)))
+            all_props = set(KNOWN_PROPERTIES)
+            docking_props = set(re.findall(r"\b\w+_docking\b", prompt))
+            all_props.update(docking_props)
 
-                pattern = r"{} \((maximize|minimize)\)".format(prop)
-                match = re.search(pattern, prompt)
-                if match:
-                    props[prop] = (match.group(1), 0)
+            for prop in all_props:
+                for pattern, parser in [
+                    (
+                        r"{} \((below|above) ([0-9.]+)\)",
+                        lambda m: (m.group(1), float(m.group(2))),
+                    ),
+                    (r"{} \((maximize|minimize)\)", lambda m: (m.group(1), 0)),
+                ]:
+                    match = re.search(pattern.format(re.escape(prop)), prompt)
+                    if match:
+                        props[prop] = parser(match)
+                        break
             objectives.append(props)
         return objectives
 

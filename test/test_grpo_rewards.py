@@ -212,6 +212,8 @@ def test_properties_single_prompt_vina_reward(
     print(prompts)
     rewards = property_scorer(prompts, completions)
     if smiles != []:
-        assert isinstance(rewards, np.ndarray) or isinstance(rewards, list)
+        assert isinstance(rewards, [np.ndarray, list, torch.Tensor])
+        rewards = torch.Tensor(rewards)
+        assert not rewards.isnan().any()
     else:
         assert rewards.sum().item() == 0
