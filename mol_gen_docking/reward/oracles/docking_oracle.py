@@ -61,6 +61,7 @@ class PyscreenerOracle:
             # dict: {'O=C(/C=C/c1ccc([N+](=O)[O-])o1)c1ccc(-c2ccccc2)cc1': -9.9, 'CCOc1cc(/C=C/C(=O)C(=Cc2ccc(O)c(OC)c2)C(=O)/C=C/c2ccc(O)c(OCC)c2)ccc1O': -9.1}
             # return [list(i.values())[0] for i in final_score]
             score_lst = []
+            print(final_score)
             for smiles in test_smiles:
                 score = final_score[smiles]
                 if score is None:
