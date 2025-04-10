@@ -213,7 +213,7 @@ def get_oracle(oracle_name: str):
     oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
     if oracle_name.endswith("docking_vina") or oracle_name.lower() in oracle_names:
         print(oracle_name)
-        oracle_wrapper.assign_evaluator(Oracle(name=oracle_name, ncpus=1), oracle_name)
+        oracle_wrapper.assign_evaluator(Oracle(name=oracle_name, ncpus=64), oracle_name)
     else:
         oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name), oracle_name)
     return oracle_wrapper

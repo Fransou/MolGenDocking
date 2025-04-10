@@ -204,16 +204,21 @@ def test_multip_prompt_multi_generation(
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", docking_target_info.keys())
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, completions_smiles
+    target, property_scorer, property_filler, n_generations=4
 ):
     """Test the function molecular_properties with 2 properties."""
-    completions, smiles = completions_smiles
-    prompts = [build_prompt(target + "_docking")] * len(completions)
+    prompts = [build_prompt(target + "_docking")] * n_generations
     print(prompts)
+    smiles = [
+        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        for k in range(n_generations)
+    ]
+    completions = [
+        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
+        for s in smiles
+    ]
     rewards = property_scorer(prompts, completions)
-    if smiles != []:
-        assert isinstance(rewards, [np.ndarray, list, torch.Tensor])
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
-    else:
-        assert rewards.sum().item() == 0
+
+    assert isinstance(rewards, [np.ndarray, list, torch.Tensor])
+    rewards = torch.Tensor(rewards)
+    assert not rewards.isnan().any()
