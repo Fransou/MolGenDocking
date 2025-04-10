@@ -219,6 +219,6 @@ def test_properties_single_prompt_vina_reward(
     ]
     rewards = property_scorer(prompts, completions)
 
-    assert isinstance(rewards, [np.ndarray, list, torch.Tensor])
+    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
