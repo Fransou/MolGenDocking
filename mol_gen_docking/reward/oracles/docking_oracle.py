@@ -37,7 +37,7 @@ class PyscreenerOracle:
             )
 
         try:
-            metadata = ps.build_metadata(software_class)
+            metadata = ps.build_metadata(software_class, metadata={"exhaustivness": 1})
         except Exception as e:
             print(e)
             raise ValueError(
