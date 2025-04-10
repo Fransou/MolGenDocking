@@ -32,7 +32,7 @@ from mol_gen_docking.playground.zero_setting_base import (
     CustomDataset,
     EvalCustomDataset,
 )
-from mol_gen_docking.utils.grpo_rewards import RewardScorer
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
@@ -240,7 +240,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             self.writer.add_scalar("grpo_raw_reward", np.mean(scores), self.global_step)
             # grpo reward normalization
             for i, prompt in enumerate(prompts):
-                scores[i] -= np.mean(pass_at_n_dict[prompt])
+                scores[i] -= float(np.mean(pass_at_n_dict[prompt]))
                 if std := np.std(pass_at_n_dict[prompt]) > 0:
                     scores[i] /= std
 

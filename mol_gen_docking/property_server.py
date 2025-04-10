@@ -2,18 +2,19 @@ import pandas as pd
 
 from fastapi import FastAPI, BackgroundTasks, Query
 
-from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERTIES
-
+from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
 
 app = FastAPI()
 
 
 class PropertyServer:
     def __init__(self, max_cache_size_per_property: int = 10**4, rescale: bool = True):
-        self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+        self.oracles = {
+            oracle: get_oracle(oracle) for oracle in PROPERTIES_NAMES_SIMPLE
+        }
         self.smiles_cache = {
             oracle: pd.DataFrame(columns=["smiles", "property"]).set_index("smiles")
-            for oracle in KNOWN_PROPERTIES
+            for oracle in PROPERTIES_NAMES_SIMPLE
         }
         self.max_cache_size_per_property = max_cache_size_per_property
         self.rescale = rescale
@@ -24,13 +25,13 @@ class PropertyServer:
         :param smiles: SMILES of the molecule
         :return: Dictionary of the properties
         """
-        propeties = []
+        propeties: list[float] = []
         for s in smiles:
             if s not in self.smiles_cache[prop]:
                 mol_prop = float(self.oracles[prop](s, rescale=self.rescale)[0])
                 propeties.append(mol_prop)
             else:
-                propeties.append(self.smiles_cache[prop].loc[s])
+                propeties.append(float(self.smiles_cache[prop].loc[s].values[0]))
         return propeties
 
     def query_property(self, smiles_list: list[str], prop: str) -> None:

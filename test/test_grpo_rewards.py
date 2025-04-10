@@ -7,12 +7,13 @@ import torch
 import numpy as np
 from tdc.metadata import docking_target_info
 
-from mol_gen_docking.utils.grpo_rewards import RewardScorer
-from mol_gen_docking.utils.molecular_properties import (
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
+from mol_gen_docking.reward.oracles import (
     propeties_csv,
-    KNOWN_PROPERTIES,
     PROPERTIES_NAMES_SIMPLE,
 )
+
+PROP_LIST = list(PROPERTIES_NAMES_SIMPLE.keys())
 
 SMILES = (
     [["FAKE"]]
@@ -120,8 +121,8 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(KNOWN_PROPERTIES, 3),
-        np.random.choice(KNOWN_PROPERTIES, 3),
+        np.random.choice(PROP_LIST, 3),
+        np.random.choice(PROP_LIST, 3),
     ),
 )
 def test_properties_single_prompt_reward(
@@ -142,8 +143,8 @@ def test_properties_single_prompt_reward(
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(KNOWN_PROPERTIES, 3),
-        np.random.choice(KNOWN_PROPERTIES, 3),
+        np.random.choice(PROP_LIST, 3),
+        np.random.choice(PROP_LIST, 3),
     ),
 )
 def test_properties_multi_prompt_rewards(
@@ -168,7 +169,8 @@ def test_properties_multi_prompt_rewards(
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(KNOWN_PROPERTIES, 8), np.random.choice(KNOWN_PROPERTIES, 8)
+        np.random.choice(PROP_LIST, 8),
+        np.random.choice(PROP_LIST, 8),
     ),
 )
 def test_multip_prompt_multi_generation(

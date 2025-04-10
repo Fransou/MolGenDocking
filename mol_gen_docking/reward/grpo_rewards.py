@@ -9,9 +9,7 @@ import numpy as np
 
 from rdkit import Chem
 
-from mol_gen_docking.utils.molecular_properties import get_oracle, KNOWN_PROPERTIES
-
-ALL_ORACLES = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+from mol_gen_docking.reward.oracles import get_oracle, PROPERTIES_NAMES_SIMPLE
 
 
 class RewardScorer:
@@ -20,7 +18,9 @@ class RewardScorer:
     ):
         self.rescale = rescale
         self.reward = reward
-        self.oracles = {oracle: get_oracle(oracle) for oracle in KNOWN_PROPERTIES}
+        self.oracles = {
+            oracle: get_oracle(oracle) for oracle in PROPERTIES_NAMES_SIMPLE
+        }
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
 
@@ -57,7 +57,7 @@ class RewardScorer:
                 else:
                     raise ValueError("Prompt not found correctly.")
             props = {}
-            all_props = set(KNOWN_PROPERTIES)
+            all_props = set(PROPERTIES_NAMES_SIMPLE.keys())
             docking_props = set(re.findall(r"\b\w+_docking\b", prompt))
             all_props.update(docking_props)
 

@@ -4,11 +4,10 @@ import pytest
 import torch
 import numpy as np
 
-from mol_gen_docking.utils.grpo_rewards import RewardScorer, RewardScorerServer
-from mol_gen_docking.utils.molecular_properties import (
-    propeties_csv,
-    KNOWN_PROPERTIES,
-)
+from mol_gen_docking.reward.grpo_rewards import RewardScorer, RewardScorerServer
+from mol_gen_docking.reward.oracles import propeties_csv, PROPERTIES_NAMES_SIMPLE
+
+PROP_LIST = list(PROPERTIES_NAMES_SIMPLE.keys())
 
 SMILES = (
     [["FAKE"]]
@@ -61,8 +60,8 @@ def test_valid_smiles(completion, smiles):
     product(
         COMPLETIONS,
         SMILES,
-        np.random.choice(KNOWN_PROPERTIES, 2),
-        np.random.choice(KNOWN_PROPERTIES, 2),
+        np.random.choice(PROP_LIST, 2),
+        np.random.choice(PROP_LIST, 2),
     ),
 )
 def test_properties_single_prompt_reward(completion, smiles, property1, property2):
@@ -90,8 +89,8 @@ def test_properties_single_prompt_reward(completion, smiles, property1, property
     product(
         COMPLETIONS,
         SMILES,
-        np.random.choice(KNOWN_PROPERTIES, 2),
-        np.random.choice(KNOWN_PROPERTIES, 2),
+        np.random.choice(PROP_LIST, 2),
+        np.random.choice(PROP_LIST, 2),
     ),
 )
 def test_properties_multi_prompt_rewards(completion, smiles, property1, property2):
@@ -117,7 +116,8 @@ def test_properties_multi_prompt_rewards(completion, smiles, property1, property
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(KNOWN_PROPERTIES, 2), np.random.choice(KNOWN_PROPERTIES, 2)
+        np.random.choice(PROP_LIST, 2),
+        np.random.choice(PROP_LIST, 2),
     ),
 )
 def test_multip_prompt_multi_generation(property1, property2, n_generations=4):

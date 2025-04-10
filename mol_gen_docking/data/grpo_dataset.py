@@ -5,7 +5,7 @@ from numpy import random
 from datasets import Dataset
 from tqdm import tqdm
 
-from mol_gen_docking.utils.grpo_rewards import KNOWN_PROPERTIES
+from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE
 
 OBJECTIVES = ["maximize", "minimize"]
 
@@ -19,9 +19,11 @@ class MolInstructionsDataset:
         """
         self.max_n_props = max_n_props
         if not vina:
-            self.known_properties = [k for k in KNOWN_PROPERTIES if "docking" not in k]
+            self.known_properties = [
+                k for k in PROPERTIES_NAMES_SIMPLE if "docking" not in k
+            ]
         else:
-            self.known_properties = KNOWN_PROPERTIES
+            self.known_properties = list(PROPERTIES_NAMES_SIMPLE.keys())
         self.template = (
             "Can you generate a molecule optimizing the following properties:"
         )

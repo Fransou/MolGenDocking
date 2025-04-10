@@ -6,19 +6,17 @@ import pytest
 from tdc import single_pred
 from rdkit.Chem import rdMolDescriptors
 
-from mol_gen_docking.utils.molecular_properties import (
-    KNOWN_PROPERTIES,
-    PROPERTIES_NAMES_SIMPLE,
-    RDKITOracle,
-    get_oracle,
-)
+from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
+from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 from mol_gen_docking.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
+PROP_LIST = list(PROPERTIES_NAMES_SIMPLE.keys())
+
 
 def is_rdkit_use(name: str):
-    return name in KNOWN_PROPERTIES or name in PROPERTIES_NAMES_SIMPLE.values()
+    return name in PROP_LIST or name in PROPERTIES_NAMES_SIMPLE.values()
 
 
 @pytest.fixture(
@@ -26,11 +24,15 @@ def is_rdkit_use(name: str):
         "hERG*Tox",
         pytest.param(
             "BBB_Martins*ADME",
-            marks=pytest.mark.skipif(os.environ.get("TEST_LONG", "False") == "False"),
+            marks=pytest.mark.skipif(
+                os.environ.get("TEST_LONG", "False") == "False", reason="Fast Test"
+            ),
         ),
         pytest.param(
             "Caco2_Wang*ADME",
-            marks=pytest.mark.skipif(os.environ.get("TEST_LONG", "False") == "False"),
+            marks=pytest.mark.skipif(
+                os.environ.get("TEST_LONG", "False") == "False", reason="Fast Test"
+            ),
         ),
     ],
     scope="module",
@@ -52,7 +54,7 @@ def rdkit_oracle(request) -> RDKITOracle:
     return RDKITOracle(name=request.param)
 
 
-@pytest.fixture(params=KNOWN_PROPERTIES)
+@pytest.fixture(params=PROP_LIST)
 def oracle(request):
     return get_oracle(request.param)
 
