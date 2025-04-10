@@ -14,7 +14,7 @@ class PyscreenerOracle:
     ):
         self.name = "[DOCKING]-" + target_name
         if not os.path.isfile(target_name):
-            pdbid = self.name.split("_")[0]
+            pdbid = target_name.split("_")[0]
             receptor_pdb_file = "./oracle/" + pdbid + ".pdbqt"
             box_center = docking_target_info[pdbid]["center"]
             box_size = docking_target_info[pdbid]["size"]
