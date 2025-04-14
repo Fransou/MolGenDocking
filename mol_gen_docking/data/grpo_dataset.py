@@ -9,6 +9,7 @@ from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE
 
 OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
 DOCKING_SOLO_OBJECTIVES = ["maximize", "above", "equal"]
+TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 
 class MolInstructionsDataset:
@@ -52,7 +53,12 @@ class MolInstructionsDataset:
             objectives = []
             for prop in properties:
                 if len(prop) == 1 and "docking" in PROPERTIES_NAMES_SIMPLE[prop]:
-                    objectives.append(random.choice(DOCKING_SOLO_OBJECTIVES))
+                    obj = random.choice(DOCKING_SOLO_OBJECTIVES)
+                else:
+                    obj = random.choice(OBJECTIVES)
+                if obj in TARGET_VALUE_OBJECTIVES:
+                    obj += f" {random.uniform(0, 1):.2f}"
+                objectives.append(obj)
 
             prompt_text = self.template
             for prop, obj in zip(properties, objectives):

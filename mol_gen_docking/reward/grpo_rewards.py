@@ -202,7 +202,6 @@ class RewardScorer:
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
         )
-        print(objectives)
         self.fill_df_properties(df_properties)
         df_properties["reward"] = df_properties.apply(
             lambda x: self.get_reward(x), axis=1

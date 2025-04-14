@@ -61,7 +61,7 @@ PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {
 for target in DOCKING_TARGETS:
     PROPERTIES_NAMES_SIMPLE[
         f"Binding affinity against {get_pdb_description(target)} ({target})"
-    ] = target + "_docking_vina"
+    ] = target + "_docking"
 
 
 property_csv_path = os.path.join(

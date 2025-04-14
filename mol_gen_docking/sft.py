@@ -24,7 +24,6 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     trainer = SFTMolTrainer(args)
-    print(args)
     if args.slurm:
         current_epoch = trainer.last_epoch
         n_runs = 0
