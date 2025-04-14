@@ -14,6 +14,8 @@ r1
 cd $WORKING_DIR
 ray start --head --num-cpus 64
 
+echo "Starting job on from $1 to $2"
 python mol_gen_docking/compute_properties_ZINC.py \
-  --sub-sample 1024 \
-  --batch-size 128
+  --batch-size 512 \
+  --i_start $1 \
+  --i_end $2
