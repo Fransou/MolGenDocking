@@ -1,7 +1,5 @@
 import argparse
 
-from multiprocessing import Pool
-from typing import List
 from tqdm import tqdm
 
 from tdc.generation import MolGen
@@ -23,12 +21,6 @@ def get_args() -> argparse.Namespace:
         type=int,
         default=128,
         help="Batch size for the property calculation",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=8,
-        help="Number of workers for the property calculation",
     )
     parser.add_argument("--sub-sample", type=int, default=None, help="Sub-sample size")
 
@@ -60,25 +52,16 @@ if __name__ == "__main__":
             desc=f"[{i_name}/{len(PROPERTIES_NAMES_SIMPLE)}] Calculating {oracle_name}",
         )
 
-        def get_property(batch: List[str]) -> dict:
-            """Get the property for a batch of SMILES strings."""
-            print(batch)
-            props = oracle(batch[0])
-            return {smi: prop for smi, prop in zip(batch, props)}
-
         if "docking" not in oracle_name:
             continue
-        pool = Pool(args.num_workers)
-        props_pbar = tqdm(
-            pool.imap_unordered(get_property, smiles_batches),
-            total=len(smiles_batches),
-            desc=f"[{i_name}/{len(PROPERTIES_NAMES_SIMPLE)}] | Calculating {oracle_name}",
-        )
+        props = {}
+        for batch in smiles_batches:
+            props_batch = oracle(batch)
+            for smiles, prop in zip(batch, props_batch):
+                props[smiles] = prop
+            p_bar.update(len(batch))
 
-        props = {k: v for d in props_pbar for k, v in d.items()}
         molgen[oracle_name] = molgen["smiles"].map(props)
-        pool.close()
-        del props_pbar
 
     print(molgen.sample(10))
 
