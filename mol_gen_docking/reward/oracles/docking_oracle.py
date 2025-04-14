@@ -38,11 +38,9 @@ class PyscreenerOracle:
             raise NotImplementedError
 
         if not ray.is_initialized():
-            print(ray.is_initialized())
             ray.init()
 
         metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 1})
-        print(metadata)
         self.scorer = ps.virtual_screen(
             software_class,
             [receptor_pdb_file],
@@ -58,7 +56,6 @@ class PyscreenerOracle:
             return list(final_score)[0]
         else:
             score_lst = []
-            print(final_score)
             for i, smiles in enumerate(test_smiles):
                 score = final_score[i]
                 if score is None:
