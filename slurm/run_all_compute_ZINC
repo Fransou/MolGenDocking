@@ -1,0 +1,11 @@
+#!/bin/bash
+
+i0=$1
+niter=$2
+
+for i in $(seq $i0 $niter); do
+    istart=$(($i * 1024))
+    iend = $(($istart + 1024))
+    echo "Running job for $i with range $istart to $iend"
+    sbatch $HOME/MolGenDocking/slurm/compute_ZINC_df.sh $istart $iend
+done
