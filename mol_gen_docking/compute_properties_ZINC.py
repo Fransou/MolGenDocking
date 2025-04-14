@@ -63,7 +63,7 @@ if __name__ == "__main__":
         def get_property(batch: List[str]) -> dict:
             """Get the property for a batch of SMILES strings."""
             print(batch)
-            props = oracle(batch)
+            props = oracle(batch[0])
             return {smi: prop for smi, prop in zip(batch, props)}
 
         if "docking" not in oracle_name:
