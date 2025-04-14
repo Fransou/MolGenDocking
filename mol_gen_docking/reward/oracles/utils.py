@@ -64,6 +64,9 @@ for target in DOCKING_TARGETS:
     ] = target + "_docking"
 
 
+oracles_not_to_rescale = ["GSK3B", "JNK3", "DRD2"]
+
+
 property_csv_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "properties.csv"
 )

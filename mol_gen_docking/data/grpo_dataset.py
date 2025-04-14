@@ -8,7 +8,7 @@ from tqdm import tqdm
 from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE
 
 OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
-DOCKING_SOLO_OBJECTIVES = ["maximize", "above", "equal"]
+DOCKING_SOLO_OBJECTIVES = ["minimize", "below", "equal"]
 TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 
@@ -26,9 +26,7 @@ class MolInstructionsDataset:
             ]
         else:
             self.known_properties = list(PROPERTIES_NAMES_SIMPLE.keys())
-        self.template = (
-            "Can you generate a molecule optimizing the following properties:"
-        )
+        self.template = "Can you generate a molecule in the SMILES format optimizing the following properties:"
         self.system_prompt = (
             "You are a helpful assistant. You can generate drug-like molecules"
             + " in the SMILES format between <SMILES> and </SMILES> tags."
@@ -57,7 +55,8 @@ class MolInstructionsDataset:
                 else:
                     obj = random.choice(OBJECTIVES)
                 if obj in TARGET_VALUE_OBJECTIVES:
-                    obj += f" {random.uniform(0, 1):.2f}"
+                    v = random.randint(0, 5)
+                    obj += f" {v / 10}"
                 objectives.append(obj)
 
             prompt_text = self.template

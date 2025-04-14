@@ -2,7 +2,6 @@ import os
 import argparse
 import json
 
-
 from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
 
 if __name__ == "__main__":
