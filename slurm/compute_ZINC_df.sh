@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=compute_ZINC_df
+#SBATCH --account=rrg-josedolz
+#SBATCH --time=00:30:00
+#SBATCH --mem=48G
+#SBATCH --cpus-per-task=64
+#SBATCH --tasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --output=logs/%x-%j.out
+
+export WORKING_DIR=$HOME/MolGenDocking
+
+r1
+cd $WORKING_DIR
+ray start --head --num-cpus 64
+
+python mol_gen_docking/compute_properties_ZINC.py \
+  --sub-sample 1024 \
+  --batch-size 128
