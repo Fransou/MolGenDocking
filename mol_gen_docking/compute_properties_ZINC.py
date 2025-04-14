@@ -32,6 +32,12 @@ def get_args() -> argparse.Namespace:
         default=10000000,
         help="End index for the batch (0 for all)",
     )
+    parser.add_argument(
+        "--sub-sample",
+        type=int,
+        default=None,
+        help="Subsample the dataset to this number of samples",
+    )
 
     args = parser.parse_args()
 

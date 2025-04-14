@@ -7,11 +7,13 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
-
+source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 
-r1
 cd $WORKING_DIR
+use_qvina
+r1
+
 ray start --head --num-cpus 64
 
 echo "Starting job on from $1 to $2"
