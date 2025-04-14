@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compute_ZINC_df
 #SBATCH --account=rrg-josedolz
-#SBATCH --time=00:30:00
+#SBATCH --time=02:30:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=64
 #SBATCH --tasks-per-node=1
