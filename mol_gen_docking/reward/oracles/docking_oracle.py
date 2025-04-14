@@ -37,7 +37,7 @@ class PyscreenerOracle:
         else:
             raise NotImplementedError
 
-        if ~ray.is_initialized():
+        if not ray.is_initialized():
             print(ray.is_initialized())
             ray.init()
 
