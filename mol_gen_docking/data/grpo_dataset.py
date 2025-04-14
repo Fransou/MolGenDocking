@@ -41,9 +41,7 @@ class MolGenerationInstructionsDataset:
 
     def generate(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
-    ) -> Iterator[
-        Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, Dict[str, Any]]
-    ]:
+    ) -> Iterator[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -93,43 +91,67 @@ class MolGenerationInstructionsDataset:
                         "content": r"<think>",
                     }
                 ]
-                yield prompt, completion, n_props, metadata
+                yield prompt, completion, metadata
             elif format == "orz":
                 prompt = [
                     {"from": "human", "value": prompt_text[:-1] + "."},
                     {"from": "assistant", "ground_truth": {"value": ""}},
                 ]
                 completion = [{}]
-                yield prompt, completion, n_props, metadata
+                yield prompt, completion, metadata
 
     def generate_prompt_json(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
     ) -> List[List[Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules.
-        The same optimization problem cannot be generated multiple times,
-        evwn with different target values.
+        The generation is controlled by the rule_set dictionary
         """
+        rule_set: Dict[str, Any] = {
+            "obj_already_seen": [],  # Ensures the same objectives cannot be used twice (regardless of the target value)
+            "property_n_props_appearance": {},  # A dictionary with keys (props, n_props) ensuring that the same properties do not appear more than 10 times for each n_props
+        }
+
         out_dictionary = []
-        already_seen: List[str] = []
         p_bar = tqdm(total=n)
-        for prompt, _, _, metadata in self.generate(n, format=format):
+        for prompt, _, metadata in self.generate(n, format=format):
             hash = "".join(
                 list(chain(*[metadata["properties"], metadata["objectives"]]))
             )
-            if hash in already_seen:
-                for p, _, _, met in self.generate(n, format=format):
+
+            allowed = hash not in rule_set["obj_already_seen"]
+            for prop in metadata["properties"]:
+                allowed = allowed and (
+                    rule_set["property_n_props_appearance"][metadata["n_props"]][prop]
+                    < 10
+                )
+            if not allowed:
+                for prompt, _, metadata in self.generate(n, format=format):
                     found = False
-                    hash = "".join(list(chain(*[met["properties"], met["objectives"]])))
-                    if hash not in already_seen:
-                        prompt = p
-                        metadata = met
+                    hash = "".join(
+                        list(chain(*[metadata["properties"], metadata["objectives"]]))
+                    )
+
+                    allowed = hash not in rule_set["obj_already_seen"]
+                    for prop in metadata["properties"]:
+                        allowed = allowed and (
+                            rule_set["property_n_props_appearance"][
+                                metadata["n_props"]
+                            ][prop]
+                            < 10
+                        )
+
+                    if allowed:
                         found = True
                         break
                 if not found:
                     break
             out_dictionary.append(prompt)
-            already_seen.append(hash)
+
+            for prop in metadata["properties"]:
+                rule_set["property_n_props_appearance"][metadata["n_props"]][prop] += 1
+            rule_set["obj_already_seen"].append(hash)
+
             tqdm.update(p_bar)
         return out_dictionary
 

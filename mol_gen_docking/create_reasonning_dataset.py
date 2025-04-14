@@ -9,7 +9,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-prompts",
         type=int,
-        default=409600,
+        default=2**5,
         help="The number of prompts to generate",
     )
     parser.add_argument("--vina", action="store_true", dest="vina")
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-n-props",
         type=int,
-        default=2,
+        default=3,
         help="The maximum number of properties to optimize",
     )
 
