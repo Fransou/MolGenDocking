@@ -7,12 +7,14 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
+
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 
 cd $WORKING_DIR
-use_qvina
-r1
+
+export PATH=$HOME/qvina:$PATH
+source $HOME/R1ENV/bin/activate
 
 ray start --head --num-cpus 64
 
