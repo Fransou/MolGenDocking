@@ -7,14 +7,20 @@ import requests
 
 def get_pdb_description(pdb_id):
     url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
-    response = requests.get(url)
 
-    if response.status_code == 200:
-        data = response.json()
-        title = data.get("struct", {}).get("title", "No title found")
-        return title
-    else:
-        return f"Failed to retrieve data for {pdb_id}"
+    # if the url is reachable, the properties are downloaded
+    if os.system(f"curl -s {url}") == 0:
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            data = response.json()
+            title = data.get("struct", {}).get("title", "No title found")
+            return title
+        else:
+            raise Exception(f"Error getting {url}")
+
+    # if the url is not reachable, the properties are not downloaded
+    return pdb_id
 
 
 DOCKING_TARGETS: List[str] = [
