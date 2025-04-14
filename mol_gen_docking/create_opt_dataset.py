@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-n-props",
         type=int,
-        default=5,
+        default=3,
         help="The maximum number of properties to optimize",
     )
 

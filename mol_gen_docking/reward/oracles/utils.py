@@ -1,7 +1,32 @@
 import os
 import warnings
 import pandas as pd
+import requests
 
+
+def get_pdb_description(pdb_id):
+    url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        title = data.get("struct", {}).get("title", "No title found")
+        return title
+    else:
+        return f"Failed to retrieve data for {pdb_id}"
+
+
+DOCKING_TARGETS = [
+    "3pbl",
+    "1iep",
+    "2rgp",
+    "3eml",
+    "3ny8",
+    "4rlu",
+    "4unn",
+    "5mo4",
+    "7l11",
+]
 
 PROPERTIES_NAMES_SIMPLE = {
     "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
@@ -23,6 +48,11 @@ PROPERTIES_NAMES_SIMPLE = {
     "Kier Phi": "CalcPhi",
     "logP": "logP",
 }
+
+for target in DOCKING_TARGETS:
+    PROPERTIES_NAMES_SIMPLE[
+        f"Binding affinity against {get_pdb_description(target)} ({target})"
+    ] = target
 
 
 property_csv_path = os.path.join(
