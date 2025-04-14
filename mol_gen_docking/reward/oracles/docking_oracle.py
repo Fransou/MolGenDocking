@@ -36,7 +36,9 @@ class PyscreenerOracle:
             box_size = docking_target_info[pdbid]["size"]
         else:
             raise NotImplementedError
+
         if ~ray.is_initialized():
+            print(ray.is_initialized())
             ray.init()
 
         metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 1})
