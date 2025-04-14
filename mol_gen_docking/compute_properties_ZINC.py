@@ -65,6 +65,8 @@ if __name__ == "__main__":
             props = oracle(batch)
             return {smi: prop for smi, prop in zip(batch, props)}
 
+        if "docking" not in oracle_name:
+            continue
         pool = Pool(args.num_workers)
         props_pbar = tqdm(
             pool.imap_unordered(get_property, smiles_batches),
