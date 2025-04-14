@@ -1,4 +1,5 @@
 import os
+from typing import List, Dict
 import warnings
 import pandas as pd
 import requests
@@ -16,7 +17,7 @@ def get_pdb_description(pdb_id):
         return f"Failed to retrieve data for {pdb_id}"
 
 
-DOCKING_TARGETS = [
+DOCKING_TARGETS: List[str] = [
     "3pbl",
     "1iep",
     "2rgp",
@@ -28,7 +29,7 @@ DOCKING_TARGETS = [
     "7l11",
 ]
 
-PROPERTIES_NAMES_SIMPLE = {
+PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {
     "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
     "Inhibition against c-Jun N-terminal kinase-3": "JNK3",
     "Bioactivity against dopamine receptor D2": "DRD2",
