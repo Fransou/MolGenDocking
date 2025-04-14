@@ -17,5 +17,5 @@ ray start --head --num-cpus 64
 echo "Starting job on from $1 to $2"
 python mol_gen_docking/compute_properties_ZINC.py \
   --batch-size 512 \
-  --i_start $1 \
-  --i_end $2
+  --i-start $1 \
+  --i-end $2
