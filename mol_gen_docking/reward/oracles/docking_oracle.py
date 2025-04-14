@@ -1,5 +1,8 @@
 import os
 from typing import List
+import ray
+
+import pyscreener as ps
 
 from tdc.metadata import docking_target_info
 
@@ -12,6 +15,19 @@ class PyscreenerOracle:
         ncpu: int = 4,
         **kwargs,
     ):
+        if software_class not in [
+            "vina",
+            "qvina",
+            "smina",
+            "psovina",
+            "dock",
+            "dock6",
+            "ucsfdock",
+        ]:
+            raise ValueError(
+                'The value of software_class is not implemented. Currently available:["vina", "qvina", "smina", "psovina", "dock", "dock6", "ucsfdock"]'
+            )
+
         self.name = "[DOCKING]-" + target_name
         if not os.path.isfile(target_name):
             pdbid = target_name.split("_")[0]
@@ -20,29 +36,10 @@ class PyscreenerOracle:
             box_size = docking_target_info[pdbid]["size"]
         else:
             raise NotImplementedError
-        try:
-            import ray
+        if ~ray.is_initialized():
+            ray.init()
 
-            try:
-                ray.init()
-            except Exception as e:
-                print(e)
-                ray.shutdown()
-                ray.init()
-            import pyscreener as ps
-        except Exception as e:
-            print(e)
-            raise ImportError(
-                "Please install PyScreener following guidance in https://github.com/coleygroup/pyscreener"
-            )
-
-        try:
-            metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 1})
-        except Exception as e:
-            print(e)
-            raise ValueError(
-                'The value of software_class is not implemented. Currently available:["vina", "qvina", "smina", "psovina", "dock", "dock6", "ucsfdock"]'
-            )
+        metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 1})
         print(metadata)
         self.scorer = ps.virtual_screen(
             software_class,
