@@ -6,7 +6,7 @@ from typing import Tuple, Optional
 from trl import GRPOConfig, GRPOTrainer
 from datasets import Dataset
 
-from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
+from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
 from mol_gen_docking.reward.grpo_rewards import RewardScorer, RewardScorerServer
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 from mol_gen_docking.utils.grpo_reward_tokenizer import wrap_tokenizer
@@ -30,8 +30,10 @@ class GRPOMolTrainer(MolTrainer):
 
     def get_dataset(self) -> Tuple[Dataset, Dataset]:
         """Loads the dataset."""
-        dataset = MolInstructionsDataset(vina=self.args.vina)(self.args.n_prompts)
-        eval_dataset = MolInstructionsDataset(vina=self.args.vina)(
+        dataset = MolGenerationInstructionsDataset(vina=self.args.vina)(
+            self.args.n_prompts
+        )
+        eval_dataset = MolGenerationInstructionsDataset(vina=self.args.vina)(
             self.args.n_prompts // 10
         )
         return dataset, eval_dataset
