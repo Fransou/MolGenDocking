@@ -51,10 +51,11 @@ class PyscreenerOracle:
         )
 
     def __call__(self, test_smiles: str | List[str], error_value=None):
-        final_score = self.scorer(test_smiles)
         if isinstance(test_smiles, str):
+            final_score = self.scorer(test_smiles)
             return list(final_score)[0]
         else:
+            final_score = self.scorer(*test_smiles)
             score_lst = []
             for i, smiles in enumerate(test_smiles):
                 score = final_score[i]
