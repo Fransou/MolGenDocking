@@ -7,7 +7,7 @@ from .utils import (
 from .oracle_wrapper import OracleWrapper
 
 
-def get_oracle(oracle_name: str):
+def get_oracle(oracle_name: str, **kwargs):
     """
     Get the Oracle object for the specified name.
     :param name: Name of the Oracle
@@ -18,13 +18,13 @@ def get_oracle(oracle_name: str):
     if oracle_name.endswith("docking_vina") or oracle_name.endswith("docking"):
         from .docking_oracle import PyscreenerOracle
 
-        oracle_wrapper.assign_evaluator(PyscreenerOracle(oracle_name, ncpus=16))
+        oracle_wrapper.assign_evaluator(PyscreenerOracle(oracle_name, **kwargs))
     elif oracle_name.lower() in oracle_names:
-        oracle_wrapper.assign_evaluator(Oracle(name=oracle_name, ncpus=4), oracle_name)
+        oracle_wrapper.assign_evaluator(Oracle(name=oracle_name, **kwargs), oracle_name)
     else:
         from .rdkit_oracle import RDKITOracle
 
-        oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name), oracle_name)
+        oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name, **kwargs), oracle_name)
     return oracle_wrapper
 
 

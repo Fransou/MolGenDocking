@@ -45,15 +45,16 @@ if __name__ == "__main__":
 
     for i_name, oracle_name in enumerate(PROPERTIES_NAMES_SIMPLE.values()):
         oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-        oracle = get_oracle(oracle_name)
+        if "docking" in oracle_name:
+            oracle = get_oracle(oracle_name, n_cpus=64)
+        else:
+            oracle = get_oracle(oracle_name)
 
         p_bar = tqdm(
             total=len(molgen),
             desc=f"[{i_name}/{len(PROPERTIES_NAMES_SIMPLE)}] Calculating {oracle_name}",
         )
 
-        if "docking" not in oracle_name:
-            continue
         props = {}
         for batch in smiles_batches:
             props_batch = oracle(batch)
