@@ -4,12 +4,14 @@ import warnings
 import pandas as pd
 import requests
 
+IS_CONNECTED = False
+
 
 def get_pdb_description(pdb_id):
     url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
 
     # if the url is reachable, the properties are downloaded
-    if os.system(f"curl -s {url}") == 0:
+    if IS_CONNECTED and os.system(f"curl -s {url}") == 0:
         response = requests.get(url)
 
         if response.status_code == 200:
