@@ -5,7 +5,6 @@ from itertools import product
 import pytest
 import torch
 import numpy as np
-from tdc.metadata import docking_target_info
 
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 from mol_gen_docking.reward.oracles import (
@@ -15,6 +14,9 @@ from mol_gen_docking.reward.oracles import (
 
 PROP_LIST = [
     k for k in PROPERTIES_NAMES_SIMPLE if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
+]
+DOCKING_PROP_LIST = [
+    k for k in PROPERTIES_NAMES_SIMPLE if "docking" in PROPERTIES_NAMES_SIMPLE[k]
 ]
 
 SMILES = (
@@ -217,12 +219,12 @@ def test_multip_prompt_multi_generation(
 
 
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize("target", docking_target_info.keys())
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, n_generations=1
 ):
     """Test the function molecular_properties with 2 properties."""
-    prompts = [build_prompt(target + "_docking")] * n_generations
+    prompts = [build_prompt(PROPERTIES_NAMES_SIMPLE[target])] * n_generations
     print(prompts)
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
