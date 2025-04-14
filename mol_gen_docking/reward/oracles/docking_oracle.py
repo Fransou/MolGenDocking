@@ -40,7 +40,7 @@ class PyscreenerOracle:
         if not ray.is_initialized():
             ray.init()
 
-        metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 1})
+        metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 8})
         self.scorer = ps.virtual_screen(
             software_class,
             [receptor_pdb_file],
