@@ -22,7 +22,15 @@ def get_args() -> argparse.Namespace:
         default=128,
         help="Batch size for the property calculation",
     )
-    parser.add_argument("--sub-sample", type=int, default=None, help="Sub-sample size")
+    parser.add_argument(
+        "--i-start", type=int, default=0, help="Start index for the batch"
+    )
+    parser.add_argument(
+        "--i-end",
+        type=int,
+        default=10000000,
+        help="End index for the batch (0 for all)",
+    )
 
     args = parser.parse_args()
 
@@ -65,6 +73,10 @@ if __name__ == "__main__":
         molgen[oracle_name] = molgen["smiles"].map(props)
 
     print(molgen.sample(10))
-
-    path = "mol_gen_docking/reward/oracles/propeties.csv"
+    if args.i_end > molgen.shape[0] and args.i_start == 0:
+        path = "mol_gen_docking/reward/oracles/properties.csv"
+    else:
+        path = (
+            f"mol_gen_docking/reward/oracles/properties_{args.i_start}_{args.i_end}.csv"
+        )
     molgen.to_csv(path, index=False)
