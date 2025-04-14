@@ -19,7 +19,9 @@ class RewardScorer:
         self.rescale = rescale
         self.reward = reward
         self.oracles = {
-            oracle: get_oracle(oracle) for oracle in PROPERTIES_NAMES_SIMPLE
+            oracle: get_oracle(oracle)
+            for oracle in PROPERTIES_NAMES_SIMPLE
+            if "docking" not in PROPERTIES_NAMES_SIMPLE[oracle]
         }
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
@@ -64,7 +66,7 @@ class RewardScorer:
             for prop in all_props:
                 for pattern, parser in [
                     (
-                        r"{} \((below|above) ([0-9.]+)\)",
+                        r"{} \((below|above|equal) ([0-9.]+)\)",
                         lambda m: (m.group(1), float(m.group(2))),
                     ),
                     (r"{} \((maximize|minimize)\)", lambda m: (m.group(1), 0)),
@@ -138,6 +140,8 @@ class RewardScorer:
             reward += mol_prop
         elif obj == "minimize":
             reward += 1 - mol_prop
+        elif obj == "equal":
+            reward += 1 - (mol_prop - target_value) ** 2
         return reward
 
     def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:

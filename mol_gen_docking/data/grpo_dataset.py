@@ -7,7 +7,8 @@ from tqdm import tqdm
 
 from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE
 
-OBJECTIVES = ["maximize", "minimize"]
+OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
+DOCKING_SOLO_OBJECTIVES = ["maximize", "above", "equal"]
 
 
 class MolInstructionsDataset:
@@ -48,7 +49,11 @@ class MolInstructionsDataset:
         for _ in range(n):
             n_props: int = int(random.randint(1, self.max_n_props))
             properties = random.choice(self.known_properties, n_props, replace=False)
-            objectives = random.choice(OBJECTIVES, n_props)
+            objectives = []
+            for prop in properties:
+                if len(prop) == 1 and "docking" in PROPERTIES_NAMES_SIMPLE[prop]:
+                    objectives.append(random.choice(DOCKING_SOLO_OBJECTIVES))
+
             prompt_text = self.template
             for prop, obj in zip(properties, objectives):
                 prompt_text = self.fill_prompt(prompt_text, prop, obj)

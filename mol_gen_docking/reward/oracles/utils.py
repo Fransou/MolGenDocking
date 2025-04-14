@@ -67,8 +67,6 @@ for target in DOCKING_TARGETS:
 property_csv_path = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "properties.csv"
 )
-print("EHEHEHEHEH")
-print(property_csv_path)
 
 if not os.path.exists(property_csv_path):
     # Raise a warning, the properties file is not found

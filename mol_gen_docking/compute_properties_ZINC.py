@@ -19,7 +19,7 @@ def get_args() -> argparse.Namespace:
         help="Name of the dataset to use for the generation",
     )
     parser.add_argument(
-        "--batch_size",
+        "--batch-size",
         type=int,
         default=128,
         help="Batch size for the property calculation",

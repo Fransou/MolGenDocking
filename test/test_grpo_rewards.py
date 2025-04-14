@@ -13,7 +13,9 @@ from mol_gen_docking.reward.oracles import (
     PROPERTIES_NAMES_SIMPLE,
 )
 
-PROP_LIST = list(PROPERTIES_NAMES_SIMPLE.keys())
+PROP_LIST = [
+    k for k in PROPERTIES_NAMES_SIMPLE if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
+]
 
 SMILES = (
     [["FAKE"]]
@@ -43,6 +45,17 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
 
 def build_prompt(property: str) -> str:
     return property + " (maximize)"
+
+
+def built_all_prompts(properties: List[str]) -> List[str]:
+    """Build all the prompts for the properties."""
+    poss_obj = ["(maximize)", "(minimize)", "(below 0.5)", "(above 0.5)", "(equal 0.5)"]
+
+    prompts = []
+    for prop in properties:
+        for obj in poss_obj:
+            prompts.append(prop + " " + obj)
+    return prompts
 
 
 def is_reward_valid(rewards, smiles, properties):
@@ -211,6 +224,24 @@ def test_properties_single_prompt_vina_reward(
     """Test the function molecular_properties with 2 properties."""
     prompts = [build_prompt(target + "_docking")] * n_generations
     print(prompts)
+    smiles = [
+        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        for k in range(n_generations)
+    ]
+    completions = [
+        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
+        for s in smiles
+    ]
+    rewards = property_scorer(prompts, completions)
+
+    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
+    rewards = torch.Tensor(rewards)
+    assert not rewards.isnan().any()
+
+
+def test_all_prompts(property_scorer, property_filler, n_generations=1):
+    """Test the function molecular_properties with 2 properties."""
+    prompts = built_all_prompts(PROP_LIST) * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
         for k in range(n_generations)
