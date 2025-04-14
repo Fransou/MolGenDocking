@@ -74,6 +74,8 @@ if __name__ == "__main__":
 
         props = {k: v for d in props_pbar for k, v in d.items()}
         molgen[oracle_name] = molgen["smiles"].map(props)
+        pool.close()
+        del props_pbar
 
     print(molgen.sample(10))
 
