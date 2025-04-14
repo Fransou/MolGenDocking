@@ -2,7 +2,7 @@ import pandas as pd
 
 from fastapi import FastAPI, BackgroundTasks, Query
 
-from .reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
+from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
 
 app = FastAPI()
 
