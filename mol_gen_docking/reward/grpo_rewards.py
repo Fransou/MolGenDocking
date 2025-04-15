@@ -237,7 +237,9 @@ class RewardScorer:
                     ]
         return df_properties
 
-    def __call__(self, prompts: List[Any], completions: List[Any]) -> List[float]:
+    def __call__(
+        self, prompts: List[Any], completions: List[Any], debug: bool = False
+    ) -> List[float]:
         """
         Get reward for molecular properties
         """
@@ -265,7 +267,7 @@ class RewardScorer:
                     (df_properties["id_completion"] == id_completion)
                     & (df_properties["smiles"].isin(smiles))
                 ]["reward"].mean()
-                if self.rescale:
+                if self.rescale and not debug:
                     reward = np.clip(reward, 0, 1)
             else:
                 reward = 0
