@@ -4,8 +4,8 @@ import argparse
 from typing import Tuple, Optional
 
 from trl import SFTTrainer, SFTConfig, setup_chat_format
-from peft import LoraConfig, TaskType, get_peft_model
-from datasets import Dataset
+from peft import get_peft_model
+from datasets import Dataset, concatenate_datasets
 
 from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer
@@ -17,7 +17,9 @@ class SFTMolTrainer(MolTrainer):
     """
 
     def __init__(
-        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+        self,
+        args: argparse.Namespace,
+        datasets: Optional[Tuple[Dataset, Dataset]] = None,
     ):
         """
         :param args: Parameters for the training
@@ -25,21 +27,21 @@ class SFTMolTrainer(MolTrainer):
         """
         super().__init__(args, datasets)
 
-    def get_dataset(self) -> Tuple[Dataset]:
+    def get_dataset(self) -> Tuple[Dataset, Dataset]:
         """Loads the dataset."""
-        return InstructionDatasetProcessor(self.args.dataset).get_training_corpus(
-            self.args.train_size
+        tuple_datasets = tuple(
+            InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)
+            for d in self.args.dataset
+        )
+        # Concatenate the datasets
+        return (
+            concatenate_datasets([d[0] for d in tuple_datasets]),
+            concatenate_datasets([d[1] for d in tuple_datasets]),
         )
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            r=self.args.lora_config.get("r", 8),
-            lora_alpha=self.args.lora_config.get("lora_alpha", 32),
-            lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            modules_to_save=["embed_tokens", "lm_head"],
-        )
+        peft_config = self.get_peft_config(True)
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
@@ -57,17 +59,18 @@ class SFTMolTrainer(MolTrainer):
             save_steps=1000,
             eval_steps=1000,
             logging_steps=10,
-            gradient_checkpointing=True,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
             per_device_train_batch_size=self.args.batch_size,
             per_device_eval_batch_size=self.args.batch_size,
             dataloader_num_workers=self.args.dataloader_num_workers,
-            max_seq_length=512,
+            max_seq_length=1024,
             dataset_num_proc=8,
             packing=True,
             bf16=True,
-            gradient_accumulation_steps=2,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
+            save_total_limit=3,
+            dataloader_prefetch_factor=2,
         )
 
         trainer = SFTTrainer(

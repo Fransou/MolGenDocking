@@ -1,71 +1,256 @@
-from typing import List
+import os
 
-from mol_gen_docking.utils.grpo_rewards import (
-    molecular_properties,
-    KNOWN_PROPERTIES,
-    get_mol_props_from_prompt,
-    get_reward_molecular_property,
-)
-from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
+from typing import List, Callable
+from itertools import product
+import pytest
 import torch
+import numpy as np
 
-SMILES = [
-    [
-        "O=C(NCc1ccc(Cl)cc1)c1ccc2c(c1)OCCO2",
-    ],
-    [
-        "CC1CN(Cc2ccc(Nc3ncc4cc(C(=O)N(C)C)n(C5CCCC5)c4n3)nc2)CCN1",
-        "COCC[C@@H](C(=O)Nc1ccc(C(=O)O)cc1)n1cc(OC)c(-c2cc(Cl)ccc2C#N)cc1=O",
-    ],
-]
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
+from mol_gen_docking.reward.oracles import (
+    propeties_csv,
+    PROPERTIES_NAMES_SIMPLE,
+)
+from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
 
-COMPLETIONS = [
-    "Here is a molecule:[SMILES] what are its properties?",
-    "These are the smiles:[SMILES].",
-]
+from .utils import PROP_LIST, DOCKING_PROP_LIST, SMILES, COMPLETIONS, OBJECTIVES_TO_TEST
 
 
-def fill_completion(smiles: List[str], completion: str) -> str:
-    """Fill the completion with the smiles."""
-    smiles = "".join(["<SMILES>{}</SMILES>".format(s) for s in smiles])
-    return completion.replace("[SMILES]", smiles)
+def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:
+    def fill_completion(smiles: List[str], completion: str) -> str:
+        """Fill the completion with the smiles."""
+        smiles_joined: str = "".join(
+            [
+                "{} ".format(s) if no_flags else "<SMILES>{}</SMILES> ".format(s)
+                for s in smiles
+            ]
+        )
+        return completion.replace("[SMILES]", smiles_joined)
+
+    return fill_completion
 
 
-def test_molecular_properties():
+def build_prompt(property: str | List[str], obj: str = "maximize") -> str:
+    if isinstance(property, str):
+        properties = [property]
+    else:
+        properties = property
+    dummy = MolGenerationInstructionsDataset()
+    return dummy.fill_prompt(properties, [obj] * len(properties))
+
+
+def is_reward_valid(rewards, smiles, properties):
+    """Check if the reward is valid."""
+    # Remove "FAKE" from smiles
+    smiles = [s for s in smiles if s != "FAKE"]
+    if len(smiles) > 0:
+        property_names = [PROPERTIES_NAMES_SIMPLE.get(p, p) for p in properties]
+        props = (
+            torch.tensor(
+                propeties_csv.set_index("smiles").loc[smiles, property_names].values
+            )
+            .float()
+            .mean()
+        )
+        assert torch.isclose(rewards, props, atol=1e-3).all()
+
+
+@pytest.fixture(scope="module", params=[True, False])
+def valid_smiles_scorer(request):
+    """Fixture to test the function molecular_properties."""
+    return RewardScorer(
+        "valid_smiles", parse_whole_completion=request.param, rescale=False
+    )
+
+
+@pytest.fixture(scope="module")
+def valid_smiles_filler(valid_smiles_scorer):
+    """Fixture to test the function molecular_properties."""
+    return get_fill_completions(valid_smiles_scorer.parse_whole_completion)
+
+
+@pytest.fixture(scope="module", params=[True, False])
+def property_scorer(request):
+    """Fixture to test the function molecular_properties."""
+    return RewardScorer(
+        "propertys", parse_whole_completion=request.param, rescale=False
+    )
+
+
+@pytest.fixture(scope="module", params=product(COMPLETIONS, SMILES))
+def completion(request, property_filler):
+    """Fixture to test the function molecular_properties."""
+    completion, smiles = request.param
+    return property_filler(smiles, completion)
+
+
+@pytest.fixture(scope="module")
+def property_filler(property_scorer):
+    """Fixture to test the function molecular_properties."""
+    return get_fill_completions(property_scorer.parse_whole_completion)
+
+
+@pytest.fixture(scope="module", params=product(COMPLETIONS, SMILES))
+def completions_smiles(request, property_filler):
+    """Fixture to test the function molecular_properties."""
+    completion, smiles = request.param
+    if "[SMILES]" not in completion or smiles == ["FAKE"]:
+        smiles = []
+    if "FAKE" in smiles:
+        smiles = [s for s in smiles if s != "FAKE"]
+    return [property_filler(smiles, completion)], smiles
+
+
+@pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
+def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_filler):
     """Test the function molecular_properties."""
-    for prop_name in KNOWN_PROPERTIES:
-        for smiles, completion in zip(SMILES, COMPLETIONS):
-            completion = fill_completion(smiles, completion)
-            properties = molecular_properties(completion, prop_name)
-            assert isinstance(properties, torch.Tensor)
-            assert properties.shape == (len(smiles),)
+    completions = [valid_smiles_filler(smiles, completion)]
+    prompts = [""] * len(completions)
+    rewards = valid_smiles_scorer(prompts, completions)
+    assert rewards.sum().item() == float(
+        "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
+    )
 
 
-def test_prompts():
-    """Test the prompts."""
-    dataset = MolInstructionsDataset()
-    prompts = []
-    n_props = []
-    for prompt, n_prop in dataset.generate(100, return_n_props=True):
-        prompts.append(prompt)
-        n_props.append(n_prop)
+@pytest.mark.parametrize(
+    "property1, property2",
+    product(
+        np.random.choice(PROP_LIST, 3),
+        np.random.choice(PROP_LIST, 3),
+    ),
+)
+def test_properties_single_prompt_reward(
+    property1, property2, property_scorer, completions_smiles
+):
+    """Test the function molecular_properties with 2 properties."""
+    completions, smiles = completions_smiles
+    prompts = [build_prompt([property1, property2])] * len(completions)
+    rewards = property_scorer(prompts, completions)
+    if smiles != []:
+        is_reward_valid(rewards, smiles, [property1, property2])
+    else:
+        assert rewards.sum().item() == 0
 
-    objs = get_mol_props_from_prompt(prompts)
-    for n_p, obj in zip(n_props, objs):
-        assert isinstance(obj, dict)
-        assert len(obj) == n_p
+
+@pytest.mark.parametrize(
+    "property1, property2",
+    product(
+        np.random.choice(PROP_LIST, 3),
+        np.random.choice(PROP_LIST, 3),
+    ),
+)
+def test_properties_multi_prompt_rewards(
+    property1, property2, property_scorer, completions_smiles
+):
+    """Test the function molecular_properties with 2 properties."""
+    completions, smiles = completions_smiles
+    completions = completions * 2
+
+    # 2- Test when optimizing 2 properties separately
+    prompts = [build_prompt(property1)] * (len(completions) // 2) + [
+        build_prompt(property2)
+    ] * (len(completions) // 2)
+    rewards = property_scorer(prompts, completions)
+    if smiles != []:
+        is_reward_valid(rewards[: (len(completions) // 2)], smiles, [property1])
+        is_reward_valid(rewards[(len(completions) // 2) :], smiles, [property2])
+    else:
+        assert rewards.sum().item() == 0
 
 
-def test_get_reward_molecular_property():
-    """Test the function get_reward_molecular_property."""
-    dataset = MolInstructionsDataset()
-    prompts = []
-    for prompt in dataset.generate(100):
-        prompts.append(prompt)
-    completions = []
-    for completion, smi in zip(prompts, SMILES):
-        completions.append(fill_completion(smi, completion))
+@pytest.mark.parametrize(
+    "property1, property2",
+    product(
+        np.random.choice(PROP_LIST, 8),
+        np.random.choice(PROP_LIST, 8),
+    ),
+)
+def test_multip_prompt_multi_generation(
+    property1,
+    property2,
+    property_scorer,
+    property_filler,
+    n_generations=4,
+):
+    """Test the function molecular_properties."""
+    completion = "Here is a molecule: [SMILES] what are its properties?"
+    prompts = [build_prompt(property1)] * n_generations + [
+        build_prompt(property2)
+    ] * n_generations
+    smiles = [
+        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        for k in range(n_generations * 2)
+    ]
+    completions = [property_filler(s, completion) for s in smiles]
 
-    prompts = prompts * len(completions)
-    completions = completions * len(prompts)
-    assert len(get_reward_molecular_property(prompts, completions)) == len(prompts)
+    rewards = property_scorer(prompts, completions)
+
+    for i in range(n_generations * 2):
+        if smiles != []:
+            if i < n_generations:
+                is_reward_valid(rewards[i], smiles[i], [property1])
+            else:
+                is_reward_valid(rewards[i], smiles[i], [property2])
+        else:
+            assert rewards[i].sum().item() == 0
+
+
+@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST)
+def test_properties_single_prompt_vina_reward(
+    target, property_scorer, property_filler, n_generations=1
+):
+    """Test the function molecular_properties with 2 properties."""
+    prompts = [build_prompt(PROPERTIES_NAMES_SIMPLE[target])] * n_generations
+    print(prompts)
+    smiles = [
+        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        for k in range(n_generations)
+    ]
+    completions = [
+        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
+        for s in smiles
+    ]
+    rewards = property_scorer(prompts, completions)
+
+    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
+    rewards = torch.Tensor(rewards)
+    assert not rewards.isnan().any()
+
+
+@pytest.mark.parametrize(
+    "prop, obj",
+    list(product(PROP_LIST, OBJECTIVES_TO_TEST)),
+)
+def test_all_prompts(prop, obj, property_scorer, property_filler, n_generations=1):
+    """Test the function molecular_properties with 2 properties."""
+    prompts = [build_prompt(prop, obj)] * n_generations + [
+        build_prompt(prop, "maximize")
+    ] * n_generations
+
+    smiles = [
+        propeties_csv.sample(np.random.randint(1, 2))["smiles"].tolist()
+        for k in range(n_generations)
+    ] * 2
+    completions = [
+        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
+        for s in smiles
+    ]
+    property_scorer.rescale = True
+    rewards = property_scorer(prompts, completions)
+
+    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
+    rewards = torch.Tensor(rewards)
+    assert not rewards.isnan().any()
+    rewards_prop = rewards[:n_generations]
+    rewards_max = rewards[n_generations:]
+    print(rewards_prop, rewards_max)
+    if obj == "minimize":
+        rewards_max = 1 - rewards_max
+    elif obj == "below 0.5":
+        rewards_max = (rewards_max <= 0.5).float()
+    elif obj == "above 0.5":
+        rewards_max = (rewards_max >= 0.5).float()
+    elif obj == "equal 0.5":
+        rewards_max = 1 - (rewards_max - 0.5) ** 2
+    assert torch.isclose(rewards_prop, rewards_max).all()

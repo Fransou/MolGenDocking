@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mol_gen_docking"
+version = "2025.8.4"
+dependencies = [
+    "torch==2.6.0",
+    "torchvision",
+    "torchaudio",
+    "PyTDC",
+    "vllm",
+    "loguru",
+    "omegaconf",
+    "hydra-core",
+    "tensorboard",
+    "deepspeed",
+    "flash-attn",
+    "peft",
+    "coverage",
+    "pytest",
+    "coverage-badge"
+]
+requires-python = ">=3.10"
+description = ""

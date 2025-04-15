@@ -38,7 +38,7 @@ class MolTrainerParser:
             action="store_false",
             help="Do not use SLURM for training",
         )
-        self.parser.set_defaults(slurm=True)
+        self.parser.set_defaults(slurm=False)
 
     def add_trainer_args(self):
         """
@@ -67,7 +67,7 @@ class MolTrainerParser:
         self.add_argument(
             "--num-train-epochs",
             type=int,
-            default=10,
+            default=5,
             help="The number of epochs to use",
         )
         self.add_argument(
@@ -75,6 +75,12 @@ class MolTrainerParser:
             type=int,
             default=0,
             help="The number of workers to use for the dataloader",
+        )
+        self.add_argument(
+            "--gradient_accumulation_steps",
+            type=int,
+            default=2,
+            help="The number of gradient accumulation steps",
         )
 
     def add_model_data_args(self):
@@ -92,11 +98,14 @@ class MolTrainerParser:
         self.add_argument(
             "--lora-config",
             type=json.loads,
-            default={"r": 8, "lora_alpha": 32, "lora_dropout": 0.0},
+            default={"r": 64, "lora_alpha": 32, "lora_dropout": 0.0},
             help="The LoRA configuration to use",
         )
         self.add_argument(
-            "--attention", type=str, default="vanilla", help="The attention to use"
+            "--attention",
+            type=str,
+            default="flash_attention_2",
+            help="The attention to use",
         )
         self.add_argument("--local-files-only", action="store_true")
 

@@ -3,12 +3,13 @@
 import argparse
 from typing import Tuple, Optional
 
-from datasets import Dataset
 from trl import GRPOConfig, GRPOTrainer
+from datasets import Dataset
 
-from mol_gen_docking.data.grpo_dataset import MolInstructionsDataset
-from mol_gen_docking.utils.grpo_rewards import get_reward_molecular_property
+from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
 from mol_gen_docking.trainer.trainer_base import MolTrainer
+from mol_gen_docking.utils.grpo_reward_tokenizer import wrap_tokenizer
 
 
 class GRPOMolTrainer(MolTrainer):
@@ -17,7 +18,9 @@ class GRPOMolTrainer(MolTrainer):
     """
 
     def __init__(
-        self, args: argparse.Namespace, datasets: Optional[Tuple[Dataset]] = None
+        self,
+        args: argparse.Namespace,
+        datasets: Optional[Tuple[Dataset, Dataset]] = None,
     ):
         """
         :param args: Parameters for the training
@@ -25,41 +28,60 @@ class GRPOMolTrainer(MolTrainer):
         """
         super().__init__(args, datasets)
 
-    def get_dataset(self) -> Tuple[Dataset]:
+    def get_dataset(self) -> Tuple[Dataset, Dataset]:
         """Loads the dataset."""
-        dataset = Dataset.from_dict(
-            {
-                "prompt": list(
-                    MolInstructionsDataset(vina=self.args.vina).generate(
-                        self.args.n_prompts
-                    )
-                )
-            }
+        dataset = MolGenerationInstructionsDataset(vina=self.args.vina)(
+            self.args.n_prompts
         )
-        eval_dataset = Dataset.from_dict(
-            {"prompt": list(MolInstructionsDataset(vina=self.args.vina).generate(10))}
+        eval_dataset = MolGenerationInstructionsDataset(vina=self.args.vina)(
+            self.args.n_prompts // 10
         )
         return dataset, eval_dataset
 
     def get_trainer(self) -> GRPOTrainer:
         """:return: Trainer for GRPO."""
+
+        peft_config = self.get_peft_config(False)
+
         training_args = GRPOConfig(
+            beta=0,
             output_dir=self.args.output_dir,
-            overwrite_output_dir=True,
-            evaluation_strategy="epoch",
+            run_name=self.args.output_dir,
+            num_train_epochs=self.args.num_train_epochs,
+            eval_strategy="steps",
+            save_strategy="steps",
+            logging_strategy="steps",
+            save_steps=100,
+            eval_steps=100,
+            logging_steps=1,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
-            per_device_train_batch_size=self.args.batch_size,
-            per_device_eval_batch_size=self.args.batch_size,
-            num_generations=2,
+            per_device_train_batch_size=self.args.batch_size
+            * self.args.num_generations,
+            per_device_eval_batch_size=self.args.batch_size * self.args.num_generations,
+            dataloader_num_workers=self.args.dataloader_num_workers,
+            num_generations=self.args.num_generations,
             push_to_hub=False,
+            bf16=True,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
+            save_total_limit=3,
+            use_vllm=self.args.vllm,
+            report_to="wandb",
+            log_completions=True,
         )
-        return GRPOTrainer(
+
+        trainer = GRPOTrainer(
             model=self.model,
-            reward_funcs=[get_reward_molecular_property],
+            reward_funcs=[
+                RewardScorer("property"),
+                RewardScorer("smiles"),
+                RewardScorer("valid_smiles"),
+            ],
             args=training_args,
             train_dataset=self.dataset,
             eval_dataset=self.eval_dataset,
-            processing_class=self.tokenizer,
-            reward_processing_classes=self.tokenizer,
+            processing_class=wrap_tokenizer(self.tokenizer),
+            peft_config=peft_config,
         )
+
+        return trainer

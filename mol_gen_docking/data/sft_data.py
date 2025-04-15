@@ -1,25 +1,27 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 from datasets import load_dataset, Dataset, concatenate_datasets
 
 import selfies as sf
 from rdkit import Chem
 
+from mol_gen_docking.data import special_tok
 
-special_tok = {
-    "smiles": "<SMILES>",
-    "smiles_end": "</SMILES>",
-    "selfies": "<SELFIES>",
-    "selfies_end": "</SELFIES>",
-    "molformula": "<MOLFORMULA>",
-    "molformula_end": "</MOLFORMULA>",
-    "iupac": "<IUPAC>",
-    "iupac_end": "</IUPAC>",
-    "NUMBER": "<NUMBER>",
-    "NUMBER_end": "</NUMBER>",
-}
+
+SMolInstruct_tasks = [
+    "forward_synthesis",
+    "retrosynthesis",
+    "molecule_captioning",
+    "molecule_generation",
+    "property_prediction-esol",
+    "property_prediction-lipo",
+    "property_prediction-bbbp",
+    "property_prediction-clintox",
+    "property_prediction-hiv",
+    "property_prediction-sider",
+]
 
 
 class InstructionDatasetProcessor:
@@ -36,48 +38,55 @@ class InstructionDatasetProcessor:
         self.processed = False
 
         if name == "SMolInstruct":
-            self.dataset = load_dataset("osunlp/SMolInstruct")
+            self.dataset = load_dataset(
+                "osunlp/SMolInstruct",
+                tasks=SMolInstruct_tasks,
+            )
         elif name == "Mol-Instructions":
             self.dataset = load_dataset(
-                "zjunlp/Mol-Instructions", "Molecule-oriented Instructions"
+                "zjunlp/Mol-Instructions",
+                "Molecule-oriented Instructions",
+                trust_remote_code=True,
             )
 
         else:
             raise ValueError("Unknown dataset")
 
-    def is_selfies(self, string) -> bool:
+        self.system_prompt = (
+            "You are a helpful assistant. You can describe molecules"
+            + " in the SMILES format between the <SMILES> and </SMILES> tags."
+        )
+
+    def process_str(self, string) -> str:
         """
-        Check if the string is a valid SELFIES.
+        Check if the string is a valid SELFIES, or if it contains special tokens.
+        Avoids useless tasks, and processes the string if needed.
         :param string: Input string
-        :return: True if the string is a valid SELFIES, False otherwise
+        :return: The input string processed
         """
+        if string == "":
+            return ""
+        found_a_special_tok = False
         for spe_tok in special_tok.values():
             if spe_tok in string:
-                return False
-        try:
-            if sf.decoder(string) == "":
-                return False
-            return True
-        except Exception:
-            return False
+                found_a_special_tok = True
+        if not found_a_special_tok:
+            try:
+                mol = sf.decoder(string)
+                if mol != "":
+                    # Get the molecule
+                    mol = Chem.MolFromSmiles(mol)
+                    # Remove stereochemistry
+                    Chem.RemoveStereochemistry(mol)
+                    # Get the SMILES
+                    string = Chem.MolToSmiles(mol)
+                    return special_tok["smiles"] + string + special_tok["smiles_end"]
+            except Exception as e:
+                del e
 
-    def is_smiles(self, string) -> bool:
-        """
-        Check if the string is a valid SMILES.
-        :param string: Input string
-        :return: True if the string is a valid SMILES, False otherwise
-        """
-        for spe_tok in special_tok.values():
-            if spe_tok in string:
-                return False
-        try:
-            if Chem.MolFromSmiles(string) is None:
-                return False
-            return True
-        except Exception:
-            return False
+        return string
 
-    def process_str(self, line: Dict[str, str]) -> Dict[str, str]:
+    def process_line(self, line: Dict[str, str]) -> Dict[str, List[Dict[str, str]]]:
         """
         Process a line of the dataset.
         :param line: Line of the dataset
@@ -87,17 +96,16 @@ class InstructionDatasetProcessor:
         instruction = line.get("instruction", "")
         inp = line.get("input", "")
         out = line["output"]
-        if self.is_selfies(inp):
-            inp = special_tok["selfies"] + inp + special_tok["selfies_end"]
-        elif self.is_selfies(out):
-            out = special_tok["selfies"] + out + special_tok["selfies_end"]
+
+        inp = self.process_str(inp)
+        instruction = self.process_str(instruction)
+        out = self.process_str(out)
+
         message = [
             {"role": "system", "content": "You are a helpful assistant."},
             {
                 "role": "user",
-                "content": "I am a chemist working in drug discovery."
-                + instruction
-                + inp,
+                "content": instruction + inp,
             },
             {"role": "assistant", "content": out},
         ]
@@ -123,10 +131,10 @@ class InstructionDatasetProcessor:
         ]
         for k in self.dataset.keys():
             self.dataset[k] = self.dataset[k].map(
-                self.process_str,
+                self.process_line,
                 num_proc=self.n_proc,
                 remove_columns=cols_to_remove,
-                # load_from_cache_file = False
+                load_from_cache_file=False,
             )
         # If train and test are not specified, flatten the dataset and split it
         if not ("train" in self.dataset.keys() and "test" in self.dataset.keys()):
