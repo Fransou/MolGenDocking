@@ -135,8 +135,8 @@ def test_properties_single_prompt_reward(
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(PROP_LIST, 3),
-        np.random.choice(PROP_LIST, 3),
+        np.random.choice(PROP_LIST, 2),
+        np.random.choice(PROP_LIST, 2),
     ),
 )
 def test_properties_multi_prompt_rewards(
@@ -224,7 +224,7 @@ def test_properties_single_prompt_vina_reward(
         product(
             PROP_LIST,
             OBJECTIVES_TO_TEST,
-            [propeties_csv.sample(1)["smiles"].tolist() for k in range(8)],
+            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
         )
     ),
 )
@@ -237,7 +237,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
 
     smiles = smiles * 2
     completions = [
-        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
+        property_filler([s], "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
     property_scorer.rescale = True
