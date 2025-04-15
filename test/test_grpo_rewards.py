@@ -244,17 +244,33 @@ def test_properties_single_prompt_vina_reward(
 )
 def test_all_prompts(prop, obj, property_scorer, property_filler, n_generations=1):
     """Test the function molecular_properties with 2 properties."""
-    prompts = [build_prompt(prop, obj)] * n_generations
+    prompts = [build_prompt(prop, obj)] * n_generations + [
+        build_prompt(prop, "maximize")
+    ] * n_generations
+
     smiles = [
-        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        propeties_csv.sample(np.random.randint(1, 2))["smiles"].tolist()
         for k in range(n_generations)
-    ]
+    ] * 2
     completions = [
         property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
+    property_scorer.rescale = True
     rewards = property_scorer(prompts, completions)
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
+    rewards_prop = rewards[:n_generations]
+    rewards_max = rewards[n_generations:]
+    print(rewards_prop, rewards_max)
+    if obj == "minimize":
+        rewards_max = 1 - rewards_max
+    elif obj == "below 0.5":
+        rewards_max = (rewards_max <= 0.5).float()
+    elif obj == "above 0.5":
+        rewards_max = (rewards_max >= 0.5).float()
+    elif obj == "equal 0.5":
+        rewards_max = 1 - (rewards_max - 0.5) ** 2
+    assert torch.isclose(rewards_prop, rewards_max).all()

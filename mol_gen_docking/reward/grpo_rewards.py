@@ -1,6 +1,5 @@
 """Rewards for the GRPO task."""
 
-import requests
 from typing import List, Any, Tuple, Dict
 import re
 import torch
@@ -117,8 +116,8 @@ class RewardScorer:
                         props[prop] = (obj_type, val)
                         matched = True
                         break
-            if not matched:
-                raise ValueError("Prompt not found correctly.")
+                if not matched:
+                    raise ValueError("Prompt not found correctly.")
             objectives.append(props)
         return objectives
 
@@ -265,40 +264,3 @@ class RewardScorer:
             rewards.append(reward)
 
         return torch.tensor(rewards).float()
-
-
-class RewardScorerServer(RewardScorer):
-    def __init__(
-        self, reward: str, rescale: bool = True, address="http://0.0.0.0:8000/"
-    ):
-        super().__init__(reward, rescale=rescale)
-        self.address = address
-
-    def _query_properties(self, smiles: List[str], prop: str) -> None:
-        """
-        Query properties, the server wil then start computing them
-        """
-        data = {"smiles": smiles}
-        requests.post(f"{self.address}/property/{prop}/", params=data)
-
-    def _get_property(self, smiles: List[str], prop: str) -> torch.Tensor:
-        """
-        Get property reward
-        """
-        data = {"smiles": smiles}
-        r = requests.get(f"{self.address}/property/{prop}/", params=data).json()
-        assert r["smiles"] == smiles
-        return r["property"]
-
-    def pre_query_properties(self, prompts: List[str], completions: List[Any]):
-        smiles_list_per_completion = self._get_smiles_list(completions)
-        objectives = self.get_mol_props_from_prompt(prompts)
-        df_properties = self._get_prop_to_smiles_dataframe(
-            smiles_list_per_completion, objectives
-        )
-
-        for props in df_properties["property"].unique():
-            smiles = df_properties[df_properties["property"] == props][
-                "smiles"
-            ].tolist()
-            self._query_properties(smiles, props)

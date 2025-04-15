@@ -12,7 +12,11 @@ from mol_gen_docking.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
-PROP_LIST = list(PROPERTIES_NAMES_SIMPLE.keys())
+PROP_LIST = [
+    k
+    for k in PROPERTIES_NAMES_SIMPLE.keys()
+    if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
+]
 
 
 def is_rdkit_use(name: str):
