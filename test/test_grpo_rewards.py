@@ -11,6 +11,7 @@ from mol_gen_docking.reward.oracles import (
     propeties_csv,
     PROPERTIES_NAMES_SIMPLE,
 )
+from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
 
 PROP_LIST = [
     k for k in PROPERTIES_NAMES_SIMPLE if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
@@ -45,19 +46,13 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
     return fill_completion
 
 
-def build_prompt(property: str) -> str:
-    return property + " (maximize)"
-
-
-def built_all_prompts(properties: List[str]) -> List[str]:
-    """Build all the prompts for the properties."""
-    poss_obj = ["(maximize)", "(minimize)", "(below 0.5)", "(above 0.5)", "(equal 0.5)"]
-
-    prompts = []
-    for prop in properties:
-        for obj in poss_obj:
-            prompts.append(prop + " " + obj)
-    return prompts
+def build_prompt(property: str | List[str], obj: str = "maximize") -> str:
+    if isinstance(property, str):
+        properties = [property]
+    else:
+        properties = property
+    dummy = MolGenerationInstructionsDataset()
+    return dummy.fill_prompt(properties, [obj] * len(properties))
 
 
 def is_reward_valid(rewards, smiles, properties):
@@ -145,9 +140,7 @@ def test_properties_single_prompt_reward(
 ):
     """Test the function molecular_properties with 2 properties."""
     completions, smiles = completions_smiles
-    prompts = [build_prompt(property1) + " --- " + build_prompt(property2)] * len(
-        completions
-    )
+    prompts = [build_prompt([property1, property2])] * len(completions)
     rewards = property_scorer(prompts, completions)
     if smiles != []:
         is_reward_valid(rewards, smiles, [property1, property2])
@@ -241,9 +234,17 @@ def test_properties_single_prompt_vina_reward(
     assert not rewards.isnan().any()
 
 
-def test_all_prompts(property_scorer, property_filler, n_generations=1):
+@pytest.mark.parametrize(
+    "prop, obj",
+    list(
+        product(
+            PROP_LIST, ["maximize", "minimize", "below 0.5", "above 0.5", "equal 0.5"]
+        )
+    ),
+)
+def test_all_prompts(prop, obj, property_scorer, property_filler, n_generations=1):
     """Test the function molecular_properties with 2 properties."""
-    prompts = built_all_prompts(PROP_LIST) * n_generations
+    prompts = [build_prompt(prop, obj)] * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
         for k in range(n_generations)

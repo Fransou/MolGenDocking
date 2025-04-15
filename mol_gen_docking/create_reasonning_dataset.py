@@ -9,7 +9,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-prompts",
         type=int,
-        default=2**5,
+        default=512,
         help="The number of prompts to generate",
     )
     parser.add_argument("--vina", action="store_true", dest="vina")

@@ -4,7 +4,7 @@ import warnings
 import pandas as pd
 import requests
 
-IS_CONNECTED = False
+IS_CONNECTED = True
 
 
 def get_pdb_description(pdb_id):
@@ -17,7 +17,7 @@ def get_pdb_description(pdb_id):
         if response.status_code == 200:
             data = response.json()
             title = data.get("struct", {}).get("title", "No title found")
-            return title
+            return title.lower()
         else:
             raise Exception(f"Error getting {url}")
 
@@ -56,15 +56,56 @@ PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {
     "Hall-Kier kappa 3": "CalcKappa3",
     "Kier Phi": "CalcPhi",
     "logP": "logP",
+    "Binding affinity to dopamine D3 receptor (3PBL)": "3pbl_docking",
+    "Binding affinity to c-Abl kinase domain (1IEP)": "1iep_docking",
+    "Binding affinity to EGFR with hydrazone (2RGP)": "2rgp_docking",
+    "Binding affinity to A2A adenosine receptor (3EML)": "3eml_docking",
+    "Binding affinity to β2-adrenergic receptor (3NY8)": "3ny8_docking",
+    "Binding affinity to HadAB dehydratase (4RLU)": "4rlu_docking",
+    "Binding affinity to MTB TMPK with compound 8 (4UNN)": "4unn_docking",
+    "Binding affinity to ABL1 (T334I/D382N) with asciminib/nilotinib (5MO4)": "5mo4_docking",
+    "Binding affinity to SARS-CoV-2 main protease with compound 5 (7L11)": "7l11_docking",
 }
 
-for target in DOCKING_TARGETS:
-    PROPERTIES_NAMES_SIMPLE[
-        f"Binding affinity against {get_pdb_description(target)} ({target})"
-    ] = target + "_docking"
+# for target in DOCKING_TARGETS:
+#     PROPERTIES_NAMES_SIMPLE[
+#         f"Binding affinity against {get_pdb_description(target)} ({target})"
+#     ] = target + "_docking"
 
 
 oracles_not_to_rescale = ["GSK3B", "JNK3", "DRD2"]
+
+OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
+    "maximize": [
+        "maximize {prop}",
+    ],
+    "minimize": [
+        "minimize {prop}",
+    ],
+    "above": [
+        "ensure {prop} is above {val}",
+        "keep {prop} greater than {val}",
+        "target {prop} values higher than {val}",
+    ],
+    "below": [
+        "ensure {prop} is below {val}",
+        "keep {prop} less than {val}",
+        "target {prop} values lower than {val}",
+    ],
+    "equal": [
+        "ensure {prop} is equal to {val}",
+        "set {prop} to exactly {val}",
+        "target a {prop} of {val}",
+    ],
+}
+
+PROMPT_TEMPLATE: List[str] = [
+    "Design a molecule that satisfies the following objectives: {objectives}.",
+    "Create a compound that meets these goals: {objectives}.",
+    "Suggest a molecule with the following optimization targets: {objectives}.",
+    "Please propose a structure that fulfills these requirements: {objectives}.",
+    "Generate a candidate molecule optimized for: {objectives}.",
+]
 
 
 property_csv_path = os.path.join(

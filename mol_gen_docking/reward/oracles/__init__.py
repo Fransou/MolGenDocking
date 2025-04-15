@@ -3,6 +3,9 @@ from tdc.oracles import Oracle, oracle_names
 from .utils import (
     propeties_csv,
     PROPERTIES_NAMES_SIMPLE,
+    OBJECTIVES_TEMPLATES,
+    PROMPT_TEMPLATE,
+    DOCKING_TARGETS,
 )
 from .oracle_wrapper import OracleWrapper
 
@@ -32,5 +35,8 @@ def get_oracle(oracle_name: str, **kwargs):
 __all__ = [
     "propeties_csv",
     "PROPERTIES_NAMES_SIMPLE",
+    "OBJECTIVES_TEMPLATES",
+    "PROMPT_TEMPLATE",
+    "DOCKING_TARGETS",
     "get_oracle",
 ]

@@ -9,7 +9,36 @@ import numpy as np
 
 from rdkit import Chem
 
-from mol_gen_docking.reward.oracles import get_oracle, PROPERTIES_NAMES_SIMPLE
+from mol_gen_docking.reward.oracles import (
+    get_oracle,
+    PROPERTIES_NAMES_SIMPLE,
+    OBJECTIVES_TEMPLATES,
+)
+
+
+def template_to_regex(template: str) -> str:
+    """
+    Convert a single template string into a regex pattern.
+    """
+    # Escape special regex characters that might appear in text
+    pattern = re.escape(template)
+    # Replace escaped {prop} and {val} with regex groups
+    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+)")
+    pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d*\.?\d+([eE][-+]?\d+)?)")
+    return pattern
+
+
+def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, str]]:
+    """
+    Converts OBJECTIVES_TEMPLATES to a list of regex patterns with associated objective type.
+    Returns: List of (regex_pattern, objective_type)
+    """
+    pattern_list = []
+    for obj_type, template_list in templates.items():
+        for tmpl in template_list:
+            regex = template_to_regex(tmpl)
+            pattern_list.append((regex, obj_type))
+    return pattern_list
 
 
 class RewardScorer:
@@ -26,14 +55,15 @@ class RewardScorer:
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
 
+        self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
+
     def get_mol_props_from_prompt(
         self, prompts: Any
     ) -> List[Dict[str, Tuple[Any, Any]]]:
         """
-        Get molecular properties from prompt
-        Locates the properties, and find the following pattern:
-            "$PROPERTY ($OBJECTIVE)"
-        Where objective can be: maximize, minimize, below x or above x
+        Get molecular properties from prompt.
+
+        Returns: List of Dict[property -> (objective, target_value)]
         """
         objectives: List[Dict[str, Tuple[Any, Any]]] = []
         for prompt in prompts:
@@ -58,23 +88,37 @@ class RewardScorer:
                     prompt = prompt["value"]
                 else:
                     raise ValueError("Prompt not found correctly.")
-            props = {}
-            all_props = set(PROPERTIES_NAMES_SIMPLE.keys())
-            docking_props = set(re.findall(r"\b\w+_docking\b", prompt))
-            all_props.update(docking_props)
+            assert isinstance(prompt, str), "Prompt not found correctly."
 
-            for prop in all_props:
-                for pattern, parser in [
-                    (
-                        r"{} \((below|above|equal) ([0-9.]+)\)",
-                        lambda m: (m.group(1), float(m.group(2))),
-                    ),
-                    (r"{} \((maximize|minimize)\)", lambda m: (m.group(1), 0)),
-                ]:
-                    match = re.search(pattern.format(re.escape(prop)), prompt)
+            prompt = "".join(
+                prompt.split(":")[1:]
+            )  # Remove the first part of the prompt
+            if prompt.endswith(".") or prompt.endswith("?"):
+                prompt = prompt[:-1]
+            props = {}
+            clauses = re.split(r"[;] ?", prompt)
+            for clause in clauses:
+                if clause == "":
+                    continue
+                clause = clause.strip()
+                if not clause:
+                    continue
+                matched = False
+                for pattern, obj_type in self.search_patterns:
+                    match = re.match(pattern, clause, re.IGNORECASE)
                     if match:
-                        props[prop] = parser(match)
+                        prop = match.group("prop").strip()
+                        if obj_type in ["above", "below", "equal"]:
+                            val = match.group("val").strip()
+                            assert str(float(val)) == val, "Value is not a number"
+                            val = float(val)
+                        else:
+                            val = 0
+                        props[prop] = (obj_type, val)
+                        matched = True
                         break
+            if not matched:
+                raise ValueError("Prompt not found correctly.")
             objectives.append(props)
         return objectives
 
@@ -133,9 +177,9 @@ class RewardScorer:
         mol_prop = row["value"]
         target_value = row["target_value"]
         if obj == "below":
-            reward += (mol_prop <= target_value).float()
+            reward += float(mol_prop <= target_value)
         elif obj == "above":
-            reward += (mol_prop >= target_value).float()
+            reward += float(mol_prop >= target_value)
         elif obj == "maximize":
             reward += mol_prop
         elif obj == "minimize":
