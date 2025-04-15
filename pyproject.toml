@@ -17,7 +17,10 @@ dependencies = [
     "tensorboard",
     "deepspeed",
     "flash-attn",
-    "peft"
+    "peft",
+    "coverage",
+    "pytest",
+    "coverage-badge"
 ]
 requires-python = ">=3.10"
 description = ""
