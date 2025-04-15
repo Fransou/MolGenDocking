@@ -10,6 +10,15 @@ dependencies = [
     "torchvision",
     "torchaudio",
     "PyTDC",
+    "coverage",
+    "pytest",
+    "coverage-badge"
+]
+requires-python = ">=3.10"
+description = ""
+
+[project.optional-dependencies]
+orz = [
     "vllm",
     "loguru",
     "omegaconf",
@@ -18,9 +27,4 @@ dependencies = [
     "deepspeed",
     "flash-attn",
     "peft",
-    "coverage",
-    "pytest",
-    "coverage-badge"
 ]
-requires-python = ">=3.10"
-description = ""
