@@ -57,7 +57,7 @@ class RewardScorer:
         self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
 
     def get_mol_props_from_prompt(
-        self, prompts: Any
+        self, prompts: List[Any]
     ) -> List[Dict[str, Tuple[Any, Any]]]:
         """
         Get molecular properties from prompt.
@@ -166,9 +166,17 @@ class RewardScorer:
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
         for p in df_properties["property"].unique():
-            smiles = df_properties[df_properties["property"] == p]["smiles"].tolist()
+            smiles = (
+                df_properties[df_properties["property"] == p]["smiles"]
+                .unique()
+                .tolist()
+            )
             values = self._get_property(smiles, p)
-            df_properties.loc[df_properties["property"] == p, "value"] = values
+            for s, v in zip(smiles, values):
+                df_properties.loc[
+                    (df_properties["smiles"] == s) & (df_properties["property"] == p),
+                    "value",
+                ] = v
 
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0

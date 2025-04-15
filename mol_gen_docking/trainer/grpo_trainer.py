@@ -7,7 +7,7 @@ from trl import GRPOConfig, GRPOTrainer
 from datasets import Dataset
 
 from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
-from mol_gen_docking.reward.grpo_rewards import RewardScorer, RewardScorerServer
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
 from mol_gen_docking.trainer.trainer_base import MolTrainer
 from mol_gen_docking.utils.grpo_reward_tokenizer import wrap_tokenizer
 
@@ -73,7 +73,7 @@ class GRPOMolTrainer(MolTrainer):
         trainer = GRPOTrainer(
             model=self.model,
             reward_funcs=[
-                RewardScorerServer("property"),
+                RewardScorer("property"),
                 RewardScorer("smiles"),
                 RewardScorer("valid_smiles"),
             ],

@@ -8,15 +8,8 @@ from rdkit.Chem import rdMolDescriptors
 
 from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
 from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
-from mol_gen_docking.utils.logger import create_logger
 
-logger = create_logger(__name__)
-
-PROP_LIST = [
-    k
-    for k in PROPERTIES_NAMES_SIMPLE.keys()
-    if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
-]
+from .utils import PROP_LIST
 
 
 def is_rdkit_use(name: str):
@@ -71,6 +64,9 @@ def test_RDKITOracle(rdkit_oracle, smiles_data):
     assert isinstance(props, list)
     assert len(props) == len(smiles_data)
     assert isinstance(props[0], float)
+    props = np.array(props)
+    props_solo = np.array([rdkit_oracle(smi) for smi in smiles_data])
+    assert np.isclose(props, props_solo).all()
 
 
 def test_oracles(oracle, smiles_data):

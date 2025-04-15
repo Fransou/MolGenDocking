@@ -13,23 +13,7 @@ from mol_gen_docking.reward.oracles import (
 )
 from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
 
-PROP_LIST = [
-    k for k in PROPERTIES_NAMES_SIMPLE if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
-]
-DOCKING_PROP_LIST = [
-    k for k in PROPERTIES_NAMES_SIMPLE if "docking" in PROPERTIES_NAMES_SIMPLE[k]
-]
-
-SMILES = (
-    [["FAKE"]]
-    + [propeties_csv.sample(k)["smiles"].tolist() for k in range(1, 3)]
-    + [propeties_csv.sample(1)["smiles"].tolist() + ["FAKE"]]
-)
-
-COMPLETIONS = [
-    "Here is a molecule: [SMILES] what are its properties?",
-    "This is an empty completion.",
-]
+from .utils import PROP_LIST, DOCKING_PROP_LIST, SMILES, COMPLETIONS, OBJECTIVES_TO_TEST
 
 
 def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:
@@ -236,11 +220,7 @@ def test_properties_single_prompt_vina_reward(
 
 @pytest.mark.parametrize(
     "prop, obj",
-    list(
-        product(
-            PROP_LIST, ["maximize", "minimize", "below 0.5", "above 0.5", "equal 0.5"]
-        )
-    ),
+    list(product(PROP_LIST, OBJECTIVES_TO_TEST)),
 )
 def test_all_prompts(prop, obj, property_scorer, property_filler, n_generations=1):
     """Test the function molecular_properties with 2 properties."""

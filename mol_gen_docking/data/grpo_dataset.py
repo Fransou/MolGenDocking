@@ -19,11 +19,14 @@ TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 class MolGenerationInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
-    def __init__(self, max_n_props: int = 5, vina: bool = False):
+    def __init__(
+        self, max_n_props: int = 5, vina: bool = False, n_max_occurence: int = 10
+    ):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
         self.max_n_props = max_n_props
+        self.n_max_occurence = n_max_occurence
         if not vina:
             self.known_properties = [
                 k
@@ -39,6 +42,7 @@ class MolGenerationInstructionsDataset:
             "You are a helpful assistant. You can generate drug-like molecules"
             + " in the SMILES format between <SMILES> and </SMILES> tags."
         )
+        self.rule_set: Dict[int, Dict[str, int]] = {}
 
     def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """
@@ -142,57 +146,60 @@ class MolGenerationInstructionsDataset:
                 completion = [{}]
                 yield prompt, completion, metadata
 
+    def generate_with_rule(
+        self, n: int, format: Literal["chat_format", "orz"]
+    ) -> Iterator[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]]:
+        """
+        Generates prompts, with at most n tries to obtain a prompt that meets the rule.
+        """
+        for _ in range(n):
+            found = False
+            for prompt, completions, metadata in self.generate(n, format=format):
+                allowed = True
+                n_props = metadata["n_props"]
+                for prop in metadata["properties"]:
+                    if n_props not in self.rule_set:
+                        self.rule_set[n_props] = {
+                            prop: 0 for prop in self.known_properties
+                        }
+                    allowed = allowed and (
+                        self.rule_set[metadata["n_props"]][prop] < self.n_max_occurence
+                    )
+
+                if allowed:
+                    found = True
+                    break
+            if not found:
+                break
+            for prop in metadata["properties"]:
+                self.rule_set[metadata["n_props"]][prop] += 1
+            yield prompt, completions, metadata
+
     def generate_prompt_json(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
     ) -> List[List[Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules.
-        The generation is controlled by the rule_set dictionary
+        The generation is controlled by the self.rule_set dictionary
         """
         # A dictionary with keys (props, n_props) ensuring that
         # the same properties do not appear more than 10 times for each n_props
-        rule_set: Dict[int, Dict[str, int]] = {}
 
         out_dictionary = []
         p_bar = tqdm(total=n)
-        for prompt, _, metadata in self.generate(n, format=format):
-            n_props = metadata["n_props"]
-            allowed = True
-            for prop in metadata["properties"]:
-                if n_props not in rule_set:
-                    rule_set[n_props] = {prop: 0 for prop in self.known_properties}
-                allowed = allowed and (rule_set[n_props][prop] < 10)
-            if not allowed:
-                for prompt, _, metadata in self.generate(n, format=format):
-                    found = False
-                    allowed = True
-                    n_props = metadata["n_props"]
-                    for prop in metadata["properties"]:
-                        if n_props not in rule_set:
-                            rule_set[n_props] = {
-                                prop: 0 for prop in self.known_properties
-                            }
-                        allowed = allowed and (rule_set[metadata["n_props"]][prop] < 10)
-
-                    if allowed:
-                        found = True
-                        break
-                if not found:
-                    break
+        for prompt, _, metadata in self.generate_with_rule(n, format=format):
             out_dictionary.append(prompt)
-
-            for prop in metadata["properties"]:
-                rule_set[metadata["n_props"]][prop] += 1
-
             tqdm.update(p_bar)
         return out_dictionary
 
-    def __call__(self, n: int) -> Dataset:
+    def __call__(
+        self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
+    ) -> Dataset:
         out_dictionary: Dict[str, List[List[Dict[str, str]]]] = {
             "prompt": [],
             "completion": [],
         }
-        for prompt, completion, *_ in self.generate(n):
+        for prompt, completion, *_ in self.generate_with_rule(n, format=format):
             out_dictionary["prompt"].append(prompt)
             out_dictionary["completion"].append(completion)
         del out_dictionary["completion"]
