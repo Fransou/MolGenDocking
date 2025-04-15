@@ -24,4 +24,4 @@ COMPLETIONS = [
     "This is an empty completion.",
 ]
 
-OBJECTIVES_TO_TEST = ["maximize", "minimize", "below 0.5", "above 0.5", "equal 0.5"]
+OBJECTIVES_TO_TEST = ["maximize", "minimize", "above 0.5", "below 0.5", "equal 0.5"]

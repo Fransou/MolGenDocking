@@ -9,7 +9,6 @@ from tdc.metadata import docking_target_info
 from pyscreener.docking.vina.utils import Software
 
 
-
 class PyscreenerOracle:
     def __init__(
         self,
@@ -42,12 +41,12 @@ class PyscreenerOracle:
 
         if not ray.is_initialized():
             ray.init()
-        
+
         metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 8})
-        
+
         if software_class == "qvina":
-          metadata.software = Software.QVINA
-        
+            metadata.software = Software.QVINA
+
         self.scorer = ps.virtual_screen(
             software_class,
             [receptor_pdb_file],
