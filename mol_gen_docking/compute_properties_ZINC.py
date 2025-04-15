@@ -3,7 +3,7 @@ from typing import List
 from tqdm import tqdm
 
 from tdc.generation import MolGen
-from multiprocessing import Pool
+from multiprocess import Pool
 
 from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
 
@@ -58,7 +58,6 @@ if __name__ == "__main__":
         molgen["smiles"].tolist()[i * args.batch_size : (i + 1) * args.batch_size]
         for i in range(len(molgen) // args.batch_size)
     ]
-
     for i_name, oracle_name in enumerate(PROPERTIES_NAMES_SIMPLE.values()):
         oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
         if "docking" in oracle_name:
@@ -67,7 +66,7 @@ if __name__ == "__main__":
             props = {smi: p for smi, p in zip(molgen["smiles"].tolist(), property_vals)}
         else:
             oracle = get_oracle(oracle_name)
-            pool = Pool(64)
+            pool = Pool(16)
 
             def get_property(batch: List[str]) -> dict:
                 """Get the property for a batch of SMILES strings."""
