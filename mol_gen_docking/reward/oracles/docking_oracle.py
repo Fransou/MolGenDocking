@@ -5,6 +5,7 @@ import ray
 import pyscreener as ps
 
 from tdc.metadata import docking_target_info
+from tdc.utils import receptor_load
 
 from pyscreener.docking.vina.utils import Software
 
@@ -33,6 +34,7 @@ class PyscreenerOracle:
         self.name = "[DOCKING]-" + target_name
         if not os.path.isfile(target_name):
             pdbid = target_name.split("_")[0]
+            receptor_load(pdbid)
             receptor_pdb_file = "./oracle/" + pdbid + ".pdbqt"
             box_center = docking_target_info[pdbid]["center"]
             box_size = docking_target_info[pdbid]["size"]
