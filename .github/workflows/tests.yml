@@ -19,26 +19,6 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install ADFRsuite
-      run: |
-        wget -O ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038
-        mv ADFRsuite.tar.gz ../ && cd ..
-        tar -xzf ADFRsuite.tar.gz
-        cd ADFRsuite_*
-        echo "Y" | ./install.sh -d . -c 0
-        cd ..
-        rm -rf ADFRsuite.tar.gz
-        # Add ADFRsuite to the system path
-        echo $PWD/ADFRsuite_*/bin >> $GITHUB_PATH
-
-    - name: Install VINA
-      run: |
-        wget https://vina.scripps.edu/wp-content/uploads/sites/55/2020/12/autodock_vina_1_1_2_linux_x86.tgz
-        tar -xzvf autodock_vina_1_1_2_linux_x86.tgz
-        ls
-        # Add VINA to the system path
-        echo $PWD/autodock_vina_1_1_2_linux_x86/bin >> $GITHUB_PATH
-
     - name: Add conda to system path
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
@@ -57,14 +37,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        conda install -y -c conda-forge openbabel=3.1.1 openmm pdbfixer
         pip install -U pip
         pip install -U numpy scipy --prefer-binary
         pip install -U scikit-learn==1.2.2 --prefer-binary
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install .
-        pip install ray
-        pip install pyscreener
 
     - name: Test with pytest
       run: |
