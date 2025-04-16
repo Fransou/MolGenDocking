@@ -153,7 +153,7 @@ class CustomRewardTrainer(RayPPOTrainer):
         pass_at_n_dict = defaultdict(list)
         num_tokens: List[int] = []
 
-        @ray.remote(num_cpus=64)
+        @ray.remote(num_cpus=1)
         def get_mol_prop_score(p, res):
             return self._reward_properties(p, res)
 
