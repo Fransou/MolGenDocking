@@ -30,7 +30,6 @@ from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
     CustomDataset,
-    EvalCustomDataset,
 )
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
@@ -563,7 +562,7 @@ class PPOExp(BasePPOExp):
             with open(file_path) as f:
                 dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
-        prompts_dataset = EvalCustomDataset(
+        prompts_dataset = CustomDataset(
             dialogues,
             self.tokenizer,
             self.cfg.prompt_max_len,
