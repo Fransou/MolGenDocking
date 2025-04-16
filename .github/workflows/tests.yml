@@ -1,13 +1,15 @@
 name: Python Package using Conda
 
-on: [push]
+on: [pull_request, pull_request_target]
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    permissions: # Job-level permissions configuration starts here
+      contents: write           # 'write' access to repository contents
+      pull-requests: write
     strategy:
       max-parallel: 5
-
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
@@ -20,6 +22,7 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
+        pip install scikit-learn==1.2.2
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install -e .
     - name: Test with pytest
@@ -28,3 +31,14 @@ jobs:
         coverage report
         rm coverage.svg
         coverage-badge -o coverage.svg
+    - name: Commit files
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add coverage.svg
+        git add .coverage
+        git commit -m "[actions] Tests: update coverage badge"
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        force_with_lease: true
