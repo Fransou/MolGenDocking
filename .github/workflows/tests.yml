@@ -8,10 +8,11 @@ jobs:
     permissions: # Job-level permissions configuration starts here
       contents: write           # 'write' access to repository contents
       pull-requests: write
-    strategy:
-      max-parallel: 5
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
