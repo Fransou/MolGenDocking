@@ -20,6 +20,8 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
+    - name: Get branch name
+      run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
     - name: Cache pip
       uses: actions/cache@v3
       with:
@@ -45,8 +47,9 @@ jobs:
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add coverage.svg
-        git commit -m "[actions] Tests: update coverage badge"
+        git commit -m "[actions] Tests: update coverage badge" || echo "No changes to commit"
     - name: Push changes
       uses: ad-m/github-push-action@master
       with:
+        branch: ${{ env.BRANCH_NAME }}
         force_with_lease: true
