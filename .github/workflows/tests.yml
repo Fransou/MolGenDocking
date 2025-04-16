@@ -1,6 +1,6 @@
 name: Tests
 
-on: [pull_request, pull_request_target]
+on: [commit]
 
 jobs:
   build-linux:

@@ -30,7 +30,6 @@ from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
     CustomDataset,
-    EvalCustomDataset,
 )
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
@@ -53,11 +52,11 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
-    ref_num_gpus_per_node: int = 2
+    ref_num_gpus_per_node: int = 1
     actor_num_nodes: int = total_num_nodes
-    actor_num_gpus_per_node: int = 2
+    actor_num_gpus_per_node: int = 1
     critic_num_nodes: int = total_num_nodes
-    critic_num_gpus_per_node: int = 2
+    critic_num_gpus_per_node: int = 1
     colocate_all: bool = True
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
@@ -154,7 +153,7 @@ class CustomRewardTrainer(RayPPOTrainer):
         pass_at_n_dict = defaultdict(list)
         num_tokens: List[int] = []
 
-        @ray.remote(num_cpus=64)
+        @ray.remote(num_cpus=1)
         def get_mol_prop_score(p, res):
             return self._reward_properties(p, res)
 
@@ -563,7 +562,7 @@ class PPOExp(BasePPOExp):
             with open(file_path) as f:
                 dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
-        prompts_dataset = EvalCustomDataset(
+        prompts_dataset = CustomDataset(
             dialogues,
             self.tokenizer,
             self.cfg.prompt_max_len,
