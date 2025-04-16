@@ -44,7 +44,7 @@ class PyscreenerOracle:
 
         metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 8})
 
-        if software_class == "qvina":
+        if software_class == "qvina" and os.system("qvina --help") != 32512:
             metadata.software = Software.QVINA
 
         self.scorer = ps.virtual_screen(
