@@ -13,16 +13,40 @@ jobs:
       uses: actions/checkout@v4
       with:
         ref: ${{ github.head_ref }}
+
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
         python-version: '3.10'
+
+    - name: Install ADFRsuite
+      run: |
+        wget -O ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038
+        mv ADFRsuite.tar.gz ../ && cd ..
+        tar -xzf ADFRsuite.tar.gz
+        cd ADFRsuite_*
+        echo "Y" | ./install.sh -d . -c 0
+        cd ..
+        rm -rf ADFRsuite.tar.gz
+        # Add ADFRsuite to the system path
+        echo $PWD/ADFRsuite_*/bin >> $GITHUB_PATH
+
+    - name: Install VINA
+      run: |
+        wget https://vina.scripps.edu/wp-content/uploads/sites/55/2020/12/autodock_vina_1_1_2_linux_x86.tgz
+        tar -xzvf autodock_vina_1_1_2_linux_x86.tgz
+        ls
+        # Add VINA to the system path
+        echo $PWD/autodock_vina_1_1_2_linux_x86/bin >> $GITHUB_PATH
+
     - name: Add conda to system path
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
+
     - name: Get branch name
       run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+
     - name: Cache pip
       uses: actions/cache@v3
       with:
@@ -30,6 +54,7 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
         restore-keys: |
           ${{ runner.os }}-pip-
+
     - name: Install dependencies
       run: |
         pip install -U pip
@@ -37,18 +62,21 @@ jobs:
         pip install -U scikit-learn==1.2.2 --prefer-binary
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install .
+
     - name: Test with pytest
       run: |
         coverage run -m pytest test
         coverage report
         rm coverage.svg
         coverage-badge -o coverage.svg
+
     - name: Commit files
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add coverage.svg
         git commit -m "[actions] Tests: update coverage badge" || echo "No changes to commit"
+
     - name: Push changes
       uses: ad-m/github-push-action@master
       with:
