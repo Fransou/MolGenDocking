@@ -1,0 +1,64 @@
+name: Tests
+
+on: [pull_request, pull_request_target]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions: # Job-level permissions configuration starts here
+      contents: write           # 'write' access to repository contents
+      pull-requests: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.10'
+
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA/bin >> $GITHUB_PATH
+
+    - name: Get branch name
+      run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
+
+    - name: Cache pip
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        pip install -U pip
+        pip install -U numpy scipy --prefer-binary
+        pip install -U scikit-learn==1.2.2 --prefer-binary
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install .
+
+    - name: Test with pytest
+      run: |
+        coverage run -m pytest test
+        coverage report
+        rm coverage.svg
+        coverage-badge -o coverage.svg
+
+    - name: Commit files
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add coverage.svg
+        git commit -m "[actions] Tests: update coverage badge" || echo "No changes to commit"
+
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        branch: ${{ env.BRANCH_NAME }}
+        force_with_lease: true
