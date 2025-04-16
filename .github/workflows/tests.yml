@@ -57,8 +57,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        conda install -y -c conda-forge openbabel=3.1.1
-        conda install -c conda-forge openmm
+        conda install -y -c conda-forge openbabel=3.1.1 openmm pdbfixer
         pip install -U pip
         pip install -U numpy scipy --prefer-binary
         pip install -U scikit-learn==1.2.2 --prefer-binary
