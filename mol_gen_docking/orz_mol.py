@@ -52,11 +52,11 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
-    ref_num_gpus_per_node: int = 2
+    ref_num_gpus_per_node: int = 1
     actor_num_nodes: int = total_num_nodes
-    actor_num_gpus_per_node: int = 2
+    actor_num_gpus_per_node: int = 1
     critic_num_nodes: int = total_num_nodes
-    critic_num_gpus_per_node: int = 2
+    critic_num_gpus_per_node: int = 1
     colocate_all: bool = True
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
