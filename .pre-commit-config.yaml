@@ -19,6 +19,7 @@ repos:
   hooks:
     # Run the linter.
     - id: ruff
+      exclude: docker
       types_or: [ python, pyi ]
       args: [ --fix ]
     # Run the formatter.
@@ -28,4 +29,5 @@ repos:
   rev: ''  # Use the sha / tag you want to point at
   hooks:
     - id: mypy
+      exclude: docker
       args: [ --ignore-missing-imports, --install-types, --non-interactive ]

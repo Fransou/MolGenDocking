@@ -174,3 +174,4 @@ cython_debug/
 external_libraries
 oracle
 *.idea
+*.sqsh
