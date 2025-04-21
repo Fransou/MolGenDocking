@@ -31,7 +31,6 @@ from orz.ppo.utils import check_reflection_pattern
 from mol_gen_docking.playground.zero_setting_base import (
     CustomDataset,
 )
-from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
@@ -131,13 +130,24 @@ class PPOExpConfig(BasePPOExpConfig):
     lambd: float = 1.0
 
 
-class CustomRewardTrainer(RayPPOTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+@ray.remote(num_cpus=16)
+class RewardWorker:
+    def __init__(self):
+        from mol_gen_docking.reward.grpo_rewards import RewardScorer
+
         self._reward_valid_molecules = RewardScorer(
             "valid_smiles", parse_whole_completion=True
         )
         self._reward_properties = RewardScorer("property", parse_whole_completion=True)
+
+    def get_score(self, prompts: List[str], outputs: List[str]) -> List[float]:
+        return self._reward_properties(prompts, outputs)
+
+
+class CustomRewardTrainer(RayPPOTrainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._reward_properties = RewardWorker.remote()
 
     async def custom_reward_fn(
         self,
@@ -155,7 +165,7 @@ class CustomRewardTrainer(RayPPOTrainer):
 
         @ray.remote(num_cpus=1)
         def get_mol_prop_score(p, res):
-            return self._reward_properties(p, res)
+            return self._reward_properties.get_score.remote(p, res)
 
         @ray.remote(num_cpus=1)
         def get_reflection_pattern_score(res):
