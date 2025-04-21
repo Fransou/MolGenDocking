@@ -29,11 +29,15 @@ if __name__ == "__main__":
 
     dataset = MolGenerationInstructionsDataset(
         vina=args.vina, max_n_props=args.max_n_props
-    ).generate_prompt_json(args.n_prompts + args.n_prompts // 8, format="orz")
+    )
+
+    train_dataset = dataset.generate_prompt_json(args.n_prompts, format="orz")
+    eval_dataset = dataset.generate_prompt_json(args.n_prompts//8, format="orz", eval_name=os.path.join(args.data_path, "eval_data", "eval_prompts.json"))
 
     os.makedirs(args.data_path, exist_ok=True)
+    os.makedirs(os.path.join(args.data_path, "eval_data"), exist_ok=True)
 
     with open(os.path.join(args.data_path, "train_prompts.json"), "w") as f:
-        json.dump(dataset[args.n_prompts // 8 :], f)
-    with open(os.path.join(args.data_path, "eval_prompts.json"), "w") as f:
-        json.dump(dataset[: args.n_prompts // 8], f)
+        json.dump(train_dataset, f)
+    with open(os.path.join(args.data_path, "eval_data", "eval_prompts.json"), "w") as f:
+        json.dump(eval_dataset, f)

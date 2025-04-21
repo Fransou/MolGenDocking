@@ -42,7 +42,8 @@ class MolGenerationInstructionsDataset:
             "You are a helpful assistant. You can generate drug-like molecules"
             + " in the SMILES format between <SMILES> and </SMILES> tags."
         )
-        self.rule_set: Dict[int, Dict[str, int]] = {}
+        self.rule_set: Dict[int, Dict[str, int]] = {} # n_times a given propery was used for each 
+        # mulit-obj prompt, and all already generated properties at that level.
 
     def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """
@@ -117,6 +118,7 @@ class MolGenerationInstructionsDataset:
                 0 if len(obj.split(" ")) == 1 else obj.split(" ")[1]
                 for obj in objectives
             ]
+            metadata["prompt_id"] = "".join(sorted([prop+ " " + obj + " | " for prop, obj in zip(properties, objectives)]))[:-3]
             metadata["n_props"] = n_props
 
             prompt_text = self.fill_prompt(properties, objectives)
@@ -154,14 +156,17 @@ class MolGenerationInstructionsDataset:
         """
         for _ in range(n):
             found = False
-            for prompt, completions, metadata in self.generate(n, format=format):
-                allowed = True
+            for prompt, completions, metadata in self.generate(4*n, format=format):
                 n_props = metadata["n_props"]
+                if n_props not in self.rule_set:
+                    self.rule_set[n_props] = {
+                        prop: 0 for prop in self.known_properties
+                    }
+                    self.rule_set[n_props]["generated"] = []
+                allowed = metadata["prompt_id"] not in self.rule_set[n_props]["generated"]
+
+
                 for prop in metadata["properties"]:
-                    if n_props not in self.rule_set:
-                        self.rule_set[n_props] = {
-                            prop: 0 for prop in self.known_properties
-                        }
                     allowed = allowed and (
                         self.rule_set[metadata["n_props"]][prop] < self.n_max_occurence
                     )
@@ -173,22 +178,29 @@ class MolGenerationInstructionsDataset:
                 break
             for prop in metadata["properties"]:
                 self.rule_set[metadata["n_props"]][prop] += 1
+            self.rule_set[n_props]["generated"].append(metadata["prompt_id"])
+
             yield prompt, completions, metadata
 
     def generate_prompt_json(
-        self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
+        self, n: int, format: Literal["chat_format", "orz"] = "chat_format", eval_name:str=""
     ) -> List[List[Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules.
         The generation is controlled by the self.rule_set dictionary
         """
-        # A dictionary with keys (props, n_props) ensuring that
-        # the same properties do not appear more than 10 times for each n_props
-
         out_dictionary = []
         p_bar = tqdm(total=n)
         for prompt, _, metadata in self.generate_with_rule(n, format=format):
-            out_dictionary.append(prompt)
+            if eval_name != "":
+                new_prompt={}
+                new_prompt["prompt"] = [prompt[0]]
+                new_prompt["final_answer"] = prompt[1]["ground_truth"]["value"]
+                new_prompt["file_name"] = eval_name
+                out_dictionary.append(new_prompt)
+            else:
+                out_dictionary.append(prompt)
+
             tqdm.update(p_bar)
         return out_dictionary
 
