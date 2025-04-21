@@ -29,9 +29,11 @@ from orz.ppo.tools.math_utils import is_equal, solution2answer
 from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
-    CustomDataset,
+    EvalCustomDataset, CustomDataset,
 )
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
+
+os.environ["VLLM_USE_V1"]="0"
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
@@ -80,7 +82,7 @@ class PPOExpConfig(BasePPOExpConfig):
             "data/mol_orz/train_prompts.json",
         ]
     )
-    eval_prompt_data: ListConfig = ListConfig(["data/mol_orz/eval_prompts.json"])
+    eval_prompt_data: ListConfig = ListConfig(["data/mol_orz/eval_data/eval_prompts.json"])
     prompt_data_probs: ListConfig = ListConfig([1.0])
 
     # ppo related settings
@@ -434,7 +436,7 @@ class CustomRewardTrainer(RayPPOTrainer):
         for batch in dataloader:
             prompts = list(batch[0])
             answers = list(batch[1]["answer"])
-            file_names = list(batch[1]["file_name"])
+            file_names = list(batch[1].get("file_name"))
             outputs = []
             for i, llm in enumerate(self.vllm_engines):
                 outputs.append(
@@ -445,9 +447,9 @@ class CustomRewardTrainer(RayPPOTrainer):
                 )
             outputs = await asyncio.gather(*outputs)
             outputs = sum(outputs, [])
-
+            
             final_answers = []
-            pattern = re.compile(r"<answer>.*?(\\boxed{.*}).*?</answer>", re.DOTALL)
+            pattern = re.compile(r"<answer>.*?</answer>", re.DOTALL)
             for output in outputs:
                 matches = re.findall(pattern, output.outputs[0].text)
                 if len(matches) > 0:
@@ -460,65 +462,37 @@ class CustomRewardTrainer(RayPPOTrainer):
             ):
                 label = solution2answer(answer)
                 prefix_response = solution2answer(final_answer)
-                iscorrect = await is_equal(label, prefix_response, executor)
                 output_for_save.append(
                     dict(
                         prompt=prompt,
                         output=output.outputs[0].text,
                         final_answer=final_answer,
                         answer=answer,
-                        iscorrect=iscorrect,
                     )
                 )
                 log_dict[f"{file_name}/total_response_len_in_char"] += len(
                     output.outputs[0].text
                 )
-                log_dict[f"{file_name}/correct"] += iscorrect
                 log_dict[f"{file_name}/total"] += 1
-
+        print(final_answer)
         # get all file_names from self.cfg.eval_prompt_data
         all_file_names: List[str] = [
             os.path.splitext(os.path.basename(file_path))[0]
             for file_path in self.cfg.eval_prompt_data
         ]
+        print(log_dict)
         for file_name in all_file_names:
-            log_dict[f"{file_name}/response_len_in_char"] = (
-                log_dict[f"{file_name}/total_response_len_in_char"]
-                / log_dict[f"{file_name}/total"]
-            )
-            log_dict[f"{file_name}/accuracy"] = (
-                log_dict[f"{file_name}/correct"] / log_dict[f"{file_name}/total"]
-            )
-            log_dict.pop(f"{file_name}/total_response_len_in_char")
-            log_dict.pop(f"{file_name}/correct")
-            log_dict.pop(f"{file_name}/total")
-        # calculate average accuracy
-        log_dict["eval_accuracy"] = sum(
-            [log_dict[f"{file_name}/accuracy"] for file_name in all_file_names]
-        ) / len(all_file_names)
-
-        dump_file_name = f"eval_output_iter{self.global_step}"
-        # join all acc from all_file_names
-        for file_name in all_file_names:
-            dump_file_name += f"_{file_name}{log_dict[f'{file_name}/accuracy']:.4f}"
-        dump_file_name += ".jsonl"
-        # dump as jsonl
-        with open(
-            os.path.join(
-                self.cfg.save_path,
-                dump_file_name,
-            ),
-            "w",
-        ) as f:
-            for item in output_for_save:
-                f.write(
-                    json.dumps(item, ensure_ascii=False) + "\n",
+            print(log_dict[f"{file_name}/total"])
+            try:
+                log_dict[f"{file_name}/response_len_in_char"] = (
+                    log_dict[f"{file_name}/total_response_len_in_char"]
+                    / log_dict[f"{file_name}/total"]
                 )
-
-        logging_str = ",".join([f"{k}: {v:.4f}" for k, v in log_dict.items()])
-        logger.info(logging_str)
-        for k, v in log_dict.items():
-            self.writer.add_scalar(f"evals/{k}", v, self.global_step)
+            except Exception as e:
+                print(e)
+                print("==================================")
+            log_dict.pop(f"{file_name}/total_response_len_in_char")
+            log_dict.pop(f"{file_name}/total")
 
 
 class PPOExp(BasePPOExp):
@@ -562,7 +536,7 @@ class PPOExp(BasePPOExp):
             with open(file_path) as f:
                 dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
-        prompts_dataset = CustomDataset(
+        prompts_dataset = EvalCustomDataset(
             dialogues,
             self.tokenizer,
             self.cfg.prompt_max_len,
