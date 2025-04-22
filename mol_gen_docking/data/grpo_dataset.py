@@ -1,6 +1,6 @@
 """Dataset for generating prompts for molecule generation"""
 
-from typing import Iterator, Tuple, Dict, List, Literal, Any
+from typing import Iterator, Tuple, Dict, List, Literal, Any, Union
 from numpy import random
 from datasets import Dataset
 from tqdm import tqdm
@@ -42,8 +42,11 @@ class MolGenerationInstructionsDataset:
             "You are a helpful assistant. You can generate drug-like molecules"
             + " in the SMILES format between <SMILES> and </SMILES> tags."
         )
-        self.rule_set: Dict[int, Dict[str, int]] = {} # n_times a given propery was used for each 
-        # mulit-obj prompt, and all already generated properties at that level.
+        self.rule_set: Dict[
+            int, Dict[str, int]
+        ] = {}  # n_times a given propery was used for each
+        # mulit-obj prompt
+        self.generated: Dict[int, List[str]] = {}  # List of generated prompts
 
     def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """
@@ -118,7 +121,14 @@ class MolGenerationInstructionsDataset:
                 0 if len(obj.split(" ")) == 1 else obj.split(" ")[1]
                 for obj in objectives
             ]
-            metadata["prompt_id"] = "".join(sorted([prop+ " " + obj + " | " for prop, obj in zip(properties, objectives)]))[:-3]
+            metadata["prompt_id"] = "".join(
+                sorted(
+                    [
+                        prop + " " + obj + " | "
+                        for prop, obj in zip(properties, objectives)
+                    ]
+                )
+            )[:-3]
             metadata["n_props"] = n_props
 
             prompt_text = self.fill_prompt(properties, objectives)
@@ -149,22 +159,25 @@ class MolGenerationInstructionsDataset:
                 yield prompt, completion, metadata
 
     def generate_with_rule(
-        self, n: int, format: Literal["chat_format", "orz"]
-    ) -> Iterator[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]]:
+        self, n: int, format: Literal["chat_format", "orz"], eval_name=""
+    ) -> Iterator[
+        Tuple[
+            Union[List[Dict[str, Any]], Dict[str, Any]],
+            List[Dict[str, Any]],
+            Dict[str, Any],
+        ]
+    ]:
         """
         Generates prompts, with at most n tries to obtain a prompt that meets the rule.
         """
         for _ in range(n):
             found = False
-            for prompt, completions, metadata in self.generate(4*n, format=format):
+            for prompt, completions, metadata in self.generate(4 * n, format=format):
                 n_props = metadata["n_props"]
                 if n_props not in self.rule_set:
-                    self.rule_set[n_props] = {
-                        prop: 0 for prop in self.known_properties
-                    }
-                    self.rule_set[n_props]["generated"] = []
-                allowed = metadata["prompt_id"] not in self.rule_set[n_props]["generated"]
-
+                    self.rule_set[n_props] = {prop: 0 for prop in self.known_properties}
+                    self.generated[n_props] = []
+                allowed = metadata["prompt_id"] not in self.generated[n_props]
 
                 for prop in metadata["properties"]:
                     allowed = allowed and (
@@ -178,40 +191,44 @@ class MolGenerationInstructionsDataset:
                 break
             for prop in metadata["properties"]:
                 self.rule_set[metadata["n_props"]][prop] += 1
-            self.rule_set[n_props]["generated"].append(metadata["prompt_id"])
-
-            yield prompt, completions, metadata
+            self.generated[n_props].append(metadata["prompt_id"])
+            if eval_name != "":
+                yield prompt, completions, metadata
+            else:
+                new_prompt: Dict[str, Any] = {}
+                new_prompt["prompt"] = [prompt[0]]
+                new_prompt["final_answer"] = prompt[1]["ground_truth"]["value"]
+                new_prompt["file_name"] = eval_name
+                yield new_prompt, completions, metadata
 
     def generate_prompt_json(
-        self, n: int, format: Literal["chat_format", "orz"] = "chat_format", eval_name:str=""
-    ) -> List[List[Dict[str, Any]]]:
+        self,
+        n: int,
+        format: Literal["chat_format", "orz"] = "chat_format",
+        eval_name: str = "",
+    ) -> List[Any]:
         """
         Generates n prompts randomly to generate molecules.
         The generation is controlled by the self.rule_set dictionary
         """
         out_dictionary = []
         p_bar = tqdm(total=n)
-        for prompt, _, metadata in self.generate_with_rule(n, format=format):
-            if eval_name != "":
-                new_prompt={}
-                new_prompt["prompt"] = [prompt[0]]
-                new_prompt["final_answer"] = prompt[1]["ground_truth"]["value"]
-                new_prompt["file_name"] = eval_name
-                out_dictionary.append(new_prompt)
-            else:
-                out_dictionary.append(prompt)
-
+        for prompt, _, metadata in self.generate_with_rule(
+            n, format=format, eval_name=eval_name
+        ):
+            out_dictionary.append(prompt)
             tqdm.update(p_bar)
         return out_dictionary
 
     def __call__(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
     ) -> Dataset:
-        out_dictionary: Dict[str, List[List[Dict[str, str]]]] = {
+        out_dictionary: Dict[str, List[List[Dict[str, Any]]]] = {
             "prompt": [],
             "completion": [],
         }
         for prompt, completion, *_ in self.generate_with_rule(n, format=format):
+            assert isinstance(prompt, list)
             out_dictionary["prompt"].append(prompt)
             out_dictionary["completion"].append(completion)
         del out_dictionary["completion"]

@@ -32,7 +32,11 @@ if __name__ == "__main__":
     )
 
     train_dataset = dataset.generate_prompt_json(args.n_prompts, format="orz")
-    eval_dataset = dataset.generate_prompt_json(args.n_prompts//8, format="orz", eval_name=os.path.join(args.data_path, "eval_data", "eval_prompts.json"))
+    eval_dataset = dataset.generate_prompt_json(
+        args.n_prompts // 8,
+        format="orz",
+        eval_name=os.path.join(args.data_path, "eval_data", "eval_prompts.json"),
+    )
 
     os.makedirs(args.data_path, exist_ok=True)
     os.makedirs(os.path.join(args.data_path, "eval_data"), exist_ok=True)

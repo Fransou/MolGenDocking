@@ -60,7 +60,9 @@ This is the problem:
         assert "file_name" in dialogue, "dialogue must contain file_name"
 
         prompt_instruction_template = Template(prompt_instruction_template_jinja)
-        prompt_instruction = prompt_instruction_template.render(prompt=dialogue["prompt"][0]["value"])
+        prompt_instruction = prompt_instruction_template.render(
+            prompt=dialogue["prompt"][0]["value"]
+        )
         prompt_template = Template(prompt_template_jinja)
         if self.tokenizer.bos_token_id is None:
             bos_token = ""
@@ -71,4 +73,3 @@ This is the problem:
         extra = {"answer": dialogue["final_answer"], "file_name": dialogue["file_name"]}
 
         return prompt, extra
-

@@ -29,10 +29,13 @@ from orz.ppo.tools.math_utils import is_equal, solution2answer
 from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
-    EvalCustomDataset, CustomDataset,
+    EvalCustomDataset,
+    CustomDataset,
 )
+from mol_gen_docking.reward.ray_worker import RewardWorker
 
-os.environ["VLLM_USE_V1"]="0"
+
+os.environ["VLLM_USE_V1"] = "0"
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
@@ -81,7 +84,9 @@ class PPOExpConfig(BasePPOExpConfig):
             "data/mol_orz/train_prompts.json",
         ]
     )
-    eval_prompt_data: ListConfig = ListConfig(["data/mol_orz/eval_data/eval_prompts.json"])
+    eval_prompt_data: ListConfig = ListConfig(
+        ["data/mol_orz/eval_data/eval_prompts.json"]
+    )
     prompt_data_probs: ListConfig = ListConfig([1.0])
 
     # ppo related settings
@@ -132,20 +137,6 @@ class PPOExpConfig(BasePPOExpConfig):
     lambd: float = 1.0
 
 
-@ray.remote(num_cpus=16)
-class RewardWorker:
-    def __init__(self):
-        from mol_gen_docking.reward.grpo_rewards import RewardScorer
-
-        self._reward_valid_molecules = RewardScorer(
-            "valid_smiles", parse_whole_completion=True
-        )
-        self._reward_properties = RewardScorer("property", parse_whole_completion=True)
-
-    def get_score(self, prompts: List[str], outputs: List[str]) -> List[float]:
-        return self._reward_properties(prompts, outputs)
-
-
 class CustomRewardTrainer(RayPPOTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -165,7 +156,6 @@ class CustomRewardTrainer(RayPPOTrainer):
         pass_at_n_dict = defaultdict(list)
         num_tokens: List[int] = []
 
-        @ray.remote(num_cpus=1)
         def get_mol_prop_score(p, res):
             return self._reward_properties.get_score.remote(p, res)
 
@@ -181,7 +171,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             # calculate repeat score for log
             rep_tasks.extend(
                 [
-                    get_mol_prop_score.remote(prompts, response),
+                    get_mol_prop_score(prompts, response),
                     get_reflection_pattern_score.remote(response),
                 ]
             )
@@ -457,7 +447,7 @@ class CustomRewardTrainer(RayPPOTrainer):
                 )
             outputs = await asyncio.gather(*outputs)
             outputs = sum(outputs, [])
-            
+
             final_answers = []
             pattern = re.compile(r"<answer>.*?</answer>", re.DOTALL)
             for output in outputs:
@@ -470,8 +460,6 @@ class CustomRewardTrainer(RayPPOTrainer):
             for prompt, output, final_answer, answer, file_name in zip(
                 prompts, outputs, final_answers, answers, file_names
             ):
-                label = solution2answer(answer)
-                prefix_response = solution2answer(final_answer)
                 output_for_save.append(
                     dict(
                         prompt=prompt,
@@ -484,7 +472,6 @@ class CustomRewardTrainer(RayPPOTrainer):
                     output.outputs[0].text
                 )
                 log_dict[f"{file_name}/total"] += 1
-        print(final_answer)
         # get all file_names from self.cfg.eval_prompt_data
         all_file_names: List[str] = [
             os.path.splitext(os.path.basename(file_path))[0]

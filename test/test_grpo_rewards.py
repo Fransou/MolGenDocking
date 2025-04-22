@@ -1,10 +1,11 @@
 import os
 
-from typing import List, Callable
+from typing import List
 from itertools import product
 import pytest
 import torch
 import numpy as np
+import ray
 
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 from mol_gen_docking.reward.oracles import (
@@ -12,22 +13,18 @@ from mol_gen_docking.reward.oracles import (
     PROPERTIES_NAMES_SIMPLE,
 )
 from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
+from mol_gen_docking.reward.ray_worker import RewardWorker
 
-from .utils import PROP_LIST, DOCKING_PROP_LIST, SMILES, COMPLETIONS, OBJECTIVES_TO_TEST
+from .utils import (
+    PROP_LIST,
+    DOCKING_PROP_LIST,
+    SMILES,
+    COMPLETIONS,
+    OBJECTIVES_TO_TEST,
+    get_fill_completions,
+)
 
-
-def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:
-    def fill_completion(smiles: List[str], completion: str) -> str:
-        """Fill the completion with the smiles."""
-        smiles_joined: str = "".join(
-            [
-                "{} ".format(s) if no_flags else "<SMILES>{}</SMILES> ".format(s)
-                for s in smiles
-            ]
-        )
-        return completion.replace("[SMILES]", smiles_joined)
-
-    return fill_completion
+ray.init(num_cpus=1)
 
 
 def build_prompt(property: str | List[str], obj: str = "maximize") -> str:
@@ -260,3 +257,23 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
     elif obj == "equal 0.5":
         val = 1 - (rewards_max - 0.5) ** 2
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
+
+
+@pytest.mark.parametrize(
+    "prop, smiles",
+    list(
+        product(
+            PROP_LIST[:2],
+            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
+        )
+    ),
+)
+def test_ray(prop, smiles):
+    prompts = [build_prompt(prop, "maximize")] * len(smiles)
+    filler = get_fill_completions(True)
+    completions = [filler([s], "Here is a molecule: [SMILES]") for s in smiles]
+
+    worker = RewardWorker.remote()
+    result = worker.get_score.remote(prompts, completions)
+    result = ray.get(result)
+    print(result)
