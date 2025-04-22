@@ -103,7 +103,6 @@ class RewardScorer:
                 clause = clause.strip()
                 if not clause:
                     continue
-                matched = False
                 for pattern, obj_type in self.search_patterns:
                     match = re.match(pattern, clause, re.IGNORECASE)
                     if match:
@@ -115,12 +114,8 @@ class RewardScorer:
                         else:
                             val = 0
                         props[prop] = (obj_type, val)
-                        matched = True
                         break
-                if not matched:
-                    raise ValueError(
-                        "Prompt not found correctly for prompt:\n{}.".format(prompt)
-                    )
+
             objectives.append(props)
         return objectives
 

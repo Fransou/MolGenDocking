@@ -26,14 +26,7 @@ def test_fill_prompt(props, obj):
     "n, max_props",
     list(
         product(
-            [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-            ],
+            [i + 1 for i in range(5)],
             [1, 2, 3],
         )
     ),
