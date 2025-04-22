@@ -4,7 +4,7 @@ from typing import List
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
 
-@ray.remote(num_cpus=64)
+@ray.remote(num_cpus=16)
 class RewardWorker:
     def __init__(self):
         self._reward_valid_molecules = RewardScorer(
