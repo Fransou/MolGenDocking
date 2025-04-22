@@ -118,7 +118,9 @@ class RewardScorer:
                         matched = True
                         break
                 if not matched:
-                    raise ValueError("Prompt not found correctly.")
+                    raise ValueError(
+                        "Prompt not found correctly for prompt:\n{}.".format(prompt)
+                    )
             objectives.append(props)
         return objectives
 

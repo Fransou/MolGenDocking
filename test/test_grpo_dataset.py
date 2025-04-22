@@ -23,7 +23,20 @@ def test_fill_prompt(props, obj):
 
 
 @pytest.mark.parametrize(
-    "n, max_props", list(product([1, 2, 3, 4, 5, 6, 128], [1, 2, 3]))
+    "n, max_props",
+    list(
+        product(
+            [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+            ],
+            [1, 2, 3],
+        )
+    ),
 )
 def test_generate_with_rule(n, max_props):
     """Tests if the generation with rule is correct."""

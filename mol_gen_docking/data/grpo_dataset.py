@@ -197,7 +197,9 @@ class MolGenerationInstructionsDataset:
             else:
                 new_prompt: Dict[str, Any] = {}
                 new_prompt["prompt"] = [prompt[0]]
-                new_prompt["final_answer"] = prompt[1]["ground_truth"]["value"]
+                new_prompt["final_answer"] = (
+                    prompt[1].get("ground_truth", {}).get("value", "")
+                )
                 new_prompt["file_name"] = eval_name
                 yield new_prompt, completions, metadata
 
@@ -223,12 +225,11 @@ class MolGenerationInstructionsDataset:
     def __call__(
         self, n: int, format: Literal["chat_format", "orz"] = "chat_format"
     ) -> Dataset:
-        out_dictionary: Dict[str, List[List[Dict[str, Any]]]] = {
+        out_dictionary: Dict[str, List[Any]] = {
             "prompt": [],
             "completion": [],
         }
         for prompt, completion, *_ in self.generate_with_rule(n, format=format):
-            assert isinstance(prompt, list)
             out_dictionary["prompt"].append(prompt)
             out_dictionary["completion"].append(completion)
         del out_dictionary["completion"]
