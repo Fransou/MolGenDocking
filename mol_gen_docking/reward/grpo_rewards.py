@@ -65,6 +65,10 @@ class RewardScorer:
 
         Returns: List of Dict[property -> (objective, target_value)]
         """
+        print(
+            "=" * 10
+            + f"\n{self.__name__} - Getting molecular properties from prompt: \n{prompts}\n"
+        )
         objectives: List[Dict[str, Tuple[Any, Any]]] = []
         for prompt in prompts:
             if isinstance(prompt, list):
@@ -270,6 +274,6 @@ class RewardScorer:
                     reward = np.clip(reward, 0, 1)
             else:
                 reward = 0
-            rewards.append(reward)
+            rewards.append(float(reward))
 
-        return torch.tensor(rewards).float()
+        return rewards

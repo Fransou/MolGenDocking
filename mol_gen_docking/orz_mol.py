@@ -169,6 +169,8 @@ class CustomRewardTrainer(RayPPOTrainer):
         for output in outputs:
             response = output["response"]
             # calculate repeat score for log
+            print(f"response: {response}")
+            print(f"prompts: {prompts}")
             rep_tasks.extend(
                 [
                     get_mol_prop_score(prompts, response),
@@ -177,10 +179,10 @@ class CustomRewardTrainer(RayPPOTrainer):
             )
         rep_task_results = ray.get(rep_tasks)
 
-        repeat_scores = []
+        mol_scores = []
         reflection_pattern_scores = []
         for idx in range(len(outputs)):
-            repeat_scores.append(rep_task_results[idx * 2])
+            mol_scores.append(rep_task_results[idx * 2])
             reflection_pattern_scores.append(rep_task_results[idx * 2 + 1])
 
         for output in outputs:
@@ -196,14 +198,14 @@ class CustomRewardTrainer(RayPPOTrainer):
         )
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
-            rep_score, reflection_pattern_score = (
-                repeat_scores[idx],
+            m_score, reflection_pattern_score = (
+                mol_scores[idx],
                 reflection_pattern_scores[idx],
             )
             iscorrect = output["iscorrect"]
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
-            output["repeat_score"] = rep_score
+            output["molecule_score"] = m_score
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
@@ -268,10 +270,11 @@ class CustomRewardTrainer(RayPPOTrainer):
             copy.deepcopy(outputs),
             copy.deepcopy(scores),
         )
-        print(repeat_scores)
+        print(mol_scores)
+
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
-            "avg_repeat_score": sum(repeat_scores) / len(prompts),
+            "avg_repeat_score": sum(mol_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
             "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
