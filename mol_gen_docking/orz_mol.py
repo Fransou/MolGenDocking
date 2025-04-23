@@ -268,7 +268,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             copy.deepcopy(outputs),
             copy.deepcopy(scores),
         )
-
+        print(repeat_scores)
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
             "avg_repeat_score": sum(repeat_scores) / len(prompts),
