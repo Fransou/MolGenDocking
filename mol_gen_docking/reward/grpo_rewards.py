@@ -275,5 +275,10 @@ class RewardScorer:
             else:
                 reward = 0
             rewards.append(float(reward))
-
+        print(rewards)
+        print("*" * 10)
+        for p, c, r in zip(prompts, completions, rewards):
+            print(f"| | | Prompt: {p}\nCompletion: {c}\nReward: {r}")
+            print("-" * 10)
+        print("*" * 10)
         return rewards
