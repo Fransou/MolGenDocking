@@ -13,7 +13,8 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 RUN micromamba install -y -n base -f environment.yml \
     && pip install pyscreener \
     && micromamba clean --all --yes \
-    && pip install pytest pytdc==1.1.15
+    && pip install pytest pytdc==1.1.15 \
+    && pip install scikit-learn==1.2.2
 
 # ------------------------------------------------------------------------------------------------------------
 FROM base AS base-vina
@@ -69,3 +70,4 @@ RUN apt-get install git -y \
     && mv qvina02 ../../bin/qvina \
     && cd ../ && rm -rf qvina
     # rename qvina02 to qvina otherwise pyscreener raises an error with executable name
+# ------------------------------------------------------------------------------------------------------------

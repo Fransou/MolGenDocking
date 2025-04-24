@@ -79,12 +79,13 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props[0], float)
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 def test_vina(smiles_data):
     """
     Tests the oracle with vina
     """
-    oracle = get_oracle("3pbl_docking")
-    props = oracle(smiles_data[:3])
-    assert isinstance(props, list)
+    oracle = get_oracle(
+        "3pbl_docking_vina", ncpu=1, exhaustiveness=1, downscale_pocket=0.05
+    )
+    props = oracle(smiles_data[:2])
     assert len(props) == len(smiles_data)

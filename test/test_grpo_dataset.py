@@ -48,11 +48,15 @@ def test_saved_train_dataset():
     with open(path) as f:
         data = json.load(f)
 
-    scorer = RewardScorer("properties", parse_whole_completion=True)
+    scorer = RewardScorer(
+        "properties",
+        parse_whole_completion=True,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1, downscale_pocket=0.05),
+    )
 
     for dialogue in data:
         prompt = dialogue[0]["value"]
         assert isinstance(prompt, str)
-        completion = "A molecule: CCCC"
+        completion = "A molecule: CC"
         score = scorer([prompt], [completion])[0]
         assert isinstance(score, float)

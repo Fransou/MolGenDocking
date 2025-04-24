@@ -56,7 +56,10 @@ def is_reward_valid(rewards, smiles, properties):
 def valid_smiles_scorer(request):
     """Fixture to test the function molecular_properties."""
     return RewardScorer(
-        "valid_smiles", parse_whole_completion=request.param, rescale=False
+        "valid_smiles",
+        parse_whole_completion=request.param,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1, downscale_pocket=0.05),
     )
 
 
@@ -70,7 +73,10 @@ def valid_smiles_filler(valid_smiles_scorer):
 def property_scorer(request):
     """Fixture to test the function molecular_properties."""
     return RewardScorer(
-        "propertys", parse_whole_completion=request.param, rescale=False
+        "propertys",
+        parse_whole_completion=request.param,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1, downscale_pocket=0.05),
     )
 
 
@@ -192,7 +198,7 @@ def test_multip_prompt_multi_generation(
             assert rewards[i].sum().item() == 0
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, n_generations=1

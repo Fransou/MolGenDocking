@@ -24,6 +24,10 @@ jobs:
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
 
+    - name: Pull latest reward docker image
+      run: |
+        docker pull fransou/reward:latest
+
     - name: Get branch name
       run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
@@ -38,10 +42,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -U pip
-        pip install -U numpy scipy --prefer-binary
-        pip install -U scikit-learn==1.2.2 --prefer-binary
-        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        pip install .
+        pip install pytest pytest-cov coverage coverage-badge
 
     - name: Test with pytest
       run: |

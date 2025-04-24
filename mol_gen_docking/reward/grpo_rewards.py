@@ -43,12 +43,17 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
 
 class RewardScorer:
     def __init__(
-        self, reward: str, rescale: bool = True, parse_whole_completion: bool = False
+        self,
+        reward: str,
+        rescale: bool = True,
+        parse_whole_completion: bool = False,
+        oracle_kwargs: Dict[str, Any] = {},
     ):
         self.rescale = rescale
         self.reward = reward
+        self.oracle_kwargs = oracle_kwargs
         self.oracles = {
-            oracle: get_oracle(oracle)
+            oracle: get_oracle(oracle, **oracle_kwargs)
             for oracle in PROPERTIES_NAMES_SIMPLE
             if "docking" not in PROPERTIES_NAMES_SIMPLE[oracle]
         }
@@ -158,7 +163,7 @@ class RewardScorer:
         if prop in self.oracles:
             oracle_fn = self.oracles[prop]
         else:
-            oracle_fn = get_oracle(prop)
+            oracle_fn = get_oracle(prop, **self.oracle_kwargs)
             self.oracles[prop] = oracle_fn
         property_reward = oracle_fn(smiles, rescale=self.rescale)
         return property_reward

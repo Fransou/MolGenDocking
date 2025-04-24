@@ -15,7 +15,9 @@ class PyscreenerOracle:
         self,
         target_name: str,
         software_class: str = "qvina",
-        ncpu: int = 4,
+        ncpu: int = 16,
+        exhaustiveness: int = 8,
+        downscale_pocket: float = 1.0,
         **kwargs,
     ):
         if software_class not in [
@@ -37,26 +39,42 @@ class PyscreenerOracle:
             receptor_load(pdbid)
             receptor_pdb_file = "./oracle/" + pdbid + ".pdbqt"
             box_center = docking_target_info[pdbid]["center"]
-            box_size = docking_target_info[pdbid]["size"]
+            box_size = tuple(
+                [s * downscale_pocket for s in docking_target_info[pdbid]["size"]]
+            )
+            print("box_center:", box_center)
+            print("box_size:", box_size)
         else:
             raise NotImplementedError
 
         if not ray.is_initialized():
             ray.init()
 
-        metadata = ps.build_metadata(software_class, metadata={"exhaustiveness": 8})
+        if hasattr(ps, "build_metadata"):
+            metadata = ps.build_metadata(
+                software_class, metadata={"exhaustiveness": exhaustiveness}
+            )
+        else:
+            raise OSError(
+                "Pyscreener version is not compatible. Please update to the latest version."
+            )
 
         if software_class == "qvina" and os.system("qvina --help") != 32512:
             metadata.software = Software.QVINA
 
-        self.scorer = ps.virtual_screen(
-            software_class,
-            [receptor_pdb_file],
-            box_center,
-            box_size,
-            metadata,
-            ncpu=ncpu,
-        )
+        if hasattr(ps, "virtual_screen"):
+            self.scorer = ps.virtual_screen(  # type: ignore
+                software_class,
+                [receptor_pdb_file],
+                box_center,
+                box_size,
+                metadata,
+                ncpu=ncpu,
+            )
+        else:
+            raise OSError(
+                "Pyscreener version is not compatible. Please update to the latest version."
+            )
 
     def __call__(self, test_smiles: str | List[str], error_value=None):
         if isinstance(test_smiles, str):

@@ -25,7 +25,6 @@ from typing_extensions import override
 
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
-from orz.ppo.tools.math_utils import is_equal, solution2answer
 from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
@@ -357,44 +356,12 @@ class CustomRewardTrainer(RayPPOTrainer):
                 results.append(matches[-1] if matches else "")
             return results
 
-        BATCH_SIZE = 16
-        num_batches = (len(responses) + BATCH_SIZE - 1) // BATCH_SIZE
-
-        # 直接从context中提取最终结果
-        extract_tasks = []
-        for i in range(num_batches):
-            start_idx = i * BATCH_SIZE
-            end_idx = min((i + 1) * BATCH_SIZE, len(responses))
-            batch = responses[start_idx:end_idx]
-            extract_tasks.append(extract_final_answers_batch.remote(batch))
-        batched_results = await asyncio.gather(
-            *[asyncio.to_thread(ray.get, task) for task in extract_tasks]
-        )
-        final_answers = [answer for batch in batched_results for answer in batch]
-
-        # 判断对错
-        global executor
-        equal_tasks = []
-        for extra, final_answer in zip(extras, final_answers):
-            equal_tasks.append(
-                is_equal(
-                    solution2answer(extra["answer"]),
-                    solution2answer(final_answer),
-                    executor,
-                )
-            )
-        equal_results = await asyncio.gather(*equal_tasks)
-
         results = []
-        for extra, response, final_answer, stop_reason, iscorrect in zip(
-            extras, responses, final_answers, stop_reasons, equal_results
-        ):
+        for extra, response, stop_reason in zip(extras, responses, stop_reasons):
             results.append(
                 dict(
                     response=response,
-                    iscorrect=iscorrect,
                     stop_reason=stop_reason,
-                    final_answer=final_answer,
                 )
             )
 
