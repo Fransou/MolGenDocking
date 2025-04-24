@@ -46,7 +46,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        coverage run -m pytest test
+        docker run -v ${PWD}:/tmp --rm -it fransou/reward
         coverage report
         rm coverage.svg
         coverage-badge -o coverage.svg

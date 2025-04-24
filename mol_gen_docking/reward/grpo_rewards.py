@@ -247,6 +247,7 @@ class RewardScorer:
         """
         Get reward for molecular properties
         """
+
         smiles_list_per_completion = self._get_smiles_list(completions)
         if self.reward == "smiles" or self.reward == "valid_smiles":
             return torch.tensor(

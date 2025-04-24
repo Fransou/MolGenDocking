@@ -1,4 +1,3 @@
-import os
 import json
 
 import pytest
@@ -43,8 +42,25 @@ def test_generate_with_rule(n, max_props):
     assert len(d1) == len(d2)
 
 
-def test_saved_train_dataset():
-    path = os.path.join("data/mol_orz/train_prompts.json")
+@pytest.mark.parametrize(
+    "path",
+    [
+        "data/mol_orz/train_prompts.json",
+        "data/mol_orz/eval_data/eval_prompts.json",
+    ],
+)
+def test_saved_train_dataset(path):
+    prompt_template_jinja = """\
+    {{bos_token}}A conversation between User and Assistant. The User asks a question, and the Assistant solves it. The Assistant first thinks about the reasoning process in the mind and then provides the User with the answer. \
+    The reasoning process is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>. User: {{prompt}}
+    Assistant: <think>\
+    """
+    prompt_instruction_template_jinja = """\
+    You must put your answer inside <answer> </answer> tags, i.e., <answer> answer here </answer>.
+    This is the problem:
+    {{prompt}}
+    """
+
     with open(path) as f:
         data = json.load(f)
 
@@ -58,8 +74,15 @@ def test_saved_train_dataset():
     )
 
     for dialogue in data:
-        prompt = dialogue[0]["value"]
+        if isinstance(dialogue, list):
+            prompt = dialogue[0]["value"]
+        else:
+            prompt = dialogue["prompt"][0]["value"]
         assert isinstance(prompt, str)
-        completion = "A molecule: CC"
-        score = scorer([prompt], [completion])[0]
-        assert isinstance(score, float)
+        completion = "A molecule: "
+        scorer([prompt], [completion])
+        scorer([prompt_template_jinja.replace("{{prompt}}", prompt)], [completion])
+        scorer(
+            [prompt_instruction_template_jinja.replace("{{prompt}}", prompt)],
+            [completion],
+        )
