@@ -166,24 +166,18 @@ class CustomRewardTrainer(RayPPOTrainer):
             return reflection_pattern_num
 
         rep_tasks = []
+        responses = []
         for output in outputs:
             response = output["response"]
             # calculate repeat score for log
-            print(f"response: {response}")
-            print(f"prompts: {prompts}")
-            rep_tasks.extend(
-                [
-                    get_mol_prop_score(prompts, response),
-                    get_reflection_pattern_score.remote(response),
-                ]
+            responses.append(response)
+            rep_tasks.append(
+                    get_reflection_pattern_score.remote(response)
             )
-        rep_task_results = ray.get(rep_tasks)
+        mol_rewards = get_mol_prop_score(prompts, responses)
 
-        mol_scores = []
-        reflection_pattern_scores = []
-        for idx in range(len(outputs)):
-            mol_scores.append(rep_task_results[idx * 2])
-            reflection_pattern_scores.append(rep_task_results[idx * 2 + 1])
+        reflection_pattern_scores = ray.get(rep_tasks)
+        mol_scores = ray.get(mol_rewards)
 
         for output in outputs:
             responses.append(output["response"])
@@ -202,14 +196,13 @@ class CustomRewardTrainer(RayPPOTrainer):
                 mol_scores[idx],
                 reflection_pattern_scores[idx],
             )
-            iscorrect = output["iscorrect"]
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
             output["molecule_score"] = m_score
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
-                score = 1.0 if iscorrect else 0.0
+                score = m_score if iscorrect else 0.0
             else:
                 avg_non_stop_count += 1
                 score = 0.0
@@ -270,11 +263,11 @@ class CustomRewardTrainer(RayPPOTrainer):
             copy.deepcopy(outputs),
             copy.deepcopy(scores),
         )
-        print(mol_scores)
+        
 
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
-            "avg_repeat_score": sum(mol_scores) / len(prompts),
+            "avg_molecular_score": sum(mol_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
             "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
@@ -480,7 +473,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             os.path.splitext(os.path.basename(file_path))[0]
             for file_path in self.cfg.eval_prompt_data
         ]
-        print(log_dict)
+        
         for file_name in all_file_names:
             print(log_dict[f"{file_name}/total"])
             try:

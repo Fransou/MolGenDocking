@@ -65,10 +65,6 @@ class RewardScorer:
 
         Returns: List of Dict[property -> (objective, target_value)]
         """
-        print(
-            "=" * 10
-            + f"\n{self.__name__} - Getting molecular properties from prompt: \n{prompts}\n"
-        )
         objectives: List[Dict[str, Tuple[Any, Any]]] = []
         for prompt in prompts:
             if isinstance(prompt, list):
@@ -99,7 +95,7 @@ class RewardScorer:
             )  # Remove the first part of the prompt
             if prompt.endswith(".") or prompt.endswith("?"):
                 prompt = prompt[:-1]
-            print(prompt)
+            
             props = {}
             clauses = re.split(r"[;] ?", prompt)
             for clause in clauses:
@@ -275,10 +271,4 @@ class RewardScorer:
             else:
                 reward = 0
             rewards.append(float(reward))
-        print(rewards)
-        print("*" * 10)
-        for p, c, r in zip(prompts, completions, rewards):
-            print(f"| | | Prompt: {p}\nCompletion: {c}\nReward: {r}")
-            print("-" * 10)
-        print("*" * 10)
         return rewards
