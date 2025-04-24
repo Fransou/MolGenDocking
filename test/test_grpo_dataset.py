@@ -51,7 +51,10 @@ def test_saved_train_dataset():
     scorer = RewardScorer(
         "properties",
         parse_whole_completion=True,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1, downscale_pocket=0.05),
+        oracle_kwargs=dict(
+            ncpu=1,
+            exhaustiveness=1,
+        ),
     )
 
     for dialogue in data:

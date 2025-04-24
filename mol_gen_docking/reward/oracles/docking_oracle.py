@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import List
 import ray
 
@@ -17,7 +18,6 @@ class PyscreenerOracle:
         software_class: str = "qvina",
         ncpu: int = 16,
         exhaustiveness: int = 8,
-        downscale_pocket: float = 1.0,
         **kwargs,
     ):
         if software_class not in [
@@ -39,11 +39,7 @@ class PyscreenerOracle:
             receptor_load(pdbid)
             receptor_pdb_file = "./oracle/" + pdbid + ".pdbqt"
             box_center = docking_target_info[pdbid]["center"]
-            box_size = tuple(
-                [s * downscale_pocket for s in docking_target_info[pdbid]["size"]]
-            )
-            print("box_center:", box_center)
-            print("box_size:", box_size)
+            box_size = tuple([s for s in docking_target_info[pdbid]["size"]])
         else:
             raise NotImplementedError
 
@@ -76,7 +72,7 @@ class PyscreenerOracle:
                 "Pyscreener version is not compatible. Please update to the latest version."
             )
 
-    def __call__(self, test_smiles: str | List[str], error_value=None):
+    def __call__(self, test_smiles: str | List[str], error_value=0):
         if isinstance(test_smiles, str):
             final_score = self.scorer(test_smiles)
             return list(final_score)[0]
@@ -86,6 +82,7 @@ class PyscreenerOracle:
             for i, smiles in enumerate(test_smiles):
                 score = final_score[i]
                 if score is None:
+                    warnings.warn(f"Docking failed for {smiles}.")
                     score = error_value
                 score_lst.append(score)
             return score_lst

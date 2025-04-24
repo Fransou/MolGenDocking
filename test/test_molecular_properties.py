@@ -85,7 +85,9 @@ def test_vina(smiles_data):
     Tests the oracle with vina
     """
     oracle = get_oracle(
-        "3pbl_docking_vina", ncpu=1, exhaustiveness=1, downscale_pocket=0.05
+        "3pbl_docking_vina",
+        ncpu=1,
+        exhaustiveness=1,
     )
-    props = oracle(smiles_data[:2])
+    props = oracle(smiles_data)
     assert len(props) == len(smiles_data)

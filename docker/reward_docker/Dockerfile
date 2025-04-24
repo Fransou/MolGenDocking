@@ -14,7 +14,7 @@ RUN micromamba install -y -n base -f environment.yml \
     && pip install pyscreener \
     && micromamba clean --all --yes \
     && pip install pytest pytdc==1.1.15 \
-    && pip install scikit-learn==1.2.2
+    && pip install scikit-learn==1.2.2 coverage
 
 # ------------------------------------------------------------------------------------------------------------
 FROM base AS base-vina
