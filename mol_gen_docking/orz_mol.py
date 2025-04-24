@@ -151,7 +151,7 @@ class CustomRewardTrainer(RayPPOTrainer):
     ) -> Tuple[List[str], List[str], List[torch.Tensor]]:
         # make log metrics
         scores = []
-        responses = []
+        responses: List[str] = []
         avg_non_stop_count = 0
         pass_at_n_dict = defaultdict(list)
         num_tokens: List[int] = []
@@ -171,9 +171,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             response = output["response"]
             # calculate repeat score for log
             responses.append(response)
-            rep_tasks.append(
-                    get_reflection_pattern_score.remote(response)
-            )
+            rep_tasks.append(get_reflection_pattern_score.remote(response))
         mol_rewards = get_mol_prop_score(prompts, responses)
 
         reflection_pattern_scores = ray.get(rep_tasks)
@@ -202,7 +200,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
-                score = m_score if iscorrect else 0.0
+                score = m_score
             else:
                 avg_non_stop_count += 1
                 score = 0.0
@@ -263,7 +261,6 @@ class CustomRewardTrainer(RayPPOTrainer):
             copy.deepcopy(outputs),
             copy.deepcopy(scores),
         )
-        
 
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
@@ -473,7 +470,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             os.path.splitext(os.path.basename(file_path))[0]
             for file_path in self.cfg.eval_prompt_data
         ]
-        
+
         for file_name in all_file_names:
             print(log_dict[f"{file_name}/total"])
             try:

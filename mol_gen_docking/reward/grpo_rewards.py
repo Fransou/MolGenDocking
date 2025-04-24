@@ -95,7 +95,7 @@ class RewardScorer:
             )  # Remove the first part of the prompt
             if prompt.endswith(".") or prompt.endswith("?"):
                 prompt = prompt[:-1]
-            
+
             props = {}
             clauses = re.split(r"[;] ?", prompt)
             for clause in clauses:

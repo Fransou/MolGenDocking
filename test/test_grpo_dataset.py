@@ -1,3 +1,6 @@
+import os
+import json
+
 import pytest
 from itertools import product
 
@@ -38,3 +41,18 @@ def test_generate_with_rule(n, max_props):
     d1 = dataset.generate_prompt_json(n, "chat_format")
     d2 = dataset_chat(n, "orz")
     assert len(d1) == len(d2)
+
+
+def test_saved_train_dataset():
+    path = os.path.join("data/mol_orz/train_prompts.json")
+    with open(path) as f:
+        data = json.load(f)
+
+    scorer = RewardScorer("properties", parse_whole_completion=True)
+
+    for dialogue in data:
+        prompt = dialogue[0]["value"]
+        assert isinstance(prompt, str)
+        completion = "A molecule: CCCC"
+        score = scorer([prompt], [completion])[0]
+        assert isinstance(score, float)
