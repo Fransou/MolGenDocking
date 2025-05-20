@@ -10,7 +10,7 @@ class RewardWorker:
         self._reward_valid_molecules = RewardScorer(
             "valid_smiles", parse_whole_completion=True
         )
-        self._reward_properties = RewardScorer("property", parse_whole_completion=True)
+        self._reward_properties = RewardScorer("property", parse_whole_completion=False)
 
     def get_score(self, prompts: List[str], outputs: List[str]) -> List[float]:
         return self._reward_properties(prompts, outputs)
