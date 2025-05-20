@@ -182,11 +182,6 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses, self.cfg.generate_max_len, padding=False
         )["input_ids"]
 
-        self.writer.add_text(
-            "generated_raws",
-            f"prompts: {prompts[0]}\n\noutputs: {outputs[0]['response']}\n\nfinal_answer: {outputs[0]['final_answer']}\n\nis_correct: {outputs[0]['iscorrect']}\n\nstop_reason: {outputs[0]['stop_reason']}\n\nresponse_token: {len(output_tokens[0])}",
-            self.global_step,
-        )
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
             m_score, reflection_pattern_score = (
