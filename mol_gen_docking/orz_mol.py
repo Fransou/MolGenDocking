@@ -25,7 +25,6 @@ from typing_extensions import override
 
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
-from orz.ppo.tools.math_utils import is_equal, solution2answer
 from orz.ppo.utils import check_reflection_pattern
 
 from mol_gen_docking.playground.zero_setting_base import (
@@ -151,7 +150,7 @@ class CustomRewardTrainer(RayPPOTrainer):
     ) -> Tuple[List[str], List[str], List[torch.Tensor]]:
         # make log metrics
         scores = []
-        responses = []
+        responses: List[str] = []
         avg_non_stop_count = 0
         pass_at_n_dict = defaultdict(list)
         num_tokens: List[int] = []
@@ -166,22 +165,16 @@ class CustomRewardTrainer(RayPPOTrainer):
             return reflection_pattern_num
 
         rep_tasks = []
+        responses = []
         for output in outputs:
             response = output["response"]
             # calculate repeat score for log
-            rep_tasks.extend(
-                [
-                    get_mol_prop_score(prompts, response),
-                    get_reflection_pattern_score.remote(response),
-                ]
-            )
-        rep_task_results = ray.get(rep_tasks)
+            responses.append(response)
+            rep_tasks.append(get_reflection_pattern_score.remote(response))
+        mol_rewards = get_mol_prop_score(prompts, responses)
 
-        repeat_scores = []
-        reflection_pattern_scores = []
-        for idx in range(len(outputs)):
-            repeat_scores.append(rep_task_results[idx * 2])
-            reflection_pattern_scores.append(rep_task_results[idx * 2 + 1])
+        reflection_pattern_scores = ray.get(rep_tasks)
+        mol_scores = ray.get(mol_rewards)
 
         for output in outputs:
             responses.append(output["response"])
@@ -189,25 +182,19 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses, self.cfg.generate_max_len, padding=False
         )["input_ids"]
 
-        self.writer.add_text(
-            "generated_raws",
-            f"prompts: {prompts[0]}\n\noutputs: {outputs[0]['response']}\n\nfinal_answer: {outputs[0]['final_answer']}\n\nis_correct: {outputs[0]['iscorrect']}\n\nstop_reason: {outputs[0]['stop_reason']}\n\nresponse_token: {len(output_tokens[0])}",
-            self.global_step,
-        )
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
-            rep_score, reflection_pattern_score = (
-                repeat_scores[idx],
+            m_score, reflection_pattern_score = (
+                mol_scores[idx],
                 reflection_pattern_scores[idx],
             )
-            iscorrect = output["iscorrect"]
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
-            output["repeat_score"] = rep_score
+            output["molecule_score"] = m_score
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
-                score = 1.0 if iscorrect else 0.0
+                score = m_score
             else:
                 avg_non_stop_count += 1
                 score = 0.0
@@ -268,10 +255,10 @@ class CustomRewardTrainer(RayPPOTrainer):
             copy.deepcopy(outputs),
             copy.deepcopy(scores),
         )
-        print(repeat_scores)
+
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
-            "avg_repeat_score": sum(repeat_scores) / len(prompts),
+            "avg_molecular_score": sum(mol_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
             "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
@@ -364,44 +351,12 @@ class CustomRewardTrainer(RayPPOTrainer):
                 results.append(matches[-1] if matches else "")
             return results
 
-        BATCH_SIZE = 16
-        num_batches = (len(responses) + BATCH_SIZE - 1) // BATCH_SIZE
-
-        # 直接从context中提取最终结果
-        extract_tasks = []
-        for i in range(num_batches):
-            start_idx = i * BATCH_SIZE
-            end_idx = min((i + 1) * BATCH_SIZE, len(responses))
-            batch = responses[start_idx:end_idx]
-            extract_tasks.append(extract_final_answers_batch.remote(batch))
-        batched_results = await asyncio.gather(
-            *[asyncio.to_thread(ray.get, task) for task in extract_tasks]
-        )
-        final_answers = [answer for batch in batched_results for answer in batch]
-
-        # 判断对错
-        global executor
-        equal_tasks = []
-        for extra, final_answer in zip(extras, final_answers):
-            equal_tasks.append(
-                is_equal(
-                    solution2answer(extra["answer"]),
-                    solution2answer(final_answer),
-                    executor,
-                )
-            )
-        equal_results = await asyncio.gather(*equal_tasks)
-
         results = []
-        for extra, response, final_answer, stop_reason, iscorrect in zip(
-            extras, responses, final_answers, stop_reasons, equal_results
-        ):
+        for extra, response, stop_reason in zip(extras, responses, stop_reasons):
             results.append(
                 dict(
                     response=response,
-                    iscorrect=iscorrect,
                     stop_reason=stop_reason,
-                    final_answer=final_answer,
                 )
             )
 
@@ -477,7 +432,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             os.path.splitext(os.path.basename(file_path))[0]
             for file_path in self.cfg.eval_prompt_data
         ]
-        print(log_dict)
+
         for file_name in all_file_names:
             print(log_dict[f"{file_name}/total"])
             try:

@@ -17,8 +17,8 @@ dependencies = [
     "loguru",
     "omegaconf",
     "hydra-core",
-
 ]
+
 requires-python = ">=3.10"
 description = ""
 

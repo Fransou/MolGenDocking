@@ -4,7 +4,8 @@ FROM mambaorg/micromamba:latest AS base
 USER root
 
 RUN apt-get update \
-    && apt-get install wget make g++ libboost-all-dev xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb -y
+    && apt-get install wget make g++ libboost-all-dev xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb -y \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY environment.yml .
 
@@ -13,7 +14,10 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 RUN micromamba install -y -n base -f environment.yml \
     && pip install pyscreener \
     && micromamba clean --all --yes \
-    && pip install pytest pytdc==1.1.15
+    && pip install pytest pytdc==1.1.15 \
+    && pip install scikit-learn==1.2.2 \
+    && pip install pytest-cov \
+    && pip install coverage
 
 # ------------------------------------------------------------------------------------------------------------
 FROM base AS base-vina
@@ -69,3 +73,6 @@ RUN apt-get install git -y \
     && mv qvina02 ../../bin/qvina \
     && cd ../ && rm -rf qvina
     # rename qvina02 to qvina otherwise pyscreener raises an error with executable name
+# ------------------------------------------------------------------------------------------------------------
+# Run coverage pytest
+CMD ["coverage", "run", "-m", "pytest", "test"]

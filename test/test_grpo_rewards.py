@@ -49,6 +49,7 @@ def is_reward_valid(rewards, smiles, properties):
             .float()
             .mean()
         )
+        rewards = torch.tensor(rewards).mean()
         assert torch.isclose(rewards, props, atol=1e-3).all()
 
 
@@ -56,7 +57,10 @@ def is_reward_valid(rewards, smiles, properties):
 def valid_smiles_scorer(request):
     """Fixture to test the function molecular_properties."""
     return RewardScorer(
-        "valid_smiles", parse_whole_completion=request.param, rescale=False
+        "valid_smiles",
+        parse_whole_completion=request.param,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     )
 
 
@@ -70,7 +74,10 @@ def valid_smiles_filler(valid_smiles_scorer):
 def property_scorer(request):
     """Fixture to test the function molecular_properties."""
     return RewardScorer(
-        "propertys", parse_whole_completion=request.param, rescale=False
+        "propertys",
+        parse_whole_completion=request.param,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     )
 
 
@@ -126,7 +133,7 @@ def test_properties_single_prompt_reward(
     if smiles != []:
         is_reward_valid(rewards, smiles, [property1, property2])
     else:
-        assert rewards.sum().item() == 0
+        assert sum(rewards) == 0
 
 
 @pytest.mark.parametrize(
@@ -152,7 +159,7 @@ def test_properties_multi_prompt_rewards(
         is_reward_valid(rewards[: (len(completions) // 2)], smiles, [property1])
         is_reward_valid(rewards[(len(completions) // 2) :], smiles, [property2])
     else:
-        assert rewards.sum().item() == 0
+        assert sum(rewards) == 0
 
 
 @pytest.mark.parametrize(
@@ -189,10 +196,10 @@ def test_multip_prompt_multi_generation(
             else:
                 is_reward_valid(rewards[i], smiles[i], [property2])
         else:
-            assert rewards[i].sum().item() == 0
+            assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, n_generations=1
@@ -245,7 +252,6 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
     assert not rewards.isnan().any()
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
-    print(rewards_prop, rewards_max)
     if obj == "maximize":
         val = rewards_max
     elif obj == "minimize":
@@ -275,5 +281,4 @@ def test_ray(prop, smiles):
 
     worker = RewardWorker.remote()
     result = worker.get_score.remote(prompts, completions)
-    result = ray.get(result)
-    print(result)
+    _ = ray.get(result)

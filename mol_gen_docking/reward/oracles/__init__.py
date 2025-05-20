@@ -27,7 +27,7 @@ def get_oracle(oracle_name: str, **kwargs):
     else:
         from .rdkit_oracle import RDKITOracle
 
-        oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name, **kwargs), oracle_name)
+        oracle_wrapper.assign_evaluator(RDKITOracle(oracle_name), oracle_name)
     return oracle_wrapper
 
 
