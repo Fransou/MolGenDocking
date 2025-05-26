@@ -135,7 +135,7 @@ class PPOExpConfig(BasePPOExpConfig):
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.75
+    gpu_memory_utilization: float = 0.5
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
