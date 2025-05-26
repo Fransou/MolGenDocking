@@ -70,7 +70,7 @@ class PPOExpConfig(BasePPOExpConfig):
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
     vllm_num_engines: int = total_num_nodes
-    vllm_tensor_parallel_size: int = total_num_nodes
+    vllm_tensor_parallel_size: int = 1
     adam_offload: bool = False
     zero_stage: int = 3
 
