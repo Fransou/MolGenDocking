@@ -66,7 +66,7 @@ class PPOExpConfig(BasePPOExpConfig):
     critic_num_gpus_per_node: int = 1
     reward_num_nodes: int = total_num_nodes
     reward_num_gpus_per_node: int = 1
-    colocate_all: bool = True
+    colocate_all: bool = False
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
     vllm_num_engines: int = total_num_nodes
