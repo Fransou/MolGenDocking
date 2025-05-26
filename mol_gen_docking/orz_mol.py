@@ -55,7 +55,7 @@ class PPOExpConfig(BasePPOExpConfig):
     use_orm_score: bool = False
 
     # Conditional settings with production values first
-    total_num_nodes: int = 3
+    total_num_nodes: int = 1
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
