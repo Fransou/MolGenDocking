@@ -58,16 +58,16 @@ class PPOExpConfig(BasePPOExpConfig):
     total_num_nodes: int = 2
 
     # resource related settings
-    ref_num_nodes: int = total_num_nodes
+    ref_num_nodes: int = 1
     ref_num_gpus_per_node: int = 1
-    actor_num_nodes: int = total_num_nodes
+    actor_num_nodes: int = 1
     actor_num_gpus_per_node: int = 1
-    critic_num_nodes: int = total_num_nodes
+    critic_num_nodes: int = 1
     critic_num_gpus_per_node: int = 1
     colocate_all: bool = False
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
-    vllm_num_engines: int = total_num_nodes
+    vllm_num_engines: int = 1
     vllm_tensor_parallel_size: int = 1
     adam_offload: bool = False
     zero_stage: int = 3
