@@ -105,7 +105,7 @@ class PPOExpConfig(BasePPOExpConfig):
 
     num_episodes: int = 20
     rollout_batch_size: int = 128 if not DEBUG_MODE else 4
-    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
+    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 64
     micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 16
 
     policy_update_steps: int = 1
