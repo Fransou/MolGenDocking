@@ -95,9 +95,7 @@ class RewardScorer:
                     raise ValueError("Prompt not found correctly.")
             assert isinstance(prompt, str), "Prompt not found correctly."
 
-            prompt = "".join(
-                prompt.split(":")[1:]
-            )  # Remove the first part of the prompt
+            prompt = prompt.split("User: ")[-1].split("Assistant: ")[0]
             if prompt.endswith(".") or prompt.endswith("?"):
                 prompt = prompt[:-1]
 
@@ -110,7 +108,7 @@ class RewardScorer:
                 if not clause:
                     continue
                 for pattern, obj_type in self.search_patterns:
-                    match = re.match(pattern, clause, re.IGNORECASE)
+                    match = re.search(pattern, clause, re.IGNORECASE)
                     if match:
                         prop = match.group("prop").strip()
                         if obj_type in ["above", "below", "equal"]:
@@ -136,11 +134,12 @@ class RewardScorer:
         else:
             # Parse the whole completion with no "<SMILES>" tag
             # First we split the completion by newlines and spaces
-            re.split("\n| ", comp)
+            re.split("\n| |.", comp)
             # Then we filter by removing any string that does not contain "C"
-            s_spl = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+            s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
             # Finally we remove any string that is not a valid SMILES
-            s_spl = [x for x in s_spl if Chem.MolFromSmiles(x) is not None]
+            s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
+
             return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
@@ -277,4 +276,4 @@ class RewardScorer:
             else:
                 reward = 0
             rewards.append(float(reward))
-        return rewards
+        return torch.tensor(rewards)

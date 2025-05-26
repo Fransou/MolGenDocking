@@ -7,7 +7,7 @@ RUN apt-get update \
     && apt-get install wget make g++ libboost-all-dev xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb -y \
     && rm -rf /var/lib/apt/lists/*
 
-COPY environment.yml .
+COPY docker/environment.yml .
 
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
@@ -17,7 +17,8 @@ RUN micromamba install -y -n base -f environment.yml \
     && pip install pytest pytdc==1.1.15 \
     && pip install scikit-learn==1.2.2 \
     && pip install pytest-cov \
-    && pip install coverage
+    && pip install coverage \
+    && pip install coverage-badge
 
 # ------------------------------------------------------------------------------------------------------------
 FROM base AS base-vina
@@ -63,8 +64,10 @@ RUN wget -O smina https://sourceforge.net/projects/smina/files/smina.static/down
 FROM base-vina AS qvina
 
 SHELL ["/bin/bash", "-c"]
+RUN apt-get update && apt-get install git -y
 
-RUN apt-get install git -y \
+RUN apt-get update \
+    && apt-get install git -y \
     && git clone -b qvina2 --single-branch https://github.com/QVina/qvina.git \
     && cd qvina \
     && BOOST_LOC=$(whereis boost) && BOOST_PATH=${BOOST_LOC:7:19} && BOOST_VERSION=$(grep "#define BOOST_LIB_VERSION" ../../usr/include/boost/version.hpp | grep -o '".*"' | sed 's/"//g') \
@@ -75,4 +78,4 @@ RUN apt-get install git -y \
     # rename qvina02 to qvina otherwise pyscreener raises an error with executable name
 # ------------------------------------------------------------------------------------------------------------
 # Run coverage pytest
-CMD ["coverage", "run", "-m", "pytest", "test"]
+CMD coverage run -m pytest test ; coverage report ; rm coverage.svg ; coverage-badge -o coverage.svg

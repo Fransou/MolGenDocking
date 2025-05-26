@@ -56,8 +56,8 @@ class SFTMolTrainer(MolTrainer):
             eval_strategy="steps",
             save_strategy="steps",
             logging_strategy="steps",
-            save_steps=1000,
-            eval_steps=1000,
+            save_steps=500,
+            eval_steps=500,
             logging_steps=10,
             learning_rate=self.args.learning_rate,
             weight_decay=self.args.weight_decay,
@@ -71,6 +71,7 @@ class SFTMolTrainer(MolTrainer):
             gradient_accumulation_steps=self.args.gradient_accumulation_steps,
             save_total_limit=3,
             dataloader_prefetch_factor=2,
+            completion_only_loss=True,
         )
 
         trainer = SFTTrainer(

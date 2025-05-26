@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
-#SBATCH --account=rrg-josedolz
-#SBATCH --time=00:15:00
-#SBATCH --gres=gpu:3
+#SBATCH --account=def-ibenayed
+#SBATCH --time=00:30:00
+#SBATCH --gres=gpu:2
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=32
 #SBATCH --tasks-per-node=1
@@ -19,7 +19,9 @@ module load cuda
 export PATH=$HOME/qvina:$PATH
 source $HOME/R1ENV/bin/activate
 
-ray start --head --num-cpus 48
+ray start --head
+nvidia-smi
+ray status
 
 export DEBUG_MODE=1
 python -m mol_gen_docking.orz_mol

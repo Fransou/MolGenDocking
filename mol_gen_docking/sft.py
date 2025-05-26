@@ -15,7 +15,7 @@ if __name__ == "__main__":
     mol_parser.add_argument(
         "--dataset",
         nargs="+",
-        default=["Mol-Instructions", "SMolInstruct"],
+        default=["SMolInstruct"],
         help="Dataset to use",
     )
 

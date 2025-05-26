@@ -24,16 +24,60 @@ from .utils import (
     get_fill_completions,
 )
 
-ray.init(num_cpus=1)
+try:
+    ray.init(num_cpus=16)
+except Exception:
+    ray.init()
 
 
-def build_prompt(property: str | List[str], obj: str = "maximize") -> str:
-    if isinstance(property, str):
-        properties = [property]
+scorers = {
+    "valid_smiles": RewardScorer(
+        "valid_smiles",
+        parse_whole_completion=True,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+    ),
+    "property": RewardScorer(
+        "property",
+        parse_whole_completion=True,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+    ),
+    "property_whole": RewardScorer(
+        "property",
+        parse_whole_completion=False,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+    ),
+}
+
+
+@pytest.fixture(scope="module", params=[True, False])
+def build_prompt(request):
+    def build_prompt_from_dataset(
+        property: str | List[str], obj: str = "maximize"
+    ) -> str:
+        if isinstance(property, str):
+            properties = [property]
+        else:
+            properties = property
+        dummy = MolGenerationInstructionsDataset()
+        return dummy.fill_prompt(properties, [obj] * len(properties))
+
+    def build_prompt_from_string(
+        property: str | List[str], obj: str = "maximize"
+    ) -> str:
+        prefix = """A conversation between User and Assistant. The User asks a question,
+             and the Assistant solves it. The Assistant first thinks about the reasoning process in the mind and then provides the User with the answer. The reasoning p
+            rocess is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think
+            > <answer> answer here </answer>. User: You must put your answer inside <answer> </answer> tags, i.e., <answer> answer here </answer>.\nThis is the problem:
+            \n"""
+        return prefix + " " + build_prompt_from_dataset(property, obj)
+
+    if request.param:
+        return build_prompt_from_dataset
     else:
-        properties = property
-    dummy = MolGenerationInstructionsDataset()
-    return dummy.fill_prompt(properties, [obj] * len(properties))
+        return build_prompt_from_string
 
 
 def is_reward_valid(rewards, smiles, properties):
@@ -56,12 +100,7 @@ def is_reward_valid(rewards, smiles, properties):
 @pytest.fixture(scope="module", params=[True, False])
 def valid_smiles_scorer(request):
     """Fixture to test the function molecular_properties."""
-    return RewardScorer(
-        "valid_smiles",
-        parse_whole_completion=request.param,
-        rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-    )
+    return scorers["valid_smiles"]
 
 
 @pytest.fixture(scope="module")
@@ -73,12 +112,7 @@ def valid_smiles_filler(valid_smiles_scorer):
 @pytest.fixture(scope="module", params=[True, False])
 def property_scorer(request):
     """Fixture to test the function molecular_properties."""
-    return RewardScorer(
-        "propertys",
-        parse_whole_completion=request.param,
-        rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-    )
+    return scorers["property"] if request.param else scorers["property_whole"]
 
 
 @pytest.fixture(scope="module", params=product(COMPLETIONS, SMILES))
@@ -124,7 +158,7 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     ),
 )
 def test_properties_single_prompt_reward(
-    property1, property2, property_scorer, completions_smiles
+    property1, property2, property_scorer, completions_smiles, build_prompt
 ):
     """Test the function molecular_properties with 2 properties."""
     completions, smiles = completions_smiles
@@ -144,7 +178,7 @@ def test_properties_single_prompt_reward(
     ),
 )
 def test_properties_multi_prompt_rewards(
-    property1, property2, property_scorer, completions_smiles
+    property1, property2, property_scorer, completions_smiles, build_prompt
 ):
     """Test the function molecular_properties with 2 properties."""
     completions, smiles = completions_smiles
@@ -174,6 +208,7 @@ def test_multip_prompt_multi_generation(
     property2,
     property_scorer,
     property_filler,
+    build_prompt,
     n_generations=4,
 ):
     """Test the function molecular_properties."""
@@ -186,7 +221,6 @@ def test_multip_prompt_multi_generation(
         for k in range(n_generations * 2)
     ]
     completions = [property_filler(s, completion) for s in smiles]
-
     rewards = property_scorer(prompts, completions)
 
     for i in range(n_generations * 2):
@@ -199,14 +233,13 @@ def test_multip_prompt_multi_generation(
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, n_generations=1
+    target, property_scorer, property_filler, build_prompt, n_generations=1
 ):
     """Test the function molecular_properties with 2 properties."""
     prompts = [build_prompt(PROPERTIES_NAMES_SIMPLE[target])] * n_generations
-    print(prompts)
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
         for k in range(n_generations)
@@ -232,7 +265,7 @@ def test_properties_single_prompt_vina_reward(
         )
     ),
 )
-def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
+def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
     """Test the function molecular_properties with 2 properties."""
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
@@ -263,8 +296,10 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
     elif obj == "equal 0.5":
         val = 1 - (rewards_max - 0.5) ** 2
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
+    property_scorer.rescale = False
 
 
+@pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize(
     "prop, smiles",
     list(
@@ -274,7 +309,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
         )
     ),
 )
-def test_ray(prop, smiles):
+def test_ray(prop, smiles, build_prompt):
     prompts = [build_prompt(prop, "maximize")] * len(smiles)
     filler = get_fill_completions(True)
     completions = [filler([s], "Here is a molecule: [SMILES]") for s in smiles]

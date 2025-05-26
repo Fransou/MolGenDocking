@@ -14,8 +14,9 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Awaitable, Callable, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, List, Optional, Tuple, Dict
 
+import pandas as pd
 import numpy as np
 import ray
 import torch
@@ -31,8 +32,11 @@ from mol_gen_docking.playground.zero_setting_base import (
     EvalCustomDataset,
     CustomDataset,
 )
-from mol_gen_docking.reward.ray_worker import RewardWorker
+from mol_gen_docking.reward.ray_worker import RewardWorker, RewardWorkerValid
+import wandb
 
+# set wandb offline
+os.environ["WANDB_MODE"] = "offline"
 
 os.environ["VLLM_USE_V1"] = "0"
 
@@ -51,7 +55,7 @@ class PPOExpConfig(BasePPOExpConfig):
     use_orm_score: bool = False
 
     # Conditional settings with production values first
-    total_num_nodes: int = 1
+    total_num_nodes: int = 2
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
@@ -60,7 +64,7 @@ class PPOExpConfig(BasePPOExpConfig):
     actor_num_gpus_per_node: int = 1
     critic_num_nodes: int = total_num_nodes
     critic_num_gpus_per_node: int = 1
-    colocate_all: bool = True
+    colocate_all: bool = False
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
     vllm_num_engines: int = total_num_nodes
@@ -69,7 +73,7 @@ class PPOExpConfig(BasePPOExpConfig):
     zero_stage: int = 3
 
     # path related settings
-    pretrain: Optional[str] = "qwen_2_0.5B"  # or put your downloaded model path here!
+    pretrain: Optional[str] = "Qwen/Qwen2.5-0.5B"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
     ckpt_path: str = f"orz_ckpt/{file_name}"
@@ -129,17 +133,70 @@ class PPOExpConfig(BasePPOExpConfig):
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.75 if not DEBUG_MODE else 0.5
+    gpu_memory_utilization: float = 0.75
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
     lambd: float = 1.0
 
 
+class WandbWriter:
+    def __init__(self, cfg: PPOExpConfig):
+        if isinstance(cfg.pretrain, str):
+            project_name = ("MolGenDocking_" + cfg.pretrain).replace("/", "-")
+        else:
+            project_name = "MolGenDocking"
+        self.tables: Dict[str, pd.DataFrame] = {}
+        wandb.init(project=project_name, name=cfg.ckpt_path, config=cfg)
+
+    def add_scalar(self, key: str, value: float, step: int):
+        wandb.log({key: value}, step=step)
+
+    def add_histogram(self, key: str, value: np.ndarray, step: int):
+        wandb.log({key: wandb.Histogram(value)}, step=step)
+
+    def add_text(
+        self,
+        key: str,
+        value: str,
+        step: int,
+    ):
+        if key not in self.tables:
+            cols = ["step", "text"]
+            self.tables[key] = pd.DataFrame(columns=cols)
+
+        self.tables[key].loc[self.tables[key].shape[0]] = [step, value]
+        wandb.log({key: wandb.Table(dataframe=self.tables[key])})
+
+    def update_table(self, table_name, step, data):
+        if not step % 10 == 0:
+            pass
+        if table_name not in self.tables:
+            cols = ["step"] + list(data.keys())
+            self.tables[table_name] = pd.DataFrame(columns=cols)
+
+        self.tables[table_name].loc[self.tables[table_name].shape[0]] = [step] + list(
+            data.values()
+        )
+
+    def upload_table(self, table_name):
+        if self.tables[table_name].step.max() % 100 == 0:
+            wandb.log({table_name: wandb.Table(dataframe=self.tables[table_name])})
+
+    def flush(self):
+        pass
+
+    def close(self):
+        wandb.finish()
+
+
 class CustomRewardTrainer(RayPPOTrainer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._reward_properties = RewardWorker.remote()
+    def __init__(self, cfg: PPOExpConfig, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        self._reward_properties = RewardWorker.remote()  # type: ignore
+        self._reward_valid_smiles = RewardWorkerValid.remote()  # type: ignore
+
+        self.writer = WandbWriter(cfg)
 
     async def custom_reward_fn(
         self,
@@ -149,14 +206,17 @@ class CustomRewardTrainer(RayPPOTrainer):
         reward_model_fn: Callable[[List[str], List[str]], Awaitable[torch.Tensor]],
     ) -> Tuple[List[str], List[str], List[torch.Tensor]]:
         # make log metrics
-        scores = []
+        scores: List[float] = []
         responses: List[str] = []
         avg_non_stop_count = 0
-        pass_at_n_dict = defaultdict(list)
+        pass_at_n_dict: Dict[str, List[float]] = defaultdict(list)
         num_tokens: List[int] = []
 
         def get_mol_prop_score(p, res):
             return self._reward_properties.get_score.remote(p, res)
+
+        def get_mol_valid_score(p, res):
+            return self._reward_valid_smiles.get_score.remote(p, res)
 
         @ray.remote(num_cpus=1)
         def get_reflection_pattern_score(res):
@@ -172,9 +232,11 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses.append(response)
             rep_tasks.append(get_reflection_pattern_score.remote(response))
         mol_rewards = get_mol_prop_score(prompts, responses)
+        valid_reward = get_mol_valid_score(prompts, responses)
 
         reflection_pattern_scores = ray.get(rep_tasks)
         mol_scores = ray.get(mol_rewards)
+        valid_scores = ray.get(valid_reward)
 
         for output in outputs:
             responses.append(output["response"])
@@ -182,19 +244,35 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses, self.cfg.generate_max_len, padding=False
         )["input_ids"]
 
+        self.writer.update_table(
+            "generations",
+            self.global_step,
+            data={
+                "prompts": prompts[0],
+                "outputs": outputs[0]["response"],
+                "final_answer": outputs[0]["final_answer"],
+                "stop_reason": outputs[0]["stop_reason"],
+                "response_token": len(output_tokens[0]),
+                "mol_score": mol_scores[0],
+                "valid_score": valid_scores[0],
+            },
+        )
+        self.writer.upload_table("generations")
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
-            m_score, reflection_pattern_score = (
+            m_score, v_score, reflection_pattern_score = (
                 mol_scores[idx],
+                valid_scores[idx],
                 reflection_pattern_scores[idx],
             )
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
             output["molecule_score"] = m_score
+            output["valid_score"] = v_score
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
-                score = m_score
+                score = m_score + v_score
             else:
                 avg_non_stop_count += 1
                 score = 0.0
@@ -259,6 +337,7 @@ class CustomRewardTrainer(RayPPOTrainer):
         log_dict = {
             "avg_non_stop_count": avg_non_stop_count / len(prompts),
             "avg_molecular_score": sum(mol_scores) / len(prompts),
+            "avg_valid_score": sum(valid_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
             "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
@@ -310,7 +389,6 @@ class CustomRewardTrainer(RayPPOTrainer):
                 res_prompts.append(prompt)
                 res_responses.append(response)
                 res_score_tensors.append(score_tensor)
-
         return res_prompts, res_responses, res_score_tensors
 
     @torch.no_grad()
@@ -341,7 +419,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             truncate_prompt=True,  # type: ignore
         )
 
-        @ray.remote(num_cpus=1)
+        @ray.remote(num_cpus=1)  # TODO
         def extract_final_answers_batch(responses: List[str]) -> List[Any | str]:
             # pattern = re.compile(r"(\\boxed{.*})")
             pattern = re.compile(r"<answer>.*?(\\boxed{.*}).*?</answer>", re.DOTALL)
@@ -354,10 +432,7 @@ class CustomRewardTrainer(RayPPOTrainer):
         results = []
         for extra, response, stop_reason in zip(extras, responses, stop_reasons):
             results.append(
-                dict(
-                    response=response,
-                    stop_reason=stop_reason,
-                )
+                dict(response=response, stop_reason=stop_reason, final_answer=response)
             )
 
         return results
@@ -404,7 +479,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             outputs = sum(outputs, [])
 
             final_answers = []
-            pattern = re.compile(r"<answer>.*?</answer>", re.DOTALL)
+            pattern = re.compile(r"<answer>.*?</answer>", re.DOTALL)  # TODO
             for output in outputs:
                 matches = re.findall(pattern, output.outputs[0].text)
                 if len(matches) > 0:
@@ -434,7 +509,6 @@ class CustomRewardTrainer(RayPPOTrainer):
         ]
 
         for file_name in all_file_names:
-            print(log_dict[f"{file_name}/total"])
             try:
                 log_dict[f"{file_name}/response_len_in_char"] = (
                     log_dict[f"{file_name}/total_response_len_in_char"]

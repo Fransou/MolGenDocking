@@ -11,7 +11,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType
 
-from mol_gen_docking.data import special_tok
 from torch.profiler import profile, record_function, ProfilerActivity
 
 
@@ -105,8 +104,8 @@ class MolTrainer:
                 self.args.attention if not self.args.attention == "vanilla" else None
             ),
         )
-        if not hasattr(self.args, "vllm") or not self.args.vllm:
-            args["device_map"] = "auto"
+        # if not hasattr(self.args, "vllm") or not self.args.vllm:
+        #     args["device_map"] = "auto"
         ckpt = (
             self.args.model_name if self.checkpoint_path == "" else self.checkpoint_path
         )
@@ -143,17 +142,6 @@ class MolTrainer:
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            target_modules=["q_proj", "v_proj"],
-            trainable_token_indices=(
-                {
-                    "embed_tokens": [
-                        self.tokenizer.convert_tokens_to_ids(t)
-                        for t in special_tok.values()
-                    ],
-                }
-                if train_tokens and self.tokenizer is not None
-                else {}
-            ),
         )
 
     def __call__(self, profile: bool = False):

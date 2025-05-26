@@ -1,14 +1,12 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Tuple, Dict, List
+from typing import Dict, List, Tuple, Any
 
-from datasets import load_dataset, Dataset, concatenate_datasets
-
+from datasets import Dataset, concatenate_datasets, load_dataset
 import selfies as sf
 from rdkit import Chem
 
 from mol_gen_docking.data import special_tok
-
 
 SMolInstruct_tasks = [
     "forward_synthesis",
@@ -86,7 +84,7 @@ class InstructionDatasetProcessor:
 
         return string
 
-    def process_line(self, line: Dict[str, str]) -> Dict[str, List[Dict[str, str]]]:
+    def process_line(self, line: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """
         Process a line of the dataset.
         :param line: Line of the dataset
@@ -101,15 +99,20 @@ class InstructionDatasetProcessor:
         instruction = self.process_str(instruction)
         out = self.process_str(out)
 
-        message = [
-            {"role": "system", "content": "You are a helpful assistant."},
+        prompt = [
             {
                 "role": "user",
-                "content": instruction + inp,
+                "content": instruction + " " + inp,
             },
+        ]
+        completion = [
             {"role": "assistant", "content": out},
         ]
-        return {"messages": message}
+
+        return {
+            "prompt": prompt,
+            "completion": completion,
+        }
 
     def get_training_corpus(
         self,
@@ -155,12 +158,9 @@ class InstructionDatasetProcessor:
             self.dataset = self.dataset["train"].train_test_split(
                 train_size=train_size, test_size=int(0.1 * train_size), seed=42
             )
-
-        for k in self.dataset.keys():
-            self.dataset[k] = self.dataset[k].select_columns(["messages"])
-
         self.processed = True
 
         self.dataset["train"].shuffle()
         self.dataset["train"].flatten_indices()
+
         return self.dataset["train"], self.dataset["test"]

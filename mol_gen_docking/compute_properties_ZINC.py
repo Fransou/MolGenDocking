@@ -83,7 +83,6 @@ if __name__ == "__main__":
 
         molgen[oracle_name] = molgen["smiles"].map(props)
 
-    print(molgen.sample(10))
     if args.i_end > molgen.shape[0] and args.i_start == 0:
         path = "mol_gen_docking/reward/oracles/properties.csv"
     else:
