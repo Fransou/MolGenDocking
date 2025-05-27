@@ -185,7 +185,7 @@ class WandbWriter:
         )
 
     def upload_table(self, table_name):
-        if self.tables[table_name].step.max() % 100 == 0:
+        if self.tables[table_name].step.max() % 50 == 0:
             wandb.log({table_name: wandb.Table(dataframe=self.tables[table_name])})
 
     def flush(self):
