@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
-#SBATCH --account=def-ibenayed
+#SBATCH --account=rrg-josedolz
 #SBATCH --time=00:30:00
 #SBATCH --gres=gpu:4
 #SBATCH --mem=100G

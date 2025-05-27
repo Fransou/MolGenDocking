@@ -98,7 +98,7 @@ class MolTrainerParser:
         self.add_argument(
             "--lora-config",
             type=json.loads,
-            default={"r": 128, "lora_alpha": 256, "lora_dropout": 0.0},
+            default={"r": 16, "lora_alpha": 32, "lora_dropout": 0.0},
             help="The LoRA configuration to use",
         )
         self.add_argument(
