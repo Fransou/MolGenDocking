@@ -55,7 +55,7 @@ class PPOExpConfig(BasePPOExpConfig):
     use_orm_score: bool = False
 
     # Conditional settings with production values first
-    total_num_nodes: int = 1
+    total_num_nodes: int = 2
 
     # resource related settings
     ref_num_nodes: int = total_num_nodes
@@ -66,7 +66,7 @@ class PPOExpConfig(BasePPOExpConfig):
     critic_num_gpus_per_node: int = 1
     reward_num_nodes: int = total_num_nodes
     reward_num_gpus_per_node: int = 1
-    colocate_all: bool = False
+    colocate_all: bool = True
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
     vllm_num_engines: int = total_num_nodes
@@ -104,9 +104,9 @@ class PPOExpConfig(BasePPOExpConfig):
     advantage_normalize: bool = True
 
     num_episodes: int = 20
-    rollout_batch_size: int = 128 if not DEBUG_MODE else 32
-    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 64
-    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 32
+    rollout_batch_size: int = 128 if not DEBUG_MODE else 4
+    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
+    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 4
 
     policy_update_steps: int = 1
     critic_update_steps: int = 12 if not DEBUG_MODE else 1
