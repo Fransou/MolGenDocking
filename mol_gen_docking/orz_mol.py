@@ -67,10 +67,12 @@ class PPOExpConfig(BasePPOExpConfig):
     critic_num_gpus_per_node: int = 1
     reward_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     reward_num_gpus_per_node: int = 1
-    colocate_all: bool = False
+    colocate_all: bool = DEBUG_MODE
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
-    vllm_num_engines: int = num_nodes * (2 * num_gpus_per_node // 4)
+    vllm_num_engines: int = (
+        num_nodes * (2 * num_gpus_per_node // 4) if not DEBUG_MODE else 1
+    )
     vllm_tensor_parallel_size: int = 1
     adam_offload: bool = False
     zero_stage: int = 3
@@ -247,19 +249,21 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses, self.cfg.generate_max_len, padding=False
         )["input_ids"]
 
-        self.writer.update_table(
-            "generations",
-            self.global_step,
-            data={
-                "prompts": prompts[0],
-                "outputs": outputs[0]["response"],
-                "final_answer": outputs[0]["final_answer"],
-                "stop_reason": outputs[0]["stop_reason"],
-                "response_token": len(output_tokens[0]),
-                "mol_score": mol_scores[0],
-                "valid_score": valid_scores[0],
-            },
-        )
+        n_logs = min(len(prompts), 128)
+        for i in range(n_logs):
+            self.writer.update_table(
+                "generations",
+                self.global_step,
+                data={
+                    "prompts": prompts[i],
+                    "outputs": outputs[i]["response"],
+                    "final_answer": outputs[i]["final_answer"],
+                    "stop_reason": outputs[i]["stop_reason"],
+                    "response_token": len(output_tokens[i]),
+                    "mol_score": mol_scores[i],
+                    "valid_score": valid_scores[i],
+                },
+            )
         self.writer.upload_table("generations")
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
