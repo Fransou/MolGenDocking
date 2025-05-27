@@ -170,7 +170,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-/data
+/data/SIU/pdb_files
 /data/*.zip
 /data/*.tab
 external_libraries
