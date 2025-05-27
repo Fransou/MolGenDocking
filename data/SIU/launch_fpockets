@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --account=def-ibenayed
+#SBATCH --time=00:30:00
+#SBATCH --mem=8G
+#SBATCH --cpus-per-task=16
+#SBATCH --tasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --array=1-10
+
+module load StdEnv/2020 gcc/9.3.0 fpocket
+fpocket -F batch_fpockets/batch_${SLURM_ARRAY_TASK_ID}.pdb

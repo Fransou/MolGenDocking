@@ -23,5 +23,5 @@ ray start --head
 nvidia-smi
 ray status
 
-#export DEBUG_MODE=1
+export DEBUG_MODE=1
 python -m mol_gen_docking.orz_mol
