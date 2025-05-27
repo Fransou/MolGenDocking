@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Awaitable, Callable, List, Optional, Tuple, Dict
+import wandb
 
 import pandas as pd
 import numpy as np
@@ -23,6 +24,7 @@ import torch
 from loguru import logger
 from omegaconf.listconfig import ListConfig
 from typing_extensions import override
+from rdkit import Chem
 
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
@@ -33,7 +35,6 @@ from mol_gen_docking.playground.zero_setting_base import (
     CustomDataset,
 )
 from mol_gen_docking.reward.ray_worker import RewardWorker, RewardWorkerValid
-import wandb
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
@@ -426,20 +427,43 @@ class CustomRewardTrainer(RayPPOTrainer):
             truncate_prompt=True,  # type: ignore
         )
 
-        @ray.remote(num_cpus=1)  # TODO
+        @ray.remote(num_cpus=1)
         def extract_final_answers_batch(responses: List[str]) -> List[Any | str]:
             # pattern = re.compile(r"(\\boxed{.*})")
-            pattern = re.compile(r"<answer>.*?(\\boxed{.*}).*?</answer>", re.DOTALL)
-            results = []
-            for response in responses:
-                matches = re.findall(pattern, response)
-                results.append(matches[-1] if matches else "")
-            return results
+            final_answers = []
+            for comp in responses:
+                re.split("\n| |.", comp)
+                # Then we filter by removing any string that does not contain "C"
+                s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+                # Finally we remove any string that is not a valid SMILES
+                s_spl = [x + " - " for x in s_poss if Chem.MolFromSmiles(x) is not None]
+
+                final_answers.append("".join(s_spl))
+            return final_answers
+
+        BATCH_SIZE = 16
+        num_batches = (len(responses) + BATCH_SIZE - 1) // BATCH_SIZE
+        extract_tasks = []
+        for i in range(num_batches):
+            start_idx = i * BATCH_SIZE
+            end_idx = min((i + 1) * BATCH_SIZE, len(responses))
+            batch = responses[start_idx:end_idx]
+            extract_tasks.append(extract_final_answers_batch.remote(batch))  # type: ignore
+        batched_results = await asyncio.gather(
+            *[asyncio.to_thread(ray.get, task) for task in extract_tasks]
+        )
+        final_answers = [answer for batch in batched_results for answer in batch]
 
         results = []
-        for extra, response, stop_reason in zip(extras, responses, stop_reasons):
+        for extra, response, stop_reason, final_answer in zip(
+            extras, responses, stop_reasons, final_answers
+        ):
             results.append(
-                dict(response=response, stop_reason=stop_reason, final_answer=response)
+                dict(
+                    response=response,
+                    stop_reason=stop_reason,
+                    final_answer=final_answer,
+                )
             )
 
         return results
