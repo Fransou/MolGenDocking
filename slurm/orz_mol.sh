@@ -2,7 +2,7 @@
 #SBATCH --job-name=orz_mol
 #SBATCH --account=rrg-josedolz
 #SBATCH --time=00:30:00
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=32
 #SBATCH --tasks-per-node=1
