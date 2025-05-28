@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 
 from rdkit import Chem
+import ray
 
 from mol_gen_docking.reward.oracles import (
     get_oracle,
@@ -61,6 +62,8 @@ class RewardScorer:
         self.__name__ = f"RewardScorer/{reward}"
 
         self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
+        if not ray.is_initialized():
+            ray.init()
 
     def get_mol_props_from_prompt(
         self, prompts: List[Any]
@@ -155,6 +158,7 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
+    @ray.remote(num_cpus=4)
     def _get_property(self, smiles: List[str], prop: str) -> torch.Tensor:
         """
         Get property reward
@@ -168,13 +172,18 @@ class RewardScorer:
         return property_reward
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
-        for p in df_properties["property"].unique():
+        all_properties = df_properties["property"].unique().tolist()
+        values_job = []
+        for p in all_properties:
             smiles = (
                 df_properties[df_properties["property"] == p]["smiles"]
                 .unique()
                 .tolist()
             )
-            values = self._get_property(smiles, p)
+            values_job.append(self._get_property.remote(smiles, p))  # type: ignore
+
+        values = ray.get(values_job)
+        for p in all_properties:
             for s, v in zip(smiles, values):
                 df_properties.loc[
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
