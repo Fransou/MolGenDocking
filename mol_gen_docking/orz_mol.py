@@ -82,8 +82,8 @@ class PPOExpConfig(BasePPOExpConfig):
     pretrain: Optional[str] = "SFT_SMOL/model"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
-    ckpt_path: str = f"orz_ckpt/{file_name}"
-    save_path: str = f"orz_ckpt/{file_name}"
+    ckpt_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
+    save_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
     tensorboard_log_dir: str = f"orz_logs/{file_name}"
 
     # MathTrain dataset and Math500 eval dataset
