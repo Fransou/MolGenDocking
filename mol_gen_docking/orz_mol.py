@@ -79,7 +79,7 @@ class PPOExpConfig(BasePPOExpConfig):
     zero_stage: int = 3
 
     # path related settings
-    pretrain: Optional[str] = "SFT_SMOL/model"
+    pretrain: Optional[str] = "/scratch/fransou/Qwen/Qwen3-1.7B"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
     ckpt_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
