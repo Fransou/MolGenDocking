@@ -158,20 +158,21 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
-    @ray.remote(num_cpus=4)
-    def _get_property(self, smiles: List[str], prop: str) -> torch.Tensor:
-        """
-        Get property reward
-        """
-        if prop in self.oracles:
-            oracle_fn = self.oracles[prop]
-        else:
-            oracle_fn = get_oracle(prop, **self.oracle_kwargs)
-            self.oracles[prop] = oracle_fn
-        property_reward = oracle_fn(smiles, rescale=self.rescale)
-        return property_reward
-
     def fill_df_properties(self, df_properties: pd.DataFrame):
+        @ray.remote(num_cpus=4)
+        def _get_property(
+            smiles: List[str],
+            prop: str,
+            rescale: bool = True,
+            kwargs: Dict[str, Any] = {},
+        ) -> List[float]:
+            """
+            Get property reward
+            """
+            oracle_fn = get_oracle(prop, **kwargs)
+            property_reward = oracle_fn(smiles, rescale=rescale)
+            return property_reward
+
         all_properties = df_properties["property"].unique().tolist()
         values_job = []
         for p in all_properties:
@@ -180,10 +181,15 @@ class RewardScorer:
                 .unique()
                 .tolist()
             )
-            values_job.append(self._get_property.remote(smiles, p))  # type: ignore
+            values_job.append(
+                _get_property.remote(
+                    smiles, p, rescale=self.rescale, kwargs=self.oracle_kwargs
+                )
+            )  # type: ignore
 
-        values = ray.get(values_job)
-        for p in all_properties:
+        all_values = ray.get(values_job)
+        for idx_p, p in enumerate(all_properties):
+            values = all_values[idx_p]
             for s, v in zip(smiles, values):
                 df_properties.loc[
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
@@ -251,7 +257,7 @@ class RewardScorer:
 
     def __call__(
         self, prompts: List[Any], completions: List[Any], debug: bool = False
-    ) -> List[float]:
+    ) -> torch.Tensor:
         """
         Get reward for molecular properties
         """
