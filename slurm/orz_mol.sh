@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=rrg-josedolz
-#SBATCH --time=02:30:00
+#SBATCH --time=01:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=32
