@@ -5,7 +5,7 @@ from typing import List
 from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
 
-@ray.remote(num_cpus=16)
+@ray.remote(num_cpus=32)
 class RewardWorker:
     def __init__(self):
         self._reward_fn = RewardScorer("property", parse_whole_completion=True)

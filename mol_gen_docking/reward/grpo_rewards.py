@@ -12,7 +12,6 @@ import ray
 
 from mol_gen_docking.reward.oracles import (
     get_oracle,
-    PROPERTIES_NAMES_SIMPLE,
     OBJECTIVES_TEMPLATES,
 )
 
@@ -53,11 +52,6 @@ class RewardScorer:
         self.rescale = rescale
         self.reward = reward
         self.oracle_kwargs = oracle_kwargs
-        self.oracles = {
-            oracle: get_oracle(oracle, **oracle_kwargs)
-            for oracle in PROPERTIES_NAMES_SIMPLE
-            if "docking" not in PROPERTIES_NAMES_SIMPLE[oracle]
-        }
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
 
@@ -159,7 +153,7 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
-        @ray.remote(num_cpus=4)
+        @ray.remote(num_cpus=8)
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -174,13 +168,14 @@ class RewardScorer:
             return property_reward
 
         all_properties = df_properties["property"].unique().tolist()
+        prop_smiles = {
+            p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
+            for p in all_properties
+        }
+
         values_job = []
         for p in all_properties:
-            smiles = (
-                df_properties[df_properties["property"] == p]["smiles"]
-                .unique()
-                .tolist()
-            )
+            smiles = prop_smiles[p]
             values_job.append(
                 _get_property.remote(
                     smiles, p, rescale=self.rescale, kwargs=self.oracle_kwargs
@@ -190,6 +185,7 @@ class RewardScorer:
         all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
             values = all_values[idx_p]
+            smiles = prop_smiles[p]
             for s, v in zip(smiles, values):
                 df_properties.loc[
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
