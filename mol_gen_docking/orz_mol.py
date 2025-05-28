@@ -348,7 +348,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             "avg_valid_score": sum(valid_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
-            "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
+            "avg_pass_at_n": np.mean([np.max(v) for v in pass_at_n_dict.values()])
             / len(pass_at_n_dict),
             "avg_num_tokens": np.mean(num_tokens_arr).item(),
             "std_num_tokens": np.std(num_tokens_arr).item(),
