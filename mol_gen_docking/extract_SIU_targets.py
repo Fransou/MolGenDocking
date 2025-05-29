@@ -70,7 +70,7 @@ class PocketExtractor:
         coords = df[["x_coord", "y_coord", "z_coord"]].values
         dist_matrix = pdist(coords)
         lkg = linkage(dist_matrix, method="single")
-        clusters = fcluster(lkg, t=8, criterion="distance")
+        clusters = fcluster(lkg, t=5, criterion="distance")
 
         # Select the largest cluster
         largest_cluster = np.argmax(np.bincount(clusters))
@@ -170,7 +170,6 @@ class PocketExtractor:
                     desc="Processing pockets",
                 )
             )
-            print(results)
             for pdb_id, pocket_info in zip(pdb_ids, results):
                 if pocket_info is not None:
                     assert pdb_id == pocket_info["pdb_id"]
@@ -193,7 +192,7 @@ class PocketExtractor:
         metadata = self.extract_fpocket_metadata(pocket_path)
         coords = self.extract_pockets_coords(df_pocket, pdb_id)
 
-        center = coords.mean().values
+        center = (coords.max(0) + coords.min(0)) / 2
         size = np.round(
             np.clip((coords - coords.mean()).abs().max().values + 3, 10, 25)
         )
