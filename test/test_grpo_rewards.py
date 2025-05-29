@@ -325,11 +325,11 @@ def test_runtime(
 
     worker = (
         ray.remote(RewardScorer)
-        .options(num_cpus=32)
+        .options(num_cpus=1)
         .remote(
-            num_cpus=16,
+            num_cpus=1,
             parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=4, exhaustiveness=4),
+            oracle_kwargs=dict(ncpu=8, exhaustiveness=8),
         )  # type: ignore
     )
 
