@@ -233,10 +233,10 @@ def test_multip_prompt_multi_generation(
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, build_prompt, n_generations=1
+    target, property_scorer, property_filler, build_prompt, n_generations=64
 ):
     """Test the function molecular_properties with 2 properties."""
     prompts = [build_prompt(PROPERTIES_NAMES_SIMPLE[target])] * n_generations

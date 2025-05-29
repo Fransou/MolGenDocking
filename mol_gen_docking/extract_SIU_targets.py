@@ -14,6 +14,8 @@ import pandas as pd
 from biopandas.pdb import PandasPdb
 from typing import Optional
 
+from multiprocessing import Pool
+
 
 class PocketExtractor:
     def __init__(self, save_path: str = "data/SIU"):
@@ -48,6 +50,65 @@ class PocketExtractor:
             raise ValueError(f"No model found for index: {model_index}")
 
         return pd.concat([atomic_df.df["ATOM"], atomic_df.df["HETATM"]])
+
+    @staticmethod
+    def extract_pockets_coords(df: pd.DataFrame, pdb_id: str) -> pd.DataFrame:
+        """
+        Extract the coordinates of the pocket atoms from the DataFrame.
+        Multiple pockets can appear in the same PDB file, we cluster atoms
+        so the minimum distance between two atoms in a pocket is at most 15 angstroms.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing atomic coordinates and metadata.
+
+        Returns:
+            pd.DataFrame: DataFrame containing only the coordinates of the pocket atoms.
+        """
+        from scipy.spatial.distance import pdist
+        from scipy.cluster.hierarchy import linkage, fcluster
+
+        coords = df[["x_coord", "y_coord", "z_coord"]].values
+        dist_matrix = pdist(coords)
+        lkg = linkage(dist_matrix, method="single")
+        clusters = fcluster(lkg, t=8, criterion="distance")
+
+        # Select the largest cluster
+        largest_cluster = np.argmax(np.bincount(clusters))
+        pocket_coords = coords[clusters == largest_cluster]
+
+        pocket_df = pd.DataFrame(
+            pocket_coords, columns=["x_coord", "y_coord", "z_coord"]
+        )
+
+        if pocket_df.shape[0] != coords.shape[0]:
+            print(
+                f"[{pdb_id}] Deflating by {np.round(pocket_df.shape[0] / coords.shape[0], 3) * 100}% atoms "
+            )
+        return pocket_df
+
+    @staticmethod
+    def extract_fpocket_metadata(path: str) -> Dict[str, float]:
+        pdb = openFile(path, "rt")
+        metadata = {}
+        for loc, line in enumerate(pdb):
+            startswith = line[0:6]
+            if startswith == "HEADER":
+                # Match the pattern "HEADER {n} - {property}" where n is a number
+                pattern = r"HEADER\s+(\d+)\s+-\s+(?P<prop>.+)"
+                match = re.search(pattern, line)
+                if match:
+                    # Extract the property name and value
+                    prop = match.group("prop")
+                    key = "".join(
+                        [
+                            word + " "
+                            for word in prop.split(":")[0].split(" ")
+                            if not word == ""
+                        ]
+                    ).lower()[:-1]
+                    value = float(prop.split(":")[1].replace(" ", ""))
+                    metadata[key] = value
+        return metadata
 
     def _get_pdb_file(self, pdb_id: str) -> pd.DataFrame | None:
         path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}.pdb")
@@ -84,7 +145,7 @@ class PocketExtractor:
                 _ = self._get_pdb_file(pdb_id)
                 self.processed_pdb_ids.append(pdb_id)
 
-    def process_fpockets(self):
+    def process_fpockets(self, n_cpus: int = 8):
         """
         Process the downloaded PDB files with fpocket.
         """
@@ -95,52 +156,53 @@ class PocketExtractor:
             if f.endswith(".pdb")
         ]
 
-        for pdb_id in tqdm(pdb_ids):
-            pocket_path = os.path.join(
-                self.save_path, "pockets", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
-            )
-            if not os.path.exists(pocket_path):
-                print(
-                    f"File {pocket_path} does not exist, run an analysis with fpocket first."
+        if n_cpus == 1:
+            for pdb_id in tqdm(pdb_ids):
+                infos = self.process_pocket_pdb_id(pdb_id)
+                if infos is not None:
+                    all_pockets_info[pdb_id] = infos
+        else:
+            pool = Pool(n_cpus)
+            results = list(
+                tqdm(
+                    pool.imap(self.process_pocket_pdb_id, pdb_ids),
+                    total=len(pdb_ids),
+                    desc="Processing pockets",
                 )
-                continue
-            df_pocket = self.read_pdb_to_dataframe(pocket_path)
-            metadata = self.extract_fpocket_metadata(pocket_path)
-            coords = df_pocket[["x_coord", "y_coord", "z_coord"]]
-            center = coords.mean().values
-            size = np.clip((coords - coords.mean()).abs().max().values + 3, 8, 25)
-            pocket_info = {
-                "size": tuple(size.tolist()),
-                "center": tuple(center.tolist()),
-                "metadata": metadata,
-            }
-            all_pockets_info[pdb_id] = pocket_info
-        print(all_pockets_info)
+            )
+            print(results)
+            for pdb_id, pocket_info in zip(pdb_ids, results):
+                if pocket_info is not None:
+                    assert pdb_id == pocket_info["pdb_id"]
+                    all_pockets_info[pdb_id] = pocket_info
+            pool.close()
+
         with open(os.path.join(self.save_path, "pockets_info.json"), "w") as f:
             json.dump(all_pockets_info, f, indent=4)
 
-    def extract_fpocket_metadata(self, path):
-        pdb = openFile(path, "rt")
-        metadata = {}
-        for loc, line in enumerate(pdb):
-            startswith = line[0:6]
-            if startswith == "HEADER":
-                # Match the pattern "HEADER {n} - {property}" where n is a number
-                pattern = r"HEADER\s+(\d+)\s+-\s+(?P<prop>.+)"
-                match = re.search(pattern, line)
-                if match:
-                    # Extract the property name and value
-                    prop = match.group("prop")
-                    key = "".join(
-                        [
-                            word + " "
-                            for word in prop.split(":")[0].split(" ")
-                            if not word == ""
-                        ]
-                    ).lower()[:-1]
-                    value = float(prop.split(":")[1].replace(" ", ""))
-                    metadata[key] = value
-        return metadata
+    def process_pocket_pdb_id(self, pdb_id: str) -> Dict[str, Any] | None:
+        pocket_path = os.path.join(
+            self.save_path, "pockets", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
+        )
+        if not os.path.exists(pocket_path):
+            print(
+                f"File {pocket_path} does not exist, run an analysis with fpocket first."
+            )
+            return None
+        df_pocket = self.read_pdb_to_dataframe(pocket_path)
+        metadata = self.extract_fpocket_metadata(pocket_path)
+        coords = self.extract_pockets_coords(df_pocket, pdb_id)
+
+        center = coords.mean().values
+        size = np.round(
+            np.clip((coords - coords.mean()).abs().max().values + 3, 10, 25)
+        )
+        return {
+            "size": tuple(size.tolist()),
+            "center": tuple(center.tolist()),
+            "pdb_id": pdb_id,
+            "metadata": metadata,
+        }
 
 
 if __name__ == "__main__":
