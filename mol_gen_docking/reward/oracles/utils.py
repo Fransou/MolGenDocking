@@ -49,6 +49,11 @@ DOCKING_TARGETS: List[str] = [
 ] + list(POCKETS_SIU.keys())
 
 PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {}
+print(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
+    )
+)
 if not os.path.exists(
     os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"

@@ -11,6 +11,7 @@
 
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
+export SIU_DATA_PATH=$SCRATCH/MolGenDocking_data/SIU
 
 cd $WORKING_DIR
 
