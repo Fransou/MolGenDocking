@@ -318,6 +318,7 @@ def test_runtime(
     property_filler,
     build_prompt,
 ):
+    print(f"Testing runtime for {property1} and {property2}")
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt([property1, property2])] * 16
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
