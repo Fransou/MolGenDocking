@@ -8,8 +8,9 @@ import json
 from tqdm import tqdm
 from multiprocessing import Pool
 
-IS_CONNECTED = True
-SIU_PATH = os.path.join("data", "SIU")
+
+IS_CONNECTED = False
+SIU_PATH = os.environ.get("SIU_DATA_PATH", os.path.join("data", "SIU"))
 
 
 def get_pdb_description(pdb_id):
@@ -45,10 +46,7 @@ DOCKING_TARGETS: List[str] = [
     "4unn",
     "5mo4",
     "7l11",
-] + [
-    os.path.join(SIU_PATH, "pdb_files", f"{pdb_id}.pdb")
-    for pdb_id in POCKETS_SIU.keys()
-]
+] + list(POCKETS_SIU.keys())
 
 PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {}
 if not os.path.exists(
@@ -84,10 +82,12 @@ if not os.path.exists(
             desc="Adding descriptions to docking targets",
         )
     )
-    for target, desc in zip(DOCKING_TARGETS, docking_desc):
-        if not target.endswith(".pdb"):
-            target = target + "_docking"
-        pdb_id = target.split("/")[-1].replace(".pdb", "")
+    for pdb_id, desc in zip(DOCKING_TARGETS, docking_desc):
+        if pdb_id in DOCKING_TARGETS[:9]:
+            target = pdb_id + "_docking"
+        else:
+            target = pdb_id
+
         PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = target
     with open(
         os.path.join(
