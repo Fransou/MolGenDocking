@@ -19,7 +19,11 @@ def get_oracle(oracle_name: str, **kwargs):
     oracle_wrapper = OracleWrapper()
     oracle_name = oracle_name.replace(".", "")
     oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-    if oracle_name.endswith("docking_vina") or oracle_name.endswith("docking"):
+    if (
+        oracle_name in DOCKING_TARGETS
+        or oracle_name.endswith("docking_vina")
+        or oracle_name.endswith("docking")
+    ):
         from .docking_oracle import PyscreenerOracle
 
         oracle_wrapper.assign_evaluator(

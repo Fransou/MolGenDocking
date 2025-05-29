@@ -85,6 +85,8 @@ if not os.path.exists(
         )
     )
     for target, desc in zip(DOCKING_TARGETS, docking_desc):
+        if not target.endswith(".pdb"):
+            target = target + "_docking"
         pdb_id = target.split("/")[-1].replace(".pdb", "")
         PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = (
             target + "_docking"
