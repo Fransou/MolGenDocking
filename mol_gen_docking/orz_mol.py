@@ -61,7 +61,7 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # resource related settings
     scorer_ncpus: int = 4
-    scorer_exhaustivness: int = 4
+    scorer_exhaustivness: int = 1  # TODO change to 4
 
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     ref_num_gpus_per_node: int = 1
