@@ -44,7 +44,7 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
 class RewardScorer:
     def __init__(
         self,
-        reward: str,
+        reward: str = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         num_cpus: int = 1,
