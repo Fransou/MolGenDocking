@@ -353,6 +353,10 @@ def test_ray(prop, smiles, build_prompt):
     filler = get_fill_completions(True)
     completions = [filler([s], "Here is a molecule: [SMILES]") for s in smiles]
 
-    worker = RewardWorker.remote()
+    worker = (
+        ray.remote(RewardScorer)
+        .options(num_cpus=4)
+        .remote(num_cpus=2, parse_whole_completion=True)  # type: ignore
+    )
     result = worker.get_score.remote(prompts, completions)
     _ = ray.get(result)

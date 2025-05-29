@@ -34,7 +34,7 @@ from mol_gen_docking.playground.zero_setting_base import (
     EvalCustomDataset,
     CustomDataset,
 )
-from mol_gen_docking.reward.ray_worker import RewardWorker, RewardWorkerValid
+from mol_gen_docking.reward.grpo_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
@@ -60,6 +60,9 @@ class PPOExpConfig(BasePPOExpConfig):
     num_nodes: int = 1
 
     # resource related settings
+    scorer_num_cpus_tot: int = 32
+    scorer_num_threads: int = 2
+
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     ref_num_gpus_per_node: int = 1
     actor_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
@@ -199,8 +202,17 @@ class WandbWriter:
 class CustomRewardTrainer(RayPPOTrainer):
     def __init__(self, cfg: PPOExpConfig, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
-        self._reward_properties = RewardWorker.remote()  # type: ignore
-        self._reward_valid_smiles = RewardWorkerValid.remote()  # type: ignore
+        self._reward_properties = (
+            ray.remote(RewardScorer)
+            .options(num_cpus=cfg.scorer_num_cpus_tot)
+            .remote(num_cpus=cfg.scorer_num_threads, parse_whole_completion=True)  # type: ignore
+        )
+
+        self._reward_valid_smiles = self._reward_properties = (
+            ray.remote(RewardScorer)
+            .options(num_cpus=1)
+            .remote(reward_type="valid_smiles", parse_whole_completion=True)  # type: ignore
+        )
 
         self.writer = WandbWriter(cfg)
 
