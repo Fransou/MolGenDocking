@@ -325,7 +325,8 @@ def test_runtime(
     completions = [property_filler(s, completion) for s in smiles]
 
     t0 = time.time()
-    _ = property_scorer(prompts, completions)
+    r = property_scorer(prompts, completions)
+    print(r)
     t1 = time.time()
 
     # Max for 16 generations should be around 30 seconds
