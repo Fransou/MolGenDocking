@@ -327,11 +327,13 @@ def test_runtime(
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
-            num_cpus=1,
+            num_cpus=4 * 4,
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=4, exhaustiveness=4),
         )  # type: ignore
     )
+    # Print number of cpus used by worker
+    print(f"Worker using {ray.get(worker._num_cpus.remote())} CPUs")
 
     t0 = time.time()
 
