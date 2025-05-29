@@ -323,10 +323,14 @@ def test_runtime(
     prompts = [build_prompt([property1, property2])] * 16
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
     completions = [property_filler(s, completion) for s in smiles]
+    worker = RewardWorker.remote()
 
     t0 = time.time()
-    r = property_scorer(prompts, completions)
+
+    result = worker.get_score.remote(prompts, completions)
+    r = ray.get(result)
     print(r)
+
     t1 = time.time()
     print(f"Runtime: {t1 - t0} seconds")
 
