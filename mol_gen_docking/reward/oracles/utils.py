@@ -3,11 +3,18 @@ from typing import List, Dict
 import warnings
 import pandas as pd
 import requests
+import json
+
+from tqdm import tqdm
+from multiprocessing import Pool
 
 IS_CONNECTED = True
+SIU_PATH = os.path.join("data", "SIU")
 
 
 def get_pdb_description(pdb_id):
+    if os.path.exists(pdb_id):
+        pdb_id = pdb_id.split("/")[-1].replace(".pdb", "")
     url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
 
     # if the url is reachable, the properties are downloaded
@@ -25,7 +32,7 @@ def get_pdb_description(pdb_id):
     return pdb_id
 
 
-with open("data/SIU/pockets_info.json") as f:
+with open(os.path.join(SIU_PATH, "pockets_info.json")) as f:
     POCKETS_SIU = pd.read_json(f)
 
 DOCKING_TARGETS: List[str] = [
@@ -38,42 +45,64 @@ DOCKING_TARGETS: List[str] = [
     "4unn",
     "5mo4",
     "7l11",
+] + [
+    os.path.join(SIU_PATH, "pdb_files", f"{pdb_id}.pdb")
+    for pdb_id in POCKETS_SIU.keys()
 ]
 
-PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {
-    "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
-    "Inhibition against c-Jun N-terminal kinase-3": "JNK3",
-    "Bioactivity against dopamine receptor D2": "DRD2",
-    "Synthetic accessibility": "SA",
-    "Quantitative estimate of drug-likeness": "QED",
-    "Molecular Weight": "CalcExactMolWt",
-    "Number of Aromatic Rings": "CalcNumAromaticRings",
-    "Number of H-bond acceptors": "CalcNumHBA",
-    "Number of H-bond donors": "CalcNumHBD",
-    "Number of Rotatable Bonds": "CalcNumRotatableBonds",
-    "Fraction of C atoms Sp3 hybridised": "CalcFractionCSP3",
-    "Topological Polar Surface Area": "CalcTPSA",
-    "Hall-Kier alpha": "CalcHallKierAlpha",
-    "Hall-Kier kappa 1": "CalcKappa1",
-    "Hall-Kier kappa 2": "CalcKappa2",
-    "Hall-Kier kappa 3": "CalcKappa3",
-    "Kier Phi": "CalcPhi",
-    "logP": "logP",
-    "Binding affinity to dopamine D3 receptor (3PBL)": "3pbl_docking",
-    "Binding affinity to c-Abl kinase domain (1IEP)": "1iep_docking",
-    "Binding affinity to EGFR with hydrazone (2RGP)": "2rgp_docking",
-    "Binding affinity to A2A adenosine receptor (3EML)": "3eml_docking",
-    "Binding affinity to β2-adrenergic receptor (3NY8)": "3ny8_docking",
-    "Binding affinity to HadAB dehydratase (4RLU)": "4rlu_docking",
-    "Binding affinity to MTB TMPK with compound 8 (4UNN)": "4unn_docking",
-    "Binding affinity to ABL1 (T334I/D382N) with asciminib/nilotinib (5MO4)": "5mo4_docking",
-    "Binding affinity to SARS-CoV-2 main protease with compound 5 (7L11)": "7l11_docking",
-}
-
-# for target in DOCKING_TARGETS:
-#     PROPERTIES_NAMES_SIMPLE[
-#         f"Binding affinity against {get_pdb_description(target)} ({target})"
-#     ] = target + "_docking"
+PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {}
+if not os.path.exists(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
+    )
+):
+    PROPERTIES_NAMES_SIMPLE = {
+        "Inhibition against glycogen synthase kinase-3 beta": "GSK3B",
+        "Inhibition against c-Jun N-terminal kinase-3": "JNK3",
+        "Bioactivity against dopamine receptor D2": "DRD2",
+        "Synthetic accessibility": "SA",
+        "Quantitative estimate of drug-likeness": "QED",
+        "Molecular Weight": "CalcExactMolWt",
+        "Number of Aromatic Rings": "CalcNumAromaticRings",
+        "Number of H-bond acceptors": "CalcNumHBA",
+        "Number of H-bond donors": "CalcNumHBD",
+        "Number of Rotatable Bonds": "CalcNumRotatableBonds",
+        "Fraction of C atoms Sp3 hybridised": "CalcFractionCSP3",
+        "Topological Polar Surface Area": "CalcTPSA",
+        "Hall-Kier alpha": "CalcHallKierAlpha",
+        "Hall-Kier kappa 1": "CalcKappa1",
+        "Hall-Kier kappa 2": "CalcKappa2",
+        "Hall-Kier kappa 3": "CalcKappa3",
+        "Kier Phi": "CalcPhi",
+        "logP": "logP",
+    }
+    pool = Pool(8)
+    docking_desc = list(
+        tqdm(
+            pool.imap_unordered(get_pdb_description, DOCKING_TARGETS),
+            total=len(DOCKING_TARGETS),
+            desc="Adding descriptions to docking targets",
+        )
+    )
+    for target, desc in zip(DOCKING_TARGETS, docking_desc):
+        pdb_id = target.split("/")[-1].replace(".pdb", "")
+        PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = (
+            target + "_docking"
+        )
+    with open(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
+        ),
+        "w",
+    ) as f:
+        json.dump(PROPERTIES_NAMES_SIMPLE, f, indent=4)
+else:
+    with open(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
+        )
+    ) as f:
+        PROPERTIES_NAMES_SIMPLE = json.load(f)
 
 
 oracles_not_to_rescale = ["GSK3B", "JNK3", "DRD2"]
