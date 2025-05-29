@@ -88,9 +88,7 @@ if not os.path.exists(
         if not target.endswith(".pdb"):
             target = target + "_docking"
         pdb_id = target.split("/")[-1].replace(".pdb", "")
-        PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = (
-            target + "_docking"
-        )
+        PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = target
     with open(
         os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
