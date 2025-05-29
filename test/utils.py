@@ -3,6 +3,7 @@ from typing import Callable, List
 from mol_gen_docking.reward.oracles import (
     propeties_csv,
     PROPERTIES_NAMES_SIMPLE,
+    DOCKING_TARGETS,
 )
 
 PROP_LIST: List[str] = [
@@ -12,7 +13,10 @@ PROP_LIST: List[str] = [
 ]
 
 DOCKING_PROP_LIST: List[str] = [
-    k for k in PROPERTIES_NAMES_SIMPLE if "docking" in PROPERTIES_NAMES_SIMPLE[k]
+    k
+    for k in PROPERTIES_NAMES_SIMPLE
+    if "docking" in PROPERTIES_NAMES_SIMPLE[k]
+    or PROPERTIES_NAMES_SIMPLE[k] in DOCKING_TARGETS
 ]
 
 SMILES: List[List[str]] = (
