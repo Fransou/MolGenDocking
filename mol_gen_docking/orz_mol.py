@@ -61,7 +61,7 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # resource related settings
     scorer_num_cpus_tot: int = 32
-    scorer_num_threads: int = 2
+    scorer_num_threads: int = scorer_num_cpus_tot // 16
 
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     ref_num_gpus_per_node: int = 1

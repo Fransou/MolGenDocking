@@ -322,6 +322,7 @@ def test_runtime(
     prompts = [build_prompt([property1, property2])] * 16
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
     completions = [property_filler(s, completion) for s in smiles]
+
     worker = (
         ray.remote(RewardScorer)
         .options(num_cpus=16)
