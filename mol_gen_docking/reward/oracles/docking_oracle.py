@@ -77,6 +77,7 @@ class PyscreenerOracle:
             final_score = self.scorer(test_smiles)
             return list(final_score)[0]
         else:
+            print(test_smiles)
             final_score = self.scorer(test_smiles)
             score_lst = []
             for i, smiles in enumerate(test_smiles):
