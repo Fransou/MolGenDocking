@@ -1,4 +1,5 @@
 import os
+import time
 
 from typing import List
 from itertools import product
@@ -234,7 +235,7 @@ def test_multip_prompt_multi_generation(
 
 
 @pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:4])
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST)
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=16
 ):
@@ -267,6 +268,7 @@ def test_properties_single_prompt_vina_reward(
 )
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
     """Test the function molecular_properties with 2 properties."""
+
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
         build_prompt(prop, "maximize")
@@ -297,6 +299,38 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
         val = 1 - (rewards_max - 0.5) ** 2
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
+
+
+@pytest.mark.skipif(
+    os.system("qvina --help") == 32512,
+    reason="requires vina and debug mode",
+)
+@pytest.mark.parametrize(
+    "property1, property2",
+    product(
+        np.random.choice(DOCKING_PROP_LIST, 2),
+        np.random.choice(DOCKING_PROP_LIST, 8),
+    ),
+)
+def test_runtime(
+    property1,
+    property2,
+    smiles,
+    property_scorer,
+    property_filler,
+    build_prompt,
+):
+    completion = "Here is a molecule: [SMILES] what are its properties?"
+    prompts = [build_prompt([property1, property2])] * 16
+    smiles = [[propeties_csv.sample(1)["smiles"].tolist()] for _ in range(16)]
+    completions = [property_filler(s, completion) for s in smiles]
+
+    t0 = time.time()
+    _ = property_scorer(prompts, completions)
+    t1 = time.time()
+
+    # Max for 16 generations should be around 30 seconds
+    assert t1 - t0 < 30, f"Runtime is too long: {t1 - t0} seconds"
 
 
 @pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
