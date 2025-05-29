@@ -77,7 +77,7 @@ if not os.path.exists(
     pool = Pool(8)
     docking_desc = list(
         tqdm(
-            pool.imap_unordered(get_pdb_description, DOCKING_TARGETS),
+            pool.imap(get_pdb_description, DOCKING_TARGETS),
             total=len(DOCKING_TARGETS),
             desc="Adding descriptions to docking targets",
         )
