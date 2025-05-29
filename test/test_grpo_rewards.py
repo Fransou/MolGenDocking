@@ -307,8 +307,8 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(DOCKING_PROP_LIST, 2),
-        np.random.choice(DOCKING_PROP_LIST, 8),
+        np.random.choice(DOCKING_PROP_LIST, 1),
+        np.random.choice(DOCKING_PROP_LIST, 64),
     ),
 )
 def test_runtime(
