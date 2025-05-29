@@ -341,7 +341,9 @@ def test_runtime(
 
     # Max for 16 generations should be around 30 seconds
     assert t1 - t0 < 40, f"Runtime is too long: {t1 - t0} seconds"
-    assert (r > 0).all(), "Some rewards are not positive, check the oracle."
+    assert (torch.tensor(r) > 0).all(), (
+        "Some rewards are not positive, check the oracle."
+    )
 
 
 @pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
