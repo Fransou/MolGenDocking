@@ -315,7 +315,6 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 def test_runtime(
     property1,
     property2,
-    smiles,
     property_scorer,
     property_filler,
     build_prompt,
