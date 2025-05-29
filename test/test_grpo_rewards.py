@@ -321,7 +321,7 @@ def test_runtime(
 ):
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt([property1, property2])] * 16
-    smiles = [[propeties_csv.sample(1)["smiles"].tolist()] for _ in range(16)]
+    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
     completions = [property_filler(s, completion) for s in smiles]
 
     t0 = time.time()
