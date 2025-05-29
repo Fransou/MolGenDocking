@@ -335,12 +335,13 @@ def test_runtime(
 
     t0 = time.time()
     result = worker.get_score.remote(prompts, completions)
-    _ = ray.get(result)
+    r = ray.get(result)
     t1 = time.time()
     print(f"Runtime: {t1 - t0} seconds")
 
     # Max for 16 generations should be around 30 seconds
     assert t1 - t0 < 40, f"Runtime is too long: {t1 - t0} seconds"
+    assert (r > 0).all(), "Some rewards are not positive, check the oracle."
 
 
 @pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
