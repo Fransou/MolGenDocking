@@ -333,11 +333,8 @@ def test_runtime(
     )
 
     t0 = time.time()
-
     result = worker.get_score.remote(prompts, completions)
-    r = ray.get(result)
-    print(r)
-
+    _ = ray.get(result)
     t1 = time.time()
     print(f"Runtime: {t1 - t0} seconds")
 

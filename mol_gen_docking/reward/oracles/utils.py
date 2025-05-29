@@ -25,6 +25,9 @@ def get_pdb_description(pdb_id):
     return pdb_id
 
 
+with open("data/SIU/pockets_info.json") as f:
+    POCKETS_SIU = pd.read_json(f)
+
 DOCKING_TARGETS: List[str] = [
     "3pbl",
     "1iep",
