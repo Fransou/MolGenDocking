@@ -292,7 +292,6 @@ class RewardScorer:
                     f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}"
                 )
                 reward = 0
-            print(reward)
             rewards.append(float(reward))
         return rewards
 
