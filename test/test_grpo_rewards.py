@@ -328,7 +328,7 @@ def test_runtime(
         .options(num_cpus=1)
         .remote(
             parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=16, exhaustiveness=4),
+            oracle_kwargs=dict(ncpu=2, exhaustiveness=4),
         )  # type: ignore
     )
 
