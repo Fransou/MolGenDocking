@@ -328,6 +328,7 @@ def test_runtime(
     r = property_scorer(prompts, completions)
     print(r)
     t1 = time.time()
+    print(f"Runtime: {t1 - t0} seconds")
 
     # Max for 16 generations should be around 30 seconds
     assert t1 - t0 < 30, f"Runtime is too long: {t1 - t0} seconds"
