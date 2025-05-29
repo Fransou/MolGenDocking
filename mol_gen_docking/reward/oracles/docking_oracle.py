@@ -80,6 +80,7 @@ class PyscreenerOracle:
             print(test_smiles)
             final_score = self.scorer(test_smiles)
             score_lst = []
+            print(final_score)
             for i, smiles in enumerate(test_smiles):
                 score = final_score[i]
                 if score is None:
