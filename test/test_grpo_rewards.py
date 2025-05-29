@@ -14,7 +14,6 @@ from mol_gen_docking.reward.oracles import (
     PROPERTIES_NAMES_SIMPLE,
 )
 from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
-from mol_gen_docking.reward.ray_worker import RewardWorker
 
 from .utils import (
     PROP_LIST,
@@ -323,7 +322,11 @@ def test_runtime(
     prompts = [build_prompt([property1, property2])] * 16
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
     completions = [property_filler(s, completion) for s in smiles]
-    worker = RewardWorker.remote()
+    worker = (
+        ray.remote(RewardScorer)
+        .options(num_cpus=16)
+        .remote(num_cpus=2, parse_whole_completion=True)  # type: ignore
+    )
 
     t0 = time.time()
 
@@ -355,7 +358,7 @@ def test_ray(prop, smiles, build_prompt):
 
     worker = (
         ray.remote(RewardScorer)
-        .options(num_cpus=4)
+        .options(num_cpus=16)
         .remote(num_cpus=2, parse_whole_completion=True)  # type: ignore
     )
     result = worker.get_score.remote(prompts, completions)
