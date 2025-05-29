@@ -99,7 +99,6 @@ class OracleWrapper:
             )
 
         score_arr: np.ndarray = np.array(score_list)
-        print(self.name)
         if rescale:
             if (
                 self.name not in oracles_not_to_rescale
@@ -119,5 +118,4 @@ class OracleWrapper:
                 warnings.warn(
                     "Typical values not found for the property. Returning the raw values."
                 )
-        print(score_arr)
         return score_arr
