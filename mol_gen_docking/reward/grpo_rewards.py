@@ -47,7 +47,6 @@ class RewardScorer:
         reward: str = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
-        num_cpus: int = 1,
         oracle_kwargs: Dict[str, Any] = {},
     ):
         self.rescale = rescale
@@ -55,7 +54,6 @@ class RewardScorer:
         self.oracle_kwargs = oracle_kwargs
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
-        self.num_cpus = num_cpus
 
         self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
         if not ray.is_initialized():
@@ -155,7 +153,7 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
-        @ray.remote(num_cpus=self.num_cpus)
+        @ray.remote(num_cpus=1)
         def _get_property(
             smiles: List[str],
             prop: str,

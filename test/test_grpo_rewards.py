@@ -329,7 +329,7 @@ def test_runtime(
         .remote(
             num_cpus=1,
             parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=8, exhaustiveness=8),
+            oracle_kwargs=dict(ncpu=4, exhaustiveness=4),
         )  # type: ignore
     )
 
@@ -363,8 +363,12 @@ def test_ray(prop, smiles, build_prompt):
 
     worker = (
         ray.remote(RewardScorer)
-        .options(num_cpus=16)
-        .remote(num_cpus=2, parse_whole_completion=True)  # type: ignore
+        .options(num_cpus=1)
+        .remote(
+            num_cpus=1,
+            parse_whole_completion=True,
+            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        )  # type: ignore
     )
     result = worker.get_score.remote(prompts, completions)
     _ = ray.get(result)
