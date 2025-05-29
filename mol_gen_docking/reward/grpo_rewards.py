@@ -253,7 +253,7 @@ class RewardScorer:
                     ]
         return df_properties
 
-    def __call__(
+    def get_score(
         self, prompts: List[Any], completions: List[Any], debug: bool = False
     ) -> List[float]:
         """
@@ -297,3 +297,11 @@ class RewardScorer:
 
             rewards.append(float(reward))
         return rewards
+
+    def __call__(
+        self, prompts: List[Any], completions: List[Any], debug: bool = False
+    ) -> List[float]:
+        """
+        Call the scorer to get the rewards.
+        """
+        return self.get_score(prompts, completions, debug=debug)
