@@ -283,7 +283,6 @@ class RewardScorer:
                     & (df_properties["smiles"].isin(smiles))
                 ]["reward"].mean()
                 if self.rescale and not debug:
-                    print("AAA")
                     reward = np.clip(reward, 0, 1)
             else:
                 reward = 0
