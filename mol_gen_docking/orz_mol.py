@@ -200,15 +200,16 @@ class WandbWriter:
 
 class CustomRewardTrainer(RayPPOTrainer):
     def __init__(self, cfg: PPOExpConfig, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
+        self.writer = WandbWriter(cfg)
+
         # Find the directory of the training set:
-        data_path = os.path.dirname(cfg.prompt_data)
+        data_path = os.path.dirname(cfg.prompt_data[0])
         # Open the "names_mapping.json" file and "docking_targets.json" file
         with open(os.path.join(data_path, "names_mapping.json")) as f:
             property_name_mapping = json.load(f)
         with open(os.path.join(data_path, "docking_targets.json")) as f:
             docking_target_list = json.load(f)
-
-        super().__init__(cfg, *args, **kwargs)
         self._reward_properties = (
             ray.remote(RewardScorer)
             .options(num_cpus=1)
@@ -233,8 +234,6 @@ class CustomRewardTrainer(RayPPOTrainer):
                 parse_whole_completion=True,
             )  # type: ignore
         )
-
-        self.writer = WandbWriter(cfg)
 
     async def custom_reward_fn(
         self,
