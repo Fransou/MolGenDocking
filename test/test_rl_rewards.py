@@ -325,6 +325,7 @@ def test_ray(prop, smiles, build_prompt):
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
+            DATA_PATH,
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
         )  # type: ignore
@@ -365,8 +366,7 @@ def test_runtime(
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
-            PROPERTIES_NAMES_SIMPLE,
-            DOCKING_PROP_LIST,
+            DATA_PATH,
             "property",
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=1, exhaustiveness=1),

@@ -9,7 +9,7 @@ from mol_gen_docking.data.rl_dataset import (
 )
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
-from .utils import OBJECTIVES_TO_TEST, PROP_LIST
+from .utils import DATA_PATH, OBJECTIVES_TO_TEST, PROP_LIST
 
 cfg = DatasetConfig(
     data_path="data/mol_orz",
@@ -23,7 +23,7 @@ def test_fill_prompt(props, obj):
     prompt = dataset.fill_prompt([props], [obj])
     assert isinstance(prompt, str)
     assert len(prompt) > 0
-    scorer = RewardScorer("properties")
+    scorer = RewardScorer(DATA_PATH, "properties")
     parsed = scorer.get_mol_props_from_prompt([prompt])[0]
     assert props in parsed
     assert parsed[props][0] == obj.split()[0]
