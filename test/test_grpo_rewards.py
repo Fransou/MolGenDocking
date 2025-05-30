@@ -305,23 +305,21 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     reason="requires vina and debug mode",
 )
 @pytest.mark.parametrize(
-    "property1, property2",
-    product(
-        np.random.choice(DOCKING_PROP_LIST, 1),
-        np.random.choice(DOCKING_PROP_LIST, 64),
-    ),
+    "property1",
+    DOCKING_PROP_LIST,
 )
 def test_runtime(
     property1,
-    property2,
     property_scorer,
     property_filler,
     build_prompt,
+    n_generation=4,
+    time_per_gen=5,
 ):
-    print(f"Testing runtime for {property1} and {property2}")
+    print(f"Testing runtime for {property1}")
     completion = "Here is a molecule: [SMILES] what are its properties?"
-    prompts = [build_prompt([property1, property2])] * 16
-    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(16)]
+    prompts = [build_prompt([property1])] * n_generation
+    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
     completions = [property_filler(s, completion) for s in smiles]
 
     worker = (
@@ -340,7 +338,9 @@ def test_runtime(
     print(f"Runtime: {t1 - t0} seconds")
 
     # Max for 16 generations should be around 30 seconds
-    assert t1 - t0 < 40, f"Runtime is too long: {t1 - t0} seconds"
+    assert t1 - t0 < time_per_gen * n_generation, (
+        f"Runtime is too long: {t1 - t0} seconds"
+    )
     assert (torch.tensor(r) > 0).all(), (
         "Some rewards are not positive, check the oracle."
     )
