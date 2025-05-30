@@ -9,7 +9,7 @@ from tqdm import tqdm
 from multiprocessing import Pool
 
 
-IS_CONNECTED = False
+IS_CONNECTED = True
 SIU_PATH = os.environ.get("SIU_DATA_PATH", os.path.join("data", "SIU"))
 
 
@@ -20,8 +20,9 @@ def get_pdb_description(pdb_id):
 
     # if the url is reachable, the properties are downloaded
     if IS_CONNECTED and os.system(f"curl -s {url}") == 0:
-        response = requests.get(url)
-
+        # response = requests.get(url)
+        # Get response with no verbose
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
             title = data.get("struct", {}).get("title", "No title found")

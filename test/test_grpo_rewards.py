@@ -301,7 +301,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
 
 @pytest.mark.skipif(
-    os.system("qvina --help") == 32512,
+    os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
     reason="requires vina and debug mode",
 )
 @pytest.mark.parametrize(
@@ -344,6 +344,9 @@ def test_runtime(
     assert (torch.tensor(r) > 0).all(), (
         "Some rewards are not positive, check the oracle."
     )
+
+
+### TODO: Find the receptors that have an issue
 
 
 @pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
