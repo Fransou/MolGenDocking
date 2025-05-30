@@ -168,6 +168,7 @@ class RewardScorer:
             Get property reward
             """
             print(prop in self.docking_target_list)
+            print(self.docking_target_list)
             oracle_fn = get_oracle(
                 prop,
                 property_name_mapping=self.property_name_mapping,
