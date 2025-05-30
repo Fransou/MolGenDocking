@@ -9,7 +9,7 @@ from tqdm import tqdm
 from multiprocessing import Pool
 
 
-IS_CONNECTED = True
+IS_CONNECTED = False
 SIU_PATH = os.environ.get("SIU_DATA_PATH", os.path.join("data", "SIU"))
 
 
@@ -50,7 +50,7 @@ DOCKING_TARGETS: List[str] = [
 ] + list(POCKETS_SIU.keys())
 
 PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {}
-if not os.path.exists(
+if True or not os.path.exists(
     os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
     )
