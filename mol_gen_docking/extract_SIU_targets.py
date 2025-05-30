@@ -16,6 +16,9 @@ from typing import Optional
 
 from multiprocessing import Pool
 
+MIN_POCKET_SCORE = 0.5  # Minimum score for a pocket to be considered valid
+MIN_DRUG_SCORE = 0.5
+
 
 class PocketExtractor:
     def __init__(self, save_path: str = "data/SIU"):
@@ -108,7 +111,7 @@ class PocketExtractor:
                     ).lower()[:-1]
                     value = float(prop.split(":")[1].replace(" ", ""))
                     metadata[key] = value
-        return metadata
+        return dict(metadata)
 
     def _get_pdb_file(self, pdb_id: str) -> pd.DataFrame | None:
         path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}.pdb")
@@ -145,7 +148,7 @@ class PocketExtractor:
                 _ = self._get_pdb_file(pdb_id)
                 self.processed_pdb_ids.append(pdb_id)
 
-    def process_fpockets(self, n_cpus: int = 8):
+    def process_fpockets(self, n_cpus: int = 8) -> Dict[str, Dict[str, Any]]:
         """
         Process the downloaded PDB files with fpocket.
         """
@@ -175,9 +178,7 @@ class PocketExtractor:
                     assert pdb_id == pocket_info["pdb_id"]
                     all_pockets_info[pdb_id] = pocket_info
             pool.close()
-
-        with open(os.path.join(self.save_path, "pockets_info.json"), "w") as f:
-            json.dump(all_pockets_info, f, indent=4)
+        return all_pockets_info
 
     def process_pocket_pdb_id(self, pdb_id: str) -> Dict[str, Any] | None:
         pocket_path = os.path.join(
@@ -190,6 +191,13 @@ class PocketExtractor:
             return None
         df_pocket = self.read_pdb_to_dataframe(pocket_path)
         metadata = self.extract_fpocket_metadata(pocket_path)
+        # Filter out pockets with low scores
+        pocket_score = metadata.get("pocket score", 0)
+        drug_score = metadata.get("drug score", 0)
+
+        if pocket_score < MIN_POCKET_SCORE or drug_score < MIN_DRUG_SCORE:
+            return None
+
         coords = self.extract_pockets_coords(df_pocket, pdb_id)
 
         center = (coords.max(0) + coords.min(0)) / 2
@@ -207,4 +215,25 @@ class PocketExtractor:
 if __name__ == "__main__":
     extractor = PocketExtractor()
     target_info = extractor.download_pdb()
-    extractor.process_fpockets()
+    all_pockets_info = extractor.process_fpockets()
+    print(f"Extracted {len(all_pockets_info)} pockets.")
+    with open(os.path.join(extractor.save_path, "pockets_info.json"), "w") as f:
+        json.dump(all_pockets_info, f, indent=4)
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    pocket_scores = [
+        info["metadata"]["pocket score"] for info in all_pockets_info.values()
+    ]
+    sns.histplot(x=pocket_scores)
+    plt.title("Pocket scores distribution")
+    plt.xlabel("Pocket score")
+    plt.ylabel("#n")
+    plt.show()
+    drug_scores = [info["metadata"]["drug score"] for info in all_pockets_info.values()]
+    sns.histplot(x=drug_scores)
+    plt.title("Drug scores distribution")
+    plt.xlabel("Drug score")
+    plt.ylabel("#n")
+    plt.show()
