@@ -1,3 +1,4 @@
+import json
 import os
 import warnings
 from typing import List
@@ -49,7 +50,7 @@ class PyscreenerOracle:
                 path_to_data, "pdb_files", f"{target_name}.pdb"
             )
             with open(os.path.join(path_to_data, "pockets_info.json")) as f:
-                pockets_info = ps.utils.json_load(f)
+                pockets_info = json.load(f)
             box_center = tuple(pockets_info[pdb_id]["center"])
             box_size = tuple(pockets_info[pdb_id]["size"])
 
