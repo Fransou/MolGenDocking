@@ -375,7 +375,6 @@ class MolGenerationInstructionsDataset:
                 break
 
             if eval_name != "":  # Generate a prompt for training
-                prompt[0]["metadata"] = metadata
                 yield prompt, completions, metadata
             else:  # Generate a prompt for evaluation
                 new_prompt: Dict[str, Any] = {}
@@ -384,7 +383,6 @@ class MolGenerationInstructionsDataset:
                     prompt[1].get("ground_truth", {}).get("value", "")
                 )
                 new_prompt["file_name"] = eval_name
-                new_prompt["metadata"] = metadata
                 yield new_prompt, completions, metadata
 
     def generate_prompt_json(

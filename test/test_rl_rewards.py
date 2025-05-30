@@ -247,7 +247,7 @@ def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=16
 ):
     """Test the function molecular_properties with 2 properties."""
-    prompts = [build_prompt(PROPERTIES_NAMES_SIMPLE[target])] * n_generations
+    prompts = [build_prompt(target)] * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
         for k in range(n_generations)
@@ -352,7 +352,7 @@ def test_runtime(
     property_scorer = scorers["property"]
     property_filler = get_fill_completions(property_scorer.parse_whole_completion)
 
-    dataset_cls = MolGenerationInstructionsDataset()
+    dataset_cls = MolGenerationInstructionsDataset(cfg)
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
