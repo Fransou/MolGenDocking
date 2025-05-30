@@ -177,9 +177,9 @@ class RewardScorer:
             """
             oracle_fn = get_oracle(
                 prop,
-                path_to_data=self.property_name_mapping,
+                path_to_data=self.path_to_mappings if self.path_to_mappings else "",
                 docking_target_list=self.docking_target_list,
-                path_to_mappings=self.path_to_mappings,
+                property_name_mapping=self.property_name_mapping,
                 **kwargs,
             )
             property_reward = oracle_fn(smiles, rescale=rescale)
