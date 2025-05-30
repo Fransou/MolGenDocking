@@ -18,7 +18,7 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--n-prompts",
         type=int,
-        default=128,
+        default=30000,
         help="The number of prompts to generate",
     )
     parser.add_argument("--vina", action="store_true", dest="vina")
