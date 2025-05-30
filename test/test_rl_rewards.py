@@ -367,6 +367,9 @@ def test_runtime(
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
+            PROPERTIES_NAMES_SIMPLE,
+            DOCKING_PROP_LIST,
+            "property",
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
         )  # type: ignore
