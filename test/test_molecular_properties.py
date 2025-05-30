@@ -1,15 +1,15 @@
-from typing import List
 import os
+from typing import List
 
 import numpy as np
 import pytest
-from tdc import single_pred
 from rdkit.Chem import rdMolDescriptors
+from tdc import single_pred
 
-from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
+from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
-from .utils import PROP_LIST
+from .utils import DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE
 
 
 def is_rdkit_use(name: str):
@@ -53,7 +53,7 @@ def rdkit_oracle(request) -> RDKITOracle:
 
 @pytest.fixture(params=PROP_LIST)
 def oracle(request):
-    return get_oracle(request.param)
+    return get_oracle(request.param, PROPERTIES_NAMES_SIMPLE, DOCKING_PROP_LIST)
 
 
 def test_RDKITOracle(rdkit_oracle, smiles_data):
@@ -85,7 +85,9 @@ def test_vina(smiles_data):
     Tests the oracle with vina
     """
     oracle = get_oracle(
-        "3pbl_docking_vina",
+        "3pbl_docking",
+        PROPERTIES_NAMES_SIMPLE,
+        DOCKING_PROP_LIST,
         ncpu=1,
         exhaustiveness=1,
     )

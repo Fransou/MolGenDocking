@@ -1,14 +1,14 @@
 import os
 import warnings
 from typing import List
-import ray
 
 import pyscreener as ps
-
+import ray
+from pyscreener.docking.vina.utils import Software
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
-from pyscreener.docking.vina.utils import Software
+from mol_gen_docking.reward.property_utils.docking import POCKETS_SIU, SIU_PATH
 
 
 class PyscreenerOracle:
@@ -34,14 +34,24 @@ class PyscreenerOracle:
             )
 
         self.name = "[DOCKING]-" + target_name
-        if not os.path.isfile(target_name):
+        if (
+            not os.path.isfile(target_name)
+            and target_name.endswith("docking")
+            or target_name.endswith("docking_vina")
+        ):
             pdbid = target_name.split("_")[0]
             receptor_load(pdbid)
             receptor_pdb_file = "./oracle/" + pdbid + ".pdbqt"
             box_center = docking_target_info[pdbid]["center"]
             box_size = tuple([s for s in docking_target_info[pdbid]["size"]])
         else:
-            raise NotImplementedError
+            pdb_id = target_name
+            assert pdb_id in POCKETS_SIU
+            receptor_pdb_file = os.path.join(
+                SIU_PATH, "pdb_files", f"{target_name}.pdb"
+            )
+            box_center = tuple(POCKETS_SIU[pdb_id]["center"])
+            box_size = tuple(POCKETS_SIU[pdb_id]["size"])
 
         if not ray.is_initialized():
             ray.init()

@@ -1,17 +1,16 @@
 """Base class for the trainer."""
 
-import os
-import json
 import argparse
 import functools
-from typing import Tuple, Optional
+import json
+import os
+from typing import Optional, Tuple
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 from datasets import Dataset
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType
-
-from torch.profiler import profile, record_function, ProfilerActivity
+from torch.profiler import ProfilerActivity, profile, record_function
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
 
 
 def torch_profiler_decorator(func):

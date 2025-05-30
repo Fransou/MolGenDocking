@@ -92,13 +92,13 @@ class MolTrainerParser:
         self.add_argument(
             "--model_name",
             type=str,
-            default="Qwen/Qwen2-0.5B-Instruct",
+            default="Qwen/Qwen2.5-0.5B",
             help="The model name to train",
         )
         self.add_argument(
             "--lora-config",
             type=json.loads,
-            default={"r": 64, "lora_alpha": 32, "lora_dropout": 0.0},
+            default={"r": 16, "lora_alpha": 32, "lora_dropout": 0.0},
             help="The LoRA configuration to use",
         )
         self.add_argument(

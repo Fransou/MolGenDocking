@@ -14,26 +14,26 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Awaitable, Callable, List, Optional, Tuple, Dict
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import ray
 import torch
+import wandb
 from loguru import logger
 from omegaconf.listconfig import ListConfig
-from typing_extensions import override
-
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
 from orz.ppo.utils import check_reflection_pattern
+from rdkit import Chem
+from typing_extensions import override
 
 from mol_gen_docking.playground.zero_setting_base import (
-    EvalCustomDataset,
     CustomDataset,
+    EvalCustomDataset,
 )
-from mol_gen_docking.reward.ray_worker import RewardWorker, RewardWorkerValid
-import wandb
+from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
@@ -55,29 +55,37 @@ class PPOExpConfig(BasePPOExpConfig):
     use_orm_score: bool = False
 
     # Conditional settings with production values first
-    total_num_nodes: int = 2
+    num_gpus_per_node: int = 4
+    num_nodes: int = 1
 
     # resource related settings
-    ref_num_nodes: int = total_num_nodes
+    scorer_ncpus: int = 4
+    scorer_exhaustivness: int = 1  # TODO change to 4
+
+    ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     ref_num_gpus_per_node: int = 1
-    actor_num_nodes: int = total_num_nodes
+    actor_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     actor_num_gpus_per_node: int = 1
-    critic_num_nodes: int = total_num_nodes
+    critic_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
     critic_num_gpus_per_node: int = 1
-    colocate_all: bool = False
+    reward_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
+    reward_num_gpus_per_node: int = 1
+    colocate_all: bool = DEBUG_MODE
     colocate_critic_reward: bool = True
     colocate_actor_ref: bool = True
-    vllm_num_engines: int = total_num_nodes
+    vllm_num_engines: int = (
+        num_nodes * (2 * num_gpus_per_node // 4) if not DEBUG_MODE else 1
+    )
     vllm_tensor_parallel_size: int = 1
     adam_offload: bool = False
     zero_stage: int = 3
 
     # path related settings
-    pretrain: Optional[str] = "Qwen/Qwen2.5-0.5B"
+    pretrain: Optional[str] = "SFT_SMOL/model"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
-    ckpt_path: str = f"orz_ckpt/{file_name}"
-    save_path: str = f"orz_ckpt/{file_name}"
+    ckpt_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
+    save_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
     tensorboard_log_dir: str = f"orz_logs/{file_name}"
 
     # MathTrain dataset and Math500 eval dataset
@@ -104,7 +112,7 @@ class PPOExpConfig(BasePPOExpConfig):
     num_episodes: int = 20
     rollout_batch_size: int = 128 if not DEBUG_MODE else 4
     n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
-    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 16
+    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 4
 
     policy_update_steps: int = 1
     critic_update_steps: int = 12 if not DEBUG_MODE else 1
@@ -133,7 +141,7 @@ class PPOExpConfig(BasePPOExpConfig):
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.75
+    gpu_memory_utilization: float = 0.9
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
@@ -180,7 +188,7 @@ class WandbWriter:
         )
 
     def upload_table(self, table_name):
-        if self.tables[table_name].step.max() % 100 == 0:
+        if self.tables[table_name].step.max() % 50 == 0:
             wandb.log({table_name: wandb.Table(dataframe=self.tables[table_name])})
 
     def flush(self):
@@ -192,9 +200,39 @@ class WandbWriter:
 
 class CustomRewardTrainer(RayPPOTrainer):
     def __init__(self, cfg: PPOExpConfig, *args, **kwargs):
+        # Find the directory of the training set:
+        data_path = os.path.dirname(cfg.prompt_data)
+        # Open the "names_mapping.json" file and "docking_targets.json" file
+        with open(os.path.join(data_path, "names_mapping.json")) as f:
+            property_name_mapping = json.load(f)
+        with open(os.path.join(data_path, "docking_targets.json")) as f:
+            docking_target_list = json.load(f)
+
         super().__init__(cfg, *args, **kwargs)
-        self._reward_properties = RewardWorker.remote()  # type: ignore
-        self._reward_valid_smiles = RewardWorkerValid.remote()  # type: ignore
+        self._reward_properties = (
+            ray.remote(RewardScorer)
+            .options(num_cpus=1)
+            .remote(
+                property_name_mapping=property_name_mapping,
+                docking_target_list=docking_target_list,
+                parse_whole_completion=True,
+                oracle_kwargs=dict(
+                    exhaustiveness=cfg.scorer_exhaustivness,
+                    ncpu=cfg.scorer_ncpus,
+                ),
+            )  # type: ignore
+        )
+
+        self._reward_valid_smiles = self._reward_properties = (
+            ray.remote(RewardScorer)
+            .options(num_cpus=1)
+            .remote(
+                property_name_mapping=property_name_mapping,
+                docking_target_list=docking_target_list,
+                reward_type="valid_smiles",
+                parse_whole_completion=True,
+            )  # type: ignore
+        )
 
         self.writer = WandbWriter(cfg)
 
@@ -244,19 +282,21 @@ class CustomRewardTrainer(RayPPOTrainer):
             responses, self.cfg.generate_max_len, padding=False
         )["input_ids"]
 
-        self.writer.update_table(
-            "generations",
-            self.global_step,
-            data={
-                "prompts": prompts[0],
-                "outputs": outputs[0]["response"],
-                "final_answer": outputs[0]["final_answer"],
-                "stop_reason": outputs[0]["stop_reason"],
-                "response_token": len(output_tokens[0]),
-                "mol_score": mol_scores[0],
-                "valid_score": valid_scores[0],
-            },
-        )
+        n_logs = min(len(prompts), 128)
+        for i in range(n_logs):
+            self.writer.update_table(
+                "generations",
+                self.global_step,
+                data={
+                    "prompts": prompts[i],
+                    "outputs": outputs[i]["response"],
+                    "final_answer": outputs[i]["final_answer"],
+                    "stop_reason": outputs[i]["stop_reason"],
+                    "response_token": len(output_tokens[i]),
+                    "mol_score": mol_scores[i],
+                    "valid_score": valid_scores[i],
+                },
+            )
         self.writer.upload_table("generations")
         for idx in range(len(outputs)):
             prompt, output, out_token = prompts[idx], outputs[idx], output_tokens[idx]
@@ -340,7 +380,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             "avg_valid_score": sum(valid_scores) / len(prompts),
             "avg_reflection_pattern_score": sum(reflection_pattern_scores)
             / len(prompts),
-            "avg_pass_at_n": sum(1 for v in pass_at_n_dict.values() if np.sum(v) > 0)
+            "avg_pass_at_n": np.mean([np.max(v) for v in pass_at_n_dict.values()])
             / len(pass_at_n_dict),
             "avg_num_tokens": np.mean(num_tokens_arr).item(),
             "std_num_tokens": np.std(num_tokens_arr).item(),
@@ -419,20 +459,43 @@ class CustomRewardTrainer(RayPPOTrainer):
             truncate_prompt=True,  # type: ignore
         )
 
-        @ray.remote(num_cpus=1)  # TODO
+        @ray.remote(num_cpus=1)
         def extract_final_answers_batch(responses: List[str]) -> List[Any | str]:
             # pattern = re.compile(r"(\\boxed{.*})")
-            pattern = re.compile(r"<answer>.*?(\\boxed{.*}).*?</answer>", re.DOTALL)
-            results = []
-            for response in responses:
-                matches = re.findall(pattern, response)
-                results.append(matches[-1] if matches else "")
-            return results
+            final_answers = []
+            for comp in responses:
+                re.split("\n| |.", comp)
+                # Then we filter by removing any string that does not contain "C"
+                s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+                # Finally we remove any string that is not a valid SMILES
+                s_spl = [x + " - " for x in s_poss if Chem.MolFromSmiles(x) is not None]
+
+                final_answers.append("".join(s_spl))
+            return final_answers
+
+        BATCH_SIZE = 16
+        num_batches = (len(responses) + BATCH_SIZE - 1) // BATCH_SIZE
+        extract_tasks = []
+        for i in range(num_batches):
+            start_idx = i * BATCH_SIZE
+            end_idx = min((i + 1) * BATCH_SIZE, len(responses))
+            batch = responses[start_idx:end_idx]
+            extract_tasks.append(extract_final_answers_batch.remote(batch))  # type: ignore
+        batched_results = await asyncio.gather(
+            *[asyncio.to_thread(ray.get, task) for task in extract_tasks]
+        )
+        final_answers = [answer for batch in batched_results for answer in batch]
 
         results = []
-        for extra, response, stop_reason in zip(extras, responses, stop_reasons):
+        for extra, response, stop_reason, final_answer in zip(
+            extras, responses, stop_reasons, final_answers
+        ):
             results.append(
-                dict(response=response, stop_reason=stop_reason, final_answer=response)
+                dict(
+                    response=response,
+                    stop_reason=stop_reason,
+                    final_answer=final_answer,
+                )
             )
 
         return results
