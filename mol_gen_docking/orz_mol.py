@@ -230,7 +230,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             .remote(
                 property_name_mapping=property_name_mapping,
                 docking_target_list=docking_target_list,
-                reward_type="valid_smiles",
+                reward="valid_smiles",
                 parse_whole_completion=True,
             )  # type: ignore
         )
