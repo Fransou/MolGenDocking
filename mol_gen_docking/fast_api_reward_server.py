@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
 
+import torch
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 logger = init_logger(__name__)

@@ -9,6 +9,8 @@ from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import numpy as np
 from numpy import random
+from tmtools import tm_align
+from tmtools.io import get_residue_data, get_structure
 from tqdm import tqdm
 
 from mol_gen_docking.reward.property_utils.classical_properties import (
@@ -192,9 +194,6 @@ class MolGenerationInstructionsDataset:
     def _get_similarity_matrix(
         self, i0: int, i1: int, path: str
     ) -> Dict[str, Dict[str, float]]:
-        from tmtools import tm_align
-        from tmtools.io import get_residue_data, get_structure
-        
         pdb_ids_list0 = [
             self.prop_name_mapping[p]
             for p in self.docking_properties_split[i0]
