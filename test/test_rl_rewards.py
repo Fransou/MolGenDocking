@@ -300,55 +300,6 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     property_scorer.rescale = False
 
 
-@pytest.mark.skipif(
-    os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
-    reason="requires vina and debug mode",
-)
-@pytest.mark.parametrize(
-    "property1",
-    DOCKING_PROP_LIST,
-)
-def test_runtime(
-    property1,
-    property_scorer,
-    property_filler,
-    build_prompt,
-    n_generation=4,
-    time_per_gen=5,
-):
-    print(f"Testing runtime for {property1}")
-    completion = "Here is a molecule: [SMILES] what are its properties?"
-    prompts = [build_prompt([property1])] * n_generation
-    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
-    completions = [property_filler(s, completion) for s in smiles]
-
-    worker = (
-        ray.remote(RewardScorer)
-        .options(num_cpus=1)
-        .remote(
-            parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-        )  # type: ignore
-    )
-
-    t0 = time.time()
-    result = worker.get_score.remote(prompts, completions)
-    r = ray.get(result)
-    t1 = time.time()
-    print(f"Runtime: {t1 - t0} seconds")
-
-    # Max for 16 generations should be around 30 seconds
-    assert t1 - t0 < time_per_gen * n_generation, (
-        f"Runtime is too long: {t1 - t0} seconds"
-    )
-    assert (torch.tensor(r) > 0).all(), (
-        "Some rewards are not positive, check the oracle."
-    )
-
-
-### TODO: Find the receptors that have an issue
-
-
 @pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize(
     "prop, smiles",
@@ -374,3 +325,55 @@ def test_ray(prop, smiles, build_prompt):
     )
     result = worker.get_score.remote(prompts, completions)
     _ = ray.get(result)
+
+
+@pytest.mark.skipif(
+    os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
+    reason="requires vina and debug mode",
+)
+@pytest.mark.parametrize(
+    "property1",
+    DOCKING_PROP_LIST,
+)
+def test_runtime(
+    property1,
+    n_generation=4,
+    time_per_gen=5,
+):
+    print(f"Testing runtime for {property1}")
+    property_scorer = scorers["property"]
+    property_filler = get_fill_completions(property_scorer.parse_whole_completion)
+
+    dataset_cls = MolGenerationInstructionsDataset()
+
+    def build_prompt(property1):
+        """Build a prompt for the given property."""
+        return dataset_cls.fill_prompt([property1], ["maximize"])
+
+    completion = "Here is a molecule: [SMILES] what are its properties?"
+    prompts = [build_prompt(property1)] * n_generation
+    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
+    completions = [property_filler(s, completion) for s in smiles]
+
+    worker = (
+        ray.remote(RewardScorer)
+        .options(num_cpus=1)
+        .remote(
+            parse_whole_completion=True,
+            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        )  # type: ignore
+    )
+
+    t0 = time.time()
+    result = worker.get_score.remote(prompts, completions)
+    r = ray.get(result)
+    t1 = time.time()
+    print(f"Runtime: {t1 - t0} seconds")
+
+    # Max for 16 generations should be around 30 seconds
+    assert t1 - t0 < time_per_gen * n_generation, (
+        f"Runtime is too long: {t1 - t0} seconds"
+    )
+    assert (torch.tensor(r) > 0).all(), (
+        "Some rewards are not positive, check the oracle."
+    )
