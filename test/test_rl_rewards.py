@@ -338,10 +338,7 @@ def test_ray(prop, smiles, build_prompt):
     os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
     reason="requires vina and debug mode",
 )
-@pytest.mark.parametrize(
-    "property1",
-    DOCKING_PROP_LIST[:10],
-)
+@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
 def test_runtime(
     property1,
     n_generation=4,
