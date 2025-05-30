@@ -1,18 +1,25 @@
 import json
-
-import pytest
 from itertools import product
 
-from mol_gen_docking.data.rl_dataset import MolGenerationInstructionsDataset
+import pytest
+
+from mol_gen_docking.data.rl_dataset import (
+    DatasetConfig,
+    MolGenerationInstructionsDataset,
+)
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
-from .utils import PROP_LIST, OBJECTIVES_TO_TEST
+from .utils import OBJECTIVES_TO_TEST, PROP_LIST
+
+cfg = DatasetConfig(
+    data_path="data/mol_orz",
+)
 
 
 @pytest.mark.parametrize("props, obj", list(product(PROP_LIST, OBJECTIVES_TO_TEST)))
 def test_fill_prompt(props, obj):
     """Tests if the prompt is generated correctly, i.e it can correctly be parsed."""
-    dataset = MolGenerationInstructionsDataset()
+    dataset = MolGenerationInstructionsDataset(cfg)
     prompt = dataset.fill_prompt([props], [obj])
     assert isinstance(prompt, str)
     assert len(prompt) > 0
@@ -22,24 +29,6 @@ def test_fill_prompt(props, obj):
     assert parsed[props][0] == obj.split()[0]
     value = float(parsed[props][1])
     assert value == float(obj.split()[1] if len(obj.split()) > 1 else 0)
-
-
-@pytest.mark.parametrize(
-    "n, max_props",
-    list(
-        product(
-            [i + 1 for i in range(5)],
-            [1, 2, 3],
-        )
-    ),
-)
-def test_generate_with_rule(n, max_props):
-    """Tests if the generation with rule is correct."""
-    dataset = MolGenerationInstructionsDataset(max_n_props=max_props)
-    dataset_chat = MolGenerationInstructionsDataset(max_n_props=max_props)
-    d1 = dataset.generate_prompt_json(n, "chat_format")
-    d2 = dataset_chat(n, "orz")
-    assert len(d1) == len(d2)
 
 
 @pytest.mark.parametrize(

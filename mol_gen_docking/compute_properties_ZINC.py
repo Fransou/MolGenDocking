@@ -1,14 +1,15 @@
 import argparse
 from typing import List
+
+from multiprocess import Pool
+from tdc.generation import MolGen
 from tqdm import tqdm
 
-from tdc.generation import MolGen
-from multiprocess import Pool
-
-from mol_gen_docking.reward.oracles import (
-    PROPERTIES_NAMES_SIMPLE,
+from mol_gen_docking.reward.oracle_wrapper import (
     get_oracle,
-    DOCKING_TARGETS,
+)
+from mol_gen_docking.reward.property_utils.classical_properties import (
+    CLASSICAL_PROPERTIES_NAMES,
 )
 
 
@@ -62,26 +63,24 @@ if __name__ == "__main__":
         molgen["smiles"].tolist()[i * args.batch_size : (i + 1) * args.batch_size]
         for i in range(len(molgen) // args.batch_size)
     ]
-    for i_name, oracle_name in enumerate(PROPERTIES_NAMES_SIMPLE.values()):
-        oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-        if oracle_name in DOCKING_TARGETS:
-            continue
-        else:
-            oracle = get_oracle(oracle_name)
-            pool = Pool(16)
+    for i_name, oracle_name in enumerate(CLASSICAL_PROPERTIES_NAMES.values()):
+        oracle_name = CLASSICAL_PROPERTIES_NAMES.get(oracle_name, oracle_name)
 
-            def get_property(batch: List[str]) -> dict:
-                """Get the property for a batch of SMILES strings."""
-                props = oracle(batch)
-                return {smi: prop for smi, prop in zip(batch, props)}
+        oracle = get_oracle(oracle_name, CLASSICAL_PROPERTIES_NAMES, [])
+        pool = Pool(16)
 
-            props_pbar = tqdm(
-                pool.imap_unordered(get_property, smiles_batches),
-                total=len(smiles_batches),
-                desc=f"[{i_name}/{len(PROPERTIES_NAMES_SIMPLE)}] | Calculating {oracle_name}",
-            )
+        def get_property(batch: List[str]) -> dict:
+            """Get the property for a batch of SMILES strings."""
+            props = oracle(batch)
+            return {smi: prop for smi, prop in zip(batch, props)}
 
-            props = {k: v for d in props_pbar for k, v in d.items()}
+        props_pbar = tqdm(
+            pool.imap_unordered(get_property, smiles_batches),
+            total=len(smiles_batches),
+            desc=f"[{i_name}/{len(CLASSICAL_PROPERTIES_NAMES)}] | Calculating {oracle_name}",
+        )
+
+        props = {k: v for d in props_pbar for k, v in d.items()}
 
         molgen[oracle_name] = molgen["smiles"].map(props)
 

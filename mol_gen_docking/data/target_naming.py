@@ -1,17 +1,15 @@
-import os
-from typing import List
-import pandas as pd
-import requests
-
-
 import re
+from multiprocessing import Pool
+from typing import Dict, List
 
+import requests
+from tqdm import tqdm
 
-SIU_PATH = os.environ.get("SIU_DATA_PATH", os.path.join("data", "SIU"))
+from mol_gen_docking.reward.property_utils.classical_properties import (
+    CLASSICAL_PROPERTIES_NAMES,
+)
 
-
-with open(os.path.join(SIU_PATH, "pockets_info.json")) as f:
-    POCKETS_SIU = pd.read_json(f)
+IS_CONNECTED = True
 
 
 def get_pdb_description(pdb_id: str) -> str | None:
@@ -95,18 +93,22 @@ def get_pdb_description(pdb_id: str) -> str | None:
         return None
 
 
-with open(os.path.join(SIU_PATH, "pockets_info.json")) as f:
-    POCKETS_SIU = pd.read_json(f)
+def get_names_mapping(docking_targets: List[str], n_proc: int = 8) -> Dict[str, str]:
+    names_mapping: Dict[str, str] = {}
+    pool = Pool(8)
+    docking_desc = list(
+        tqdm(
+            pool.imap(get_pdb_description, docking_targets),
+            total=len(docking_targets),
+            desc="Adding descriptions to docking targets",
+        )
+    )
+    for pdb_id, desc in zip(docking_targets, docking_desc):
+        if desc is not None:
+            names_mapping[f"Binding affinity against {desc} ({pdb_id})"] = pdb_id
 
-
-DOCKING_TARGETS: List[str] = [
-    "3pbl_docking",
-    "1iep_docking",
-    "2rgp_docking",
-    "3eml_docking",
-    "3ny8_docking",
-    "4rlu_docking",
-    "4unn_docking",
-    "5mo4_docking",
-    "7l11_docking",
-] + [k for k in POCKETS_SIU.keys()]
+    pool.close()
+    # Add classical properties
+    for k, v in CLASSICAL_PROPERTIES_NAMES.items():
+        names_mapping[k] = v
+    return names_mapping

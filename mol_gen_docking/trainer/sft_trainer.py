@@ -1,11 +1,11 @@
 """Trainer callable for SFT."""
 
 import argparse
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
-from trl import SFTTrainer, SFTConfig, setup_chat_format
-from peft import get_peft_model
 from datasets import Dataset, concatenate_datasets
+from peft import get_peft_model
+from trl import SFTConfig, SFTTrainer, setup_chat_format
 
 from mol_gen_docking.data.sft_data import InstructionDatasetProcessor
 from mol_gen_docking.trainer.trainer_base import MolTrainer

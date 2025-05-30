@@ -1,19 +1,18 @@
 """Rewards for the RL task."""
 
-from typing import List, Any, Tuple, Dict
 import re
+from typing import Any, Dict, List, Tuple
 
-import torch
-import pandas as pd
 import numpy as np
-
-from rdkit import Chem
+import pandas as pd
 import ray
+import torch
+from rdkit import Chem
 
-from mol_gen_docking.reward.oracles import (
+from mol_gen_docking.reward.oracle_wrapper import (
     get_oracle,
-    OBJECTIVES_TEMPLATES,
 )
+from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 
 def template_to_regex(template: str) -> str:
@@ -44,11 +43,16 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
 class RewardScorer:
     def __init__(
         self,
+        property_name_mapping: Dict[str, str] = {},
+        docking_target_list: List[str] = [],
         reward: str = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
     ):
+        self.property_name_mapping = property_name_mapping
+        self.docking_target_list = docking_target_list
+
         self.rescale = rescale
         self.reward = reward
         self.oracle_kwargs = oracle_kwargs
@@ -163,7 +167,12 @@ class RewardScorer:
             """
             Get property reward
             """
-            oracle_fn = get_oracle(prop, **kwargs)
+            oracle_fn = get_oracle(
+                prop,
+                property_name_mapping=self.property_name_mapping,
+                docking_target_list=self.docking_target_list,
+                **kwargs,
+            )
             property_reward = oracle_fn(smiles, rescale=rescale)
             return property_reward
 

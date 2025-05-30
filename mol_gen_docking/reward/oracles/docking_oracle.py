@@ -1,14 +1,12 @@
 import os
 import warnings
 from typing import List
-import ray
 
 import pyscreener as ps
-
+import ray
+from pyscreener.docking.vina.utils import Software
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
-
-from pyscreener.docking.vina.utils import Software
 
 from mol_gen_docking.reward.property_utils.docking import POCKETS_SIU, SIU_PATH
 

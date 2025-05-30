@@ -1,7 +1,6 @@
 from typing import List
 
 from jinja2 import Template
-
 from orz.ppo import PromptDataset
 
 

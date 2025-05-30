@@ -14,25 +14,24 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Awaitable, Callable, List, Optional, Tuple, Dict
-import wandb
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import ray
 import torch
+import wandb
 from loguru import logger
 from omegaconf.listconfig import ListConfig
-from typing_extensions import override
-from rdkit import Chem
-
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
 from orz.ppo.utils import check_reflection_pattern
+from rdkit import Chem
+from typing_extensions import override
 
 from mol_gen_docking.playground.zero_setting_base import (
-    EvalCustomDataset,
     CustomDataset,
+    EvalCustomDataset,
 )
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -201,11 +200,21 @@ class WandbWriter:
 
 class CustomRewardTrainer(RayPPOTrainer):
     def __init__(self, cfg: PPOExpConfig, *args, **kwargs):
+        # Find the directory of the training set:
+        data_path = os.path.dirname(cfg.prompt_data)
+        # Open the "names_mapping.json" file and "docking_targets.json" file
+        with open(os.path.join(data_path, "names_mapping.json")) as f:
+            property_name_mapping = json.load(f)
+        with open(os.path.join(data_path, "docking_targets.json")) as f:
+            docking_target_list = json.load(f)
+
         super().__init__(cfg, *args, **kwargs)
         self._reward_properties = (
             ray.remote(RewardScorer)
             .options(num_cpus=1)
             .remote(
+                property_name_mapping=property_name_mapping,
+                docking_target_list=docking_target_list,
                 parse_whole_completion=True,
                 oracle_kwargs=dict(
                     exhaustiveness=cfg.scorer_exhaustivness,
@@ -217,7 +226,12 @@ class CustomRewardTrainer(RayPPOTrainer):
         self._reward_valid_smiles = self._reward_properties = (
             ray.remote(RewardScorer)
             .options(num_cpus=1)
-            .remote(reward_type="valid_smiles", parse_whole_completion=True)  # type: ignore
+            .remote(
+                property_name_mapping=property_name_mapping,
+                docking_target_list=docking_target_list,
+                reward_type="valid_smiles",
+                parse_whole_completion=True,
+            )  # type: ignore
         )
 
         self.writer = WandbWriter(cfg)

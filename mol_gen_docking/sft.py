@@ -3,9 +3,9 @@
 import os
 
 import submitit
-from mol_gen_docking.utils.parser import MolTrainerParser
-from mol_gen_docking.trainer.sft_trainer import SFTMolTrainer
 
+from mol_gen_docking.trainer.sft_trainer import SFTMolTrainer
+from mol_gen_docking.utils.parser import MolTrainerParser
 
 if __name__ == "__main__":
     mol_parser = MolTrainerParser(

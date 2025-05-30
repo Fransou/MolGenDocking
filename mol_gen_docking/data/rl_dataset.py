@@ -1,21 +1,22 @@
 """Dataset for generating prompts for molecule generation"""
 
-from typing import Iterator, Tuple, Dict, List, Any, Union
+import json
+import logging
+import os
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import numpy as np
 from numpy import random
 from tqdm import tqdm
-from dataclasses import dataclass, field
 
-from mol_gen_docking.reward.oracles import (
-    PROPERTIES_NAMES_SIMPLE,
+from mol_gen_docking.reward.property_utils.classical_properties import (
+    CLASSICAL_PROPERTIES_NAMES,
+)
+from mol_gen_docking.reward.utils import (
     OBJECTIVES_TEMPLATES,
     PROMPT_TEMPLATE,
-    DOCKING_TARGETS,
 )
-from mol_gen_docking.reward.property_utils.docking import POCKETS_SIU
-
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -79,6 +80,9 @@ class RuleSet:
         # Update occurrences
         self.prompt_ids[n_props].append(metadata["prompt_id"])
         for prop in properties:
+            # Only account for docking targets
+            if prop in CLASSICAL_PROPERTIES_NAMES.values():
+                continue
             self.n_occ_prop[n_props][prop] += 1
             if self.n_occ_prop[n_props][prop] >= self.max_docking_per_prompt:
                 # If we have too many docking properties, we prohibit this property for this n_props
@@ -98,33 +102,55 @@ class RuleSet:
         self.prohibited_props_at_n = {}
 
 
+@dataclass
+class DatasetConfig:
+    """Configuration for the MolGenerationInstructionsDataset"""
+
+    data_path: str
+    max_n_props: int = 5
+    vina: bool = False
+    split_docking: List[float] = field(default_factory=lambda: [1])
+    probs_docking_targets: float = 0.5
+    max_occ: int = 10
+    max_docking_per_prompt: int = 2
+
+
 class MolGenerationInstructionsDataset:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
     def __init__(
-        self, max_n_props: int = 5, vina: bool = False, split_docking: List[float] = [1]
+        self,
+        config: DatasetConfig,
     ):
         """
         :param max_n_props: Maximal number of properties to optimize
         """
-        self.max_n_props = max_n_props
+        self.docking_targets: List[str] = []
+        self.prop_name_mapping: Dict[str, str] = {}
+        self.pockets_info: Dict[str, Any] = {}
+
+        self.load_props(config.data_path)
+        self.max_n_props = config.max_n_props
+
         self.std_properties: List[str] = [
             k
-            for k in PROPERTIES_NAMES_SIMPLE
-            if PROPERTIES_NAMES_SIMPLE[k] not in DOCKING_TARGETS
+            for k in self.prop_name_mapping
+            if self.prop_name_mapping[k] not in self.docking_targets
         ]
         self.docking_properties: List[str] = []
-        self.docking_properties_split: List[List[str]] = [[]] * len(split_docking)
-        if vina:
+        self.docking_properties_split: List[List[str]] = [[]] * len(
+            config.split_docking
+        )
+        if config.vina:
             # shuffle the docking properties
             self.docking_properties = [
                 k
-                for k in PROPERTIES_NAMES_SIMPLE
-                if PROPERTIES_NAMES_SIMPLE[k] in DOCKING_TARGETS
+                for k in self.prop_name_mapping
+                if self.prop_name_mapping[k] in self.docking_targets
             ]
             np.random.shuffle(self.docking_properties)
             i0 = 0
-            for idx, p in enumerate(split_docking):
+            for idx, p in enumerate(config.split_docking):
                 i1 = i0 + int(len(self.docking_properties) * p)
                 i1 = min(i1, len(self.docking_properties))
                 self.docking_properties_split[idx] = self.docking_properties[i0:i1]
@@ -132,8 +158,35 @@ class MolGenerationInstructionsDataset:
 
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
         self.templates: List[str] = PROMPT_TEMPLATE
-        self.prop_key_list = list(PROPERTIES_NAMES_SIMPLE.keys())
-        self.rule_set = RuleSet()
+        self.prop_key_list = list(self.prop_name_mapping.keys())
+        self.rule_set = RuleSet(
+            probs_docking_targets=config.probs_docking_targets,
+            max_occ=config.max_occ,
+            max_docking_per_prompt=config.max_docking_per_prompt,
+        )
+
+    def load_props(self, path: str):
+        assert os.path.exists(path)
+        docking_target_list_path = os.path.join(path, "docking_targets.json")
+        prop_name_mapping_path = os.path.join(path, "names_mapping.json")
+        pocket_info_path = os.path.join(path, "pockets_info.json")
+
+        assert os.path.exists(docking_target_list_path), (
+            f"File {docking_target_list_path} does not exist. Please check the data path."
+        )
+        assert os.path.exists(prop_name_mapping_path), (
+            f"File {prop_name_mapping_path} does not exist. Please check the data path."
+        )
+        assert os.path.exists(pocket_info_path), (
+            f"File {pocket_info_path} does not exist. Please check the data path."
+        )
+
+        with open(docking_target_list_path) as f:
+            self.docking_targets = json.load(f)
+        with open(prop_name_mapping_path) as f:
+            self.prop_name_mapping = json.load(f)
+        with open(pocket_info_path) as f:
+            self.pockets_info = json.load(f)
 
     def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """
@@ -229,12 +282,15 @@ class MolGenerationInstructionsDataset:
 
             objectives = []
             for prop in properties:
-                if len(prop) == 1 and PROPERTIES_NAMES_SIMPLE[prop] in DOCKING_TARGETS:
+                if (
+                    len(prop) == 1
+                    and self.prop_name_mapping[prop] in self.docking_targets
+                ):
                     obj = random.choice(DOCKING_SOLO_OBJECTIVES)
                 else:
                     obj = random.choice(OBJECTIVES)
                 if obj in TARGET_VALUE_OBJECTIVES:
-                    if PROPERTIES_NAMES_SIMPLE[prop] in DOCKING_TARGETS:
+                    if self.prop_name_mapping[prop] in self.docking_targets:
                         v = random.randint(
                             1, 5
                         )  # Only docking scores between -10 and -7
@@ -243,7 +299,7 @@ class MolGenerationInstructionsDataset:
                     obj += f" {v / 10}"
                 objectives.append(obj)
 
-            metadata["properties"] = [PROPERTIES_NAMES_SIMPLE[p] for p in properties]
+            metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
             metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
             metadata["target"] = [
                 0 if len(obj.split(" ")) == 1 else obj.split(" ")[1]
@@ -269,17 +325,17 @@ class MolGenerationInstructionsDataset:
             prompt_text = self.fill_prompt(properties, objectives)
             metadata["docking_metadata"] = {}
             for p in properties:
-                if PROPERTIES_NAMES_SIMPLE[p] in DOCKING_TARGETS:
-                    pdb_id = PROPERTIES_NAMES_SIMPLE[p]
-                    if pdb_id in POCKETS_SIU:
-                        pocket_data = POCKETS_SIU[pdb_id]
+                if self.prop_name_mapping[p] in self.docking_targets:
+                    pdb_id = self.prop_name_mapping[p]
+                    if pdb_id in self.pockets_info:
+                        pocket_data = self.pockets_info[pdb_id]
                         if not isinstance(pocket_data, dict):
                             pocket_data = dict(pocket_data)
-                        metadata["docking_metadata"][PROPERTIES_NAMES_SIMPLE[p]] = (
+                        metadata["docking_metadata"][self.prop_name_mapping[p]] = (
                             pocket_data
                         )
                     else:
-                        metadata["docking_metadata"][PROPERTIES_NAMES_SIMPLE[p]] = {
+                        metadata["docking_metadata"][self.prop_name_mapping[p]] = {
                             "pdb_id": pdb_id.split("_")[0]
                         }
 

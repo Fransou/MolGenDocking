@@ -1,35 +1,28 @@
+import json
 from typing import Callable, List
 
-from mol_gen_docking.reward.oracles import (
-    propeties_csv,
-    PROPERTIES_NAMES_SIMPLE,
-    DOCKING_TARGETS,
-)
+import pandas as pd
+
+with open("data/mol_orz/names_mapping.json") as f:
+    PROPERTIES_NAMES_SIMPLE: dict = json.load(f)
+with open("data/mol_orz/docking_targets.json") as f:
+    DOCKING_PROP_LIST: List[str] = json.load(f)
 
 PROP_LIST: List[str] = [
-    k
-    for k in PROPERTIES_NAMES_SIMPLE.keys()
-    if "docking" not in PROPERTIES_NAMES_SIMPLE[k]
+    k for k in PROPERTIES_NAMES_SIMPLE.values() if k not in DOCKING_PROP_LIST
 ]
 
-DOCKING_PROP_LIST: List[str] = [
-    k
-    for k in PROPERTIES_NAMES_SIMPLE
-    if "docking" in PROPERTIES_NAMES_SIMPLE[k]
-    or PROPERTIES_NAMES_SIMPLE[k] in DOCKING_TARGETS
-]
 
+propeties_csv = pd.read_csv("data/properties.csv", index_col=0)
 SMILES: List[List[str]] = (
     [["FAKE"]]
     + [propeties_csv.sample(k)["smiles"].tolist() for k in range(1, 3)]
     + [propeties_csv.sample(1)["smiles"].tolist() + ["FAKE"]]
 )
-
 COMPLETIONS: List[str] = [
     "Here is a molecule: [SMILES] what are its properties?",
     "This is an empty completion.",
 ]
-
 OBJECTIVES_TO_TEST: List[str] = [
     "maximize",
     "minimize",

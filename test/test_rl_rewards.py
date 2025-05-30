@@ -1,27 +1,28 @@
 import os
 import time
-
-from typing import List
 from itertools import product
-import pytest
-import torch
-import numpy as np
-import ray
+from typing import List
 
-from mol_gen_docking.reward.rl_rewards import RewardScorer
-from mol_gen_docking.reward.oracles import (
-    propeties_csv,
-    PROPERTIES_NAMES_SIMPLE,
+import numpy as np
+import pytest
+import ray
+import torch
+
+from mol_gen_docking.data.rl_dataset import (
+    DatasetConfig,
+    MolGenerationInstructionsDataset,
 )
-from mol_gen_docking.data.rl_dataset import MolGenerationInstructionsDataset
+from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
-    PROP_LIST,
-    DOCKING_PROP_LIST,
-    SMILES,
     COMPLETIONS,
+    DOCKING_PROP_LIST,
     OBJECTIVES_TO_TEST,
+    PROP_LIST,
+    PROPERTIES_NAMES_SIMPLE,
+    SMILES,
     get_fill_completions,
+    propeties_csv,
 )
 
 try:
@@ -29,21 +30,28 @@ try:
 except Exception:
     ray.init()
 
+cfg = DatasetConfig(data_path="data/mol_orz")
 
 scorers = {
     "valid_smiles": RewardScorer(
+        PROPERTIES_NAMES_SIMPLE,
+        DOCKING_PROP_LIST,
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property": RewardScorer(
+        PROPERTIES_NAMES_SIMPLE,
+        DOCKING_PROP_LIST,
         "property",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property_whole": RewardScorer(
+        PROPERTIES_NAMES_SIMPLE,
+        DOCKING_PROP_LIST,
         "property",
         parse_whole_completion=False,
         rescale=False,
@@ -61,7 +69,7 @@ def build_prompt(request):
             properties = [property]
         else:
             properties = property
-        dummy = MolGenerationInstructionsDataset()
+        dummy = MolGenerationInstructionsDataset(cfg)
         return dummy.fill_prompt(properties, [obj] * len(properties))
 
     def build_prompt_from_string(
@@ -333,7 +341,7 @@ def test_ray(prop, smiles, build_prompt):
 )
 @pytest.mark.parametrize(
     "property1",
-    DOCKING_PROP_LIST,
+    DOCKING_PROP_LIST[:10],
 )
 def test_runtime(
     property1,

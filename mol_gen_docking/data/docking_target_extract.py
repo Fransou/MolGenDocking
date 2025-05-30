@@ -1,28 +1,27 @@
 import os
 import pickle
-from typing import Any, Dict, List
-import json
-import numpy as np
-from tqdm import tqdm
-
-import urllib.request
-
-from prody.utilities import openFile
 import re
+import urllib.request
+from multiprocessing import Pool
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 from biopandas.pdb import PandasPdb
-from typing import Optional
-
-from multiprocessing import Pool
-
-MIN_POCKET_SCORE = 0.5  # Minimum score for a pocket to be considered valid
-MIN_DRUG_SCORE = 0.5
+from prody.utilities import openFile
+from tqdm import tqdm
 
 
 class PocketExtractor:
-    def __init__(self, save_path: str = "data/SIU"):
+    def __init__(
+        self,
+        save_path: str = "data/SIU",
+        t_pocket_score: float = 0.5,
+        t_drug_score: float = 0.5,
+    ):
         self.save_path: str = save_path
+        self.t_pocket_score: float = t_pocket_score
+        self.t_drug_score: float = t_drug_score
         self.processed_pdb_ids: List[str] = []
         self.data: Dict[str, Any] = {}
 
@@ -67,8 +66,8 @@ class PocketExtractor:
         Returns:
             pd.DataFrame: DataFrame containing only the coordinates of the pocket atoms.
         """
+        from scipy.cluster.hierarchy import fcluster, linkage
         from scipy.spatial.distance import pdist
-        from scipy.cluster.hierarchy import linkage, fcluster
 
         coords = df[["x_coord", "y_coord", "z_coord"]].values
         dist_matrix = pdist(coords)
@@ -180,6 +179,24 @@ class PocketExtractor:
             pool.close()
         return all_pockets_info
 
+    def get_pocket_df(
+        self, all_pockets_info: Dict[str, Dict[str, Any]]
+    ) -> pd.DataFrame:
+        """
+        Convert the processed pockets information into a DataFrame.
+        """
+        pocket_data: List[Dict[str, Any]] = []
+        for pdb_id, info in all_pockets_info.items():
+            data = info["metadata"]
+            for k in info:
+                if not k == "metadata":
+                    data[k] = info[k]
+            pocket_data.append(
+                data,
+            )
+
+        return pd.DataFrame(pocket_data)
+
     def process_pocket_pdb_id(self, pdb_id: str) -> Dict[str, Any] | None:
         pocket_path = os.path.join(
             self.save_path, "pockets", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
@@ -195,7 +212,7 @@ class PocketExtractor:
         pocket_score = metadata.get("pocket score", 0)
         drug_score = metadata.get("drug score", 0)
 
-        if pocket_score < MIN_POCKET_SCORE or drug_score < MIN_DRUG_SCORE:
+        if pocket_score < self.t_pocket_score or drug_score < self.t_drug_score:
             return None
 
         coords = self.extract_pockets_coords(df_pocket, pdb_id)
@@ -210,30 +227,3 @@ class PocketExtractor:
             "pdb_id": pdb_id,
             "metadata": metadata,
         }
-
-
-if __name__ == "__main__":
-    extractor = PocketExtractor()
-    target_info = extractor.download_pdb()
-    all_pockets_info = extractor.process_fpockets()
-    print(f"Extracted {len(all_pockets_info)} pockets.")
-    with open(os.path.join(extractor.save_path, "pockets_info.json"), "w") as f:
-        json.dump(all_pockets_info, f, indent=4)
-
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    pocket_scores = [
-        info["metadata"]["pocket score"] for info in all_pockets_info.values()
-    ]
-    sns.histplot(x=pocket_scores)
-    plt.title("Pocket scores distribution")
-    plt.xlabel("Pocket score")
-    plt.ylabel("#n")
-    plt.show()
-    drug_scores = [info["metadata"]["drug score"] for info in all_pockets_info.values()]
-    sns.histplot(x=drug_scores)
-    plt.title("Drug scores distribution")
-    plt.xlabel("Drug score")
-    plt.ylabel("#n")
-    plt.show()

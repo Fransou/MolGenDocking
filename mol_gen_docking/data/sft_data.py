@@ -1,9 +1,9 @@
 """Preprocess the instruction dataset for the model training."""
 
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 
-from datasets import Dataset, concatenate_datasets, load_dataset
 import selfies as sf
+from datasets import Dataset, concatenate_datasets, load_dataset
 from rdkit import Chem
 
 from mol_gen_docking.data import special_tok

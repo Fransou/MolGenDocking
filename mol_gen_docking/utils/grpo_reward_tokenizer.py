@@ -1,7 +1,8 @@
 """Wrapps a normal tokenizer to make sure its batch decode does not skip special tokens"""
 
-from tokenizers import Tokenizer
 from copy import deepcopy
+
+from tokenizers import Tokenizer
 
 
 def wrap_tokenizer(tokenizer: Tokenizer) -> Tokenizer:

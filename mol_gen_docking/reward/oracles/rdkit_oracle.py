@@ -2,7 +2,6 @@
 
 from typing import List, Union
 
-
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdmolfiles import MolFromSmiles
 

@@ -1,18 +1,16 @@
 """Reward functions for molecular optimization."""
 
-from typing import List, Union, Optional, Callable, Any
 import warnings
+from typing import Any, Callable, Dict, List, Union
+
 import numpy as np
-
-
+import pandas as pd
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles
+from tdc.oracles import Oracle, oracle_names
 
-
+from mol_gen_docking.reward.property_utils.classical_properties import RESCALE
 from mol_gen_docking.utils.logger import create_logger
-
-from mol_gen_docking.reward.oracles.utils import propeties_csv, oracles_not_to_rescale
-from mol_gen_docking.reward.property_utils.docking import DOCKING_TARGETS
 
 
 class OracleWrapper:
@@ -32,18 +30,18 @@ class OracleWrapper:
     def __init__(
         self,
         debug: bool = False,
+        propeties_csv: pd.DataFrame = pd.DataFrame(),
     ):
         self.logger = create_logger(
             __name__ + "/" + self.__class__.__name__,
             level="DEBUG" if debug else "WARNING",
         )
-        self.name: None | str = None
+        self.name: str = ""
         self.evaluator: Callable[[Any], Any] = lambda x: None
         self.task_label = None
+        self.propeties_csv = propeties_csv
 
-    def assign_evaluator(
-        self, evaluator: Callable[[Any], Any], name: Optional[str] = None
-    ):
+    def assign_evaluator(self, evaluator: Callable[[Any], Any], name: str):
         """Assign the evaluator to the OracleWrapper."""
         self.evaluator = evaluator
         self.name = name
@@ -101,23 +99,52 @@ class OracleWrapper:
 
         score_arr: np.ndarray = np.array(score_list)
         if rescale:
-            if (
-                self.name not in oracles_not_to_rescale
-                and self.name in propeties_csv.columns
-                and self.name not in DOCKING_TARGETS
-            ):
-                prop_typical_values = propeties_csv[self.name]
-                # Rescale the values
-                score_arr = (score_arr - prop_typical_values.quantile(0.01)) / (
-                    prop_typical_values.quantile(0.99)
-                    - prop_typical_values.quantile(0.01)
-                )
-            elif self.name is not None and self.name in DOCKING_TARGETS:
+            if self.name.startswith("docking"):
                 # Rescale the values by adding 11, dividing by 10
                 # a docking score of -10 is therefore a 0.1 and -7 is 0.4
                 score_arr = (score_arr + 11) / 10
+            elif self.name in RESCALE:
+                max_val, min_val = RESCALE[self.name]
+                # Rescale the values
+                score_arr = (score_arr - min_val) / (max_val - min_val)
             else:
                 warnings.warn(
                     "Typical values not found for the property. Returning the raw values."
                 )
         return score_arr
+
+
+def get_oracle(
+    oracle_name: str,
+    property_name_mapping: Dict[str, str],
+    docking_target_list: List[str],
+    **kwargs,
+):
+    """
+    Get the Oracle object for the specified name.
+    :param name: Name of the Oracle
+    :param property_name_mapping: Mapping of property names to Oracle names
+    :param docking_target_list: List of docking targets
+    :return: OracleWrapper object
+    """
+    oracle_wrapper = OracleWrapper()
+    oracle_name = oracle_name.replace(".", "")
+    oracle_name = property_name_mapping.get(oracle_name, oracle_name)
+    if oracle_name in docking_target_list:
+        from mol_gen_docking.reward.oracles.docking_oracle import PyscreenerOracle
+
+        oracle_wrapper.assign_evaluator(
+            PyscreenerOracle(oracle_name, **kwargs), f"docking_prop/{oracle_name}"
+        )
+    elif oracle_name.lower() in oracle_names:
+        oracle_wrapper.assign_evaluator(
+            Oracle(name=oracle_name, **kwargs), f"tdc/{oracle_name}"
+        )
+    else:
+        from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
+
+        oracle_wrapper.assign_evaluator(
+            RDKITOracle(oracle_name), f"rdkit/{oracle_name}"
+        )
+
+    return oracle_wrapper
