@@ -10,7 +10,7 @@ from tdc.utils import receptor_load
 
 from pyscreener.docking.vina.utils import Software
 
-from .utils import POCKETS_SIU, SIU_PATH
+from mol_gen_docking.reward.property_utils.docking import POCKETS_SIU, SIU_PATH
 
 
 class PyscreenerOracle:

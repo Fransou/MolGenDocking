@@ -12,6 +12,7 @@ from rdkit.Chem.rdmolfiles import MolToSmiles
 from mol_gen_docking.utils.logger import create_logger
 
 from mol_gen_docking.reward.oracles.utils import propeties_csv, oracles_not_to_rescale
+from mol_gen_docking.reward.property_utils.docking import DOCKING_TARGETS
 
 
 class OracleWrapper:
@@ -103,6 +104,7 @@ class OracleWrapper:
             if (
                 self.name not in oracles_not_to_rescale
                 and self.name in propeties_csv.columns
+                and self.name not in DOCKING_TARGETS
             ):
                 prop_typical_values = propeties_csv[self.name]
                 # Rescale the values
@@ -110,7 +112,7 @@ class OracleWrapper:
                     prop_typical_values.quantile(0.99)
                     - prop_typical_values.quantile(0.01)
                 )
-            elif self.name is not None and "docking" in self.name:
+            elif self.name is not None and self.name in DOCKING_TARGETS:
                 # Rescale the values by adding 11, dividing by 10
                 # a docking score of -10 is therefore a 0.1 and -7 is 0.4
                 score_arr = (score_arr + 11) / 10

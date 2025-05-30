@@ -2,55 +2,21 @@ import os
 from typing import List, Dict
 import warnings
 import pandas as pd
-import requests
 import json
 
 from tqdm import tqdm
 from multiprocessing import Pool
 
-
-IS_CONNECTED = False
-SIU_PATH = os.environ.get("SIU_DATA_PATH", os.path.join("data", "SIU"))
-
-
-def get_pdb_description(pdb_id):
-    if os.path.exists(pdb_id):
-        pdb_id = pdb_id.split("/")[-1].replace(".pdb", "")
-    url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
-
-    # if the url is reachable, the properties are downloaded
-    if IS_CONNECTED and os.system(f"curl -s {url}") == 0:
-        # response = requests.get(url)
-        # Get response with no verbose
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            title = data.get("struct", {}).get("title", "No title found")
-            return title.lower()
-        else:
-            raise Exception(f"Error getting {url}")
-
-    # if the url is not reachable, the properties are not downloaded
-    return pdb_id
+from mol_gen_docking.reward.property_utils.docking import (
+    DOCKING_TARGETS,
+    get_pdb_description,
+)
 
 
-with open(os.path.join(SIU_PATH, "pockets_info.json")) as f:
-    POCKETS_SIU = pd.read_json(f)
-
-DOCKING_TARGETS: List[str] = [
-    "3pbl",
-    "1iep",
-    "2rgp",
-    "3eml",
-    "3ny8",
-    "4rlu",
-    "4unn",
-    "5mo4",
-    "7l11",
-] + list(POCKETS_SIU.keys())
+IS_CONNECTED = True
 
 PROPERTIES_NAMES_SIMPLE: Dict[str, str] = {}
-if True or not os.path.exists(
+if not os.path.exists(
     os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"
     )
@@ -84,12 +50,10 @@ if True or not os.path.exists(
         )
     )
     for pdb_id, desc in zip(DOCKING_TARGETS, docking_desc):
-        if pdb_id in DOCKING_TARGETS[:9]:
-            target = pdb_id + "_docking"
-        else:
-            target = pdb_id
-
-        PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = target
+        if desc is not None:
+            PROPERTIES_NAMES_SIMPLE[f"Binding affinity against {desc} ({pdb_id})"] = (
+                pdb_id
+            )
     with open(
         os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "properties_names_simple.json"

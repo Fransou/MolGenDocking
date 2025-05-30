@@ -3,8 +3,8 @@ import json
 import pytest
 from itertools import product
 
-from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
-from mol_gen_docking.reward.grpo_rewards import RewardScorer
+from mol_gen_docking.data.rl_dataset import MolGenerationInstructionsDataset
+from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import PROP_LIST, OBJECTIVES_TO_TEST
 

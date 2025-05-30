@@ -5,7 +5,11 @@ from tqdm import tqdm
 from tdc.generation import MolGen
 from multiprocess import Pool
 
-from mol_gen_docking.reward.oracles import PROPERTIES_NAMES_SIMPLE, get_oracle
+from mol_gen_docking.reward.oracles import (
+    PROPERTIES_NAMES_SIMPLE,
+    get_oracle,
+    DOCKING_TARGETS,
+)
 
 
 def get_args() -> argparse.Namespace:
@@ -60,10 +64,8 @@ if __name__ == "__main__":
     ]
     for i_name, oracle_name in enumerate(PROPERTIES_NAMES_SIMPLE.values()):
         oracle_name = PROPERTIES_NAMES_SIMPLE.get(oracle_name, oracle_name)
-        if "docking" in oracle_name:
-            oracle = get_oracle(oracle_name, n_cpus=64)
-            property_vals = oracle(molgen["smiles"].tolist())
-            props = {smi: p for smi, p in zip(molgen["smiles"].tolist(), property_vals)}
+        if oracle_name in DOCKING_TARGETS:
+            continue
         else:
             oracle = get_oracle(oracle_name)
             pool = Pool(16)

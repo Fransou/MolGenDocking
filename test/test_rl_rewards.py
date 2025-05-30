@@ -8,12 +8,12 @@ import torch
 import numpy as np
 import ray
 
-from mol_gen_docking.reward.grpo_rewards import RewardScorer
+from mol_gen_docking.reward.rl_rewards import RewardScorer
 from mol_gen_docking.reward.oracles import (
     propeties_csv,
     PROPERTIES_NAMES_SIMPLE,
 )
-from mol_gen_docking.data.grpo_dataset import MolGenerationInstructionsDataset
+from mol_gen_docking.data.rl_dataset import MolGenerationInstructionsDataset
 
 from .utils import (
     PROP_LIST,

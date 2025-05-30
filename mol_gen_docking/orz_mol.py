@@ -34,7 +34,7 @@ from mol_gen_docking.playground.zero_setting_base import (
     EvalCustomDataset,
     CustomDataset,
 )
-from mol_gen_docking.reward.grpo_rewards import RewardScorer
+from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"

@@ -1,4 +1,4 @@
-"""Rewards for the GRPO task."""
+"""Rewards for the RL task."""
 
 from typing import List, Any, Tuple, Dict
 import re
