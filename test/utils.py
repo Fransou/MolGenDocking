@@ -7,6 +7,7 @@ with open("data/mol_orz/names_mapping.json") as f:
     PROPERTIES_NAMES_SIMPLE: dict = json.load(f)
 with open("data/mol_orz/docking_targets.json") as f:
     DOCKING_PROP_LIST: List[str] = json.load(f)
+print(DOCKING_PROP_LIST)
 
 PROP_LIST: List[str] = [
     k for k in PROPERTIES_NAMES_SIMPLE.values() if k not in DOCKING_PROP_LIST
