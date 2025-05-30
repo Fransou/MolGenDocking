@@ -374,7 +374,7 @@ class MolGenerationInstructionsDataset:
             if not found:
                 break
 
-            if eval_name != "":  # Generate a prompt for training
+            if eval_name == "":  # Generate a prompt for training
                 yield prompt, completions, metadata
             else:  # Generate a prompt for evaluation
                 new_prompt: Dict[str, Any] = {}
