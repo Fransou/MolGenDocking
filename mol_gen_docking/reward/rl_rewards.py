@@ -1,7 +1,9 @@
 """Rewards for the RL task."""
 
+import json
+import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -43,15 +45,21 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
 class RewardScorer:
     def __init__(
         self,
-        property_name_mapping: Dict[str, str] = {},
-        docking_target_list: List[str] = [],
+        path_to_mappings: Optional[str] = None,
         reward: str = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
     ):
+        if path_to_mappings is not None:
+            with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
+                property_name_mapping = json.load(f)
+            with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
+                docking_target_list = json.load(f)
+
         self.property_name_mapping = property_name_mapping
         self.docking_target_list = docking_target_list
+        self.path_to_mappings = path_to_mappings
 
         self.rescale = rescale
         self.reward = reward
@@ -167,12 +175,11 @@ class RewardScorer:
             """
             Get property reward
             """
-            print(prop in self.docking_target_list)
-            print(self.docking_target_list)
             oracle_fn = get_oracle(
                 prop,
-                property_name_mapping=self.property_name_mapping,
+                path_to_data=self.property_name_mapping,
                 docking_target_list=self.docking_target_list,
+                path_to_mappings=self.path_to_mappings,
                 **kwargs,
             )
             property_reward = oracle_fn(smiles, rescale=rescale)

@@ -16,6 +16,7 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
     COMPLETIONS,
+    DATA_PATH,
     DOCKING_PROP_LIST,
     OBJECTIVES_TO_TEST,
     PROP_LIST,
@@ -34,24 +35,21 @@ cfg = DatasetConfig(data_path="data/mol_orz")
 
 scorers = {
     "valid_smiles": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "property",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property_whole": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "property",
         parse_whole_completion=False,
         rescale=False,

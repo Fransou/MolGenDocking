@@ -205,17 +205,12 @@ class CustomRewardTrainer(RayPPOTrainer):
 
         # Find the directory of the training set:
         data_path = os.path.dirname(cfg.prompt_data[0])
-        # Open the "names_mapping.json" file and "docking_targets.json" file
-        with open(os.path.join(data_path, "names_mapping.json")) as f:
-            property_name_mapping = json.load(f)
-        with open(os.path.join(data_path, "docking_targets.json")) as f:
-            docking_target_list = json.load(f)
+
         self._reward_properties = (
             ray.remote(RewardScorer)
             .options(num_cpus=1)
             .remote(
-                property_name_mapping=property_name_mapping,
-                docking_target_list=docking_target_list,
+                path_to_mappings=data_path,
                 parse_whole_completion=True,
                 oracle_kwargs=dict(
                     exhaustiveness=cfg.scorer_exhaustivness,
@@ -228,8 +223,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             ray.remote(RewardScorer)
             .options(num_cpus=1)
             .remote(
-                property_name_mapping=property_name_mapping,
-                docking_target_list=docking_target_list,
+                path_to_mappings=data_path,
                 reward="valid_smiles",
                 parse_whole_completion=True,
             )  # type: ignore

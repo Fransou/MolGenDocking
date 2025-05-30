@@ -8,13 +8,12 @@ from pyscreener.docking.vina.utils import Software
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
-from mol_gen_docking.reward.property_utils.docking import POCKETS_SIU, SIU_PATH
-
 
 class PyscreenerOracle:
     def __init__(
         self,
         target_name: str,
+        path_to_data: str,
         software_class: str = "qvina",
         ncpu: int = 16,
         exhaustiveness: int = 8,
@@ -46,12 +45,13 @@ class PyscreenerOracle:
             box_size = tuple([s for s in docking_target_info[pdbid]["size"]])
         else:
             pdb_id = target_name
-            assert pdb_id in POCKETS_SIU
             receptor_pdb_file = os.path.join(
-                SIU_PATH, "pdb_files", f"{target_name}.pdb"
+                path_to_data, "pdb_files", f"{target_name}.pdb"
             )
-            box_center = tuple(POCKETS_SIU[pdb_id]["center"])
-            box_size = tuple(POCKETS_SIU[pdb_id]["size"])
+            with open(os.path.join(path_to_data, "pockets_info.json")) as f:
+                pockets_info = ps.utils.json_load(f)
+            box_center = tuple(pockets_info[pdb_id]["center"])
+            box_size = tuple(pockets_info[pdb_id]["size"])
 
         if not ray.is_initialized():
             ray.init()
