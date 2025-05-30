@@ -308,7 +308,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     property_scorer.rescale = False
 
 
-@pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize(
     "prop, smiles",
     list(
