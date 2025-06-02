@@ -43,46 +43,55 @@ def read_pdb_to_dataframe(
 
 def process_pockets(file_list: List[str]):
     for f in file_list:
-        os.system("fpocket -f " + f.replace(".pdb", "_processed.pdb"))
-        # Delete all files that do not end with .pdb in f_out
-        out_path = f.replace(".pdb", "_out")
-        for out_f in os.listdir(out_path):
-            if not out_f.endswith(".pdb"):
-                shutil.rmtree(os.path.join(out_path, out_f))
+        processed_f = f.replace(".pdb", "_processed.pdb")
+        if os.path.isfile(processed_f):
+            os.system("fpocket -f " + processed_f)
+            # Delete all files that do not end with .pdb in f_out
+            out_path = f.replace(".pdb", "_out")
+            for out_f in os.listdir(out_path):
+                if not out_f == "pockets":
+                    os.remove(os.path.join(out_path, out_f))
 
-        out_path = os.path.join(out_path, "pockets")
-        for out_f in os.listdir(out_path):
-            if out_f != "pockets1_atm.pdb":
-                shutil.rmtree(os.path.join(out_path, out_f))
+            out_path = os.path.join(out_path, "pockets")
+            for out_f in os.listdir(out_path):
+                id_pocket = int(out_f.replace("pocket", "").split("_")[0])
+                if id_pocket >= 5:  # Keep top 5 pockets
+                    os.remove(os.path.join(out_path, out_f))
 
 
 def preprocess_pdb(file_list: List[str]):
-    for f in file_list:
-        # First preprocess with pdb4amber
+    for i, f in enumerate(file_list):
+        if i + 1 < len(file_list):
+            f_amber_next = file_list[i + 1].replace(".pdb", "_amber.pdb")
+            if os.path.exists(f_amber_next):
+                continue
+
         f_amber = f.replace(".pdb", "_amber.pdb")
-        os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d")
+        f_fixed = f.replace(".pdb", "_fixed.pdb")
+        f_out = f.replace(".pdb", "_processed.pdb")
+        new_path = f.replace(".pdb", "")
+
+        if not os.path.exists(f_amber):
+            # First preprocess with pdb4amber
+            os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d")
 
         # Pass through pdbfixer
-        fixer = PDBFixer(filename=f_amber)
-        fixer.removeHeterogens(False)
+        if not os.path.exists(f_fixed):
+            fixer = PDBFixer(filename=f_amber)
+            fixer.removeHeterogens(False)
 
-        fixer.findNonstandardResidues()
-        fixer.replaceNonstandardResidues()
+            fixer.findNonstandardResidues()
+            fixer.replaceNonstandardResidues()
 
-        fixer.findMissingResidues()
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
+            fixer.findMissingResidues()
+            fixer.findMissingAtoms()
+            fixer.addMissingAtoms()
 
-        f_fixed = f.replace(".pdb", "_fixed.pdb")
-        PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
+            PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
 
-        new_path = f.replace(".pdb", "")
-        f_out = f.replace(".pdb", "_processed.pdb")
-
-        vargs = (
-            f"mk_prepare_receptor.py -i {f_fixed} -o {new_path} -p --write_pdb {f_out}"
-        )
-        os.system(vargs)
+        if not os.path.exists(f_out):
+            vargs = f"mk_prepare_receptor.py -i {f_fixed} -o {new_path} -p --write_pdb {f_out}"
+            os.system(vargs)
 
 
 if __name__ == "__main__":

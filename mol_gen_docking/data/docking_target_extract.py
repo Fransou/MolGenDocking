@@ -205,7 +205,7 @@ class PocketExtractor:
 
     def process_pocket_pdb_id(self, pdb_id: str) -> Dict[str, Any] | None:
         pocket_path = os.path.join(
-            self.save_path, "pockets", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
+            self.save_path, "pdb_files", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
         )
         if not os.path.exists(pocket_path):
             print(
