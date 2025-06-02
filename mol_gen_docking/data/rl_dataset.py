@@ -13,10 +13,7 @@ from tqdm import tqdm
 from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
 )
-from mol_gen_docking.reward.utils import (
-    OBJECTIVES_TEMPLATES,
-    PROMPT_TEMPLATE,
-)
+from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES, PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

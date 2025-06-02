@@ -170,6 +170,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+SFT*
 /data/*
 /data/SIU/pdb_files
 /data/*.zip

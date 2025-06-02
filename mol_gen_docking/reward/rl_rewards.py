@@ -11,9 +11,7 @@ import ray
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.oracle_wrapper import (
-    get_oracle,
-)
+from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 

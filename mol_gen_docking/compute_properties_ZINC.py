@@ -5,9 +5,7 @@ from multiprocess import Pool
 from tdc.generation import MolGen
 from tqdm import tqdm
 
-from mol_gen_docking.reward.oracle_wrapper import (
-    get_oracle,
-)
+from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
 )

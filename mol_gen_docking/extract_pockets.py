@@ -4,14 +4,20 @@ import argparse
 import json
 import os
 import shutil
+import signal
 from typing import List
 
 import pandas as pd
 import psutil
 from biopandas.pdb import PandasPdb
+from func_timeout import func_set_timeout
 from openmm.app import PDBFile
 from pdbfixer import PDBFixer
 from prody.utilities import openFile
+
+
+def handler(signum, frame):
+    raise Exception("Timeout")
 
 
 def read_pdb_to_dataframe(
@@ -59,39 +65,49 @@ def process_pockets(file_list: List[str]):
                     os.remove(os.path.join(out_path, out_f))
 
 
+@func_set_timeout(5 * 60)
+def preprocess_file(f: str):
+    f_amber = f.replace(".pdb", "_amber.pdb")
+    f_fixed = f.replace(".pdb", "_fixed.pdb")
+    f_out = f.replace(".pdb", "_processed.pdb")
+    new_path = f.replace(".pdb", "")
+
+    if not os.path.exists(f_amber):
+        # First preprocess with pdb4amber
+        os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d")
+
+    # Pass through pdbfixer
+    if not os.path.exists(f_fixed):
+        fixer = PDBFixer(filename=f_amber)
+        fixer.removeHeterogens(False)
+
+        fixer.findNonstandardResidues()
+        fixer.replaceNonstandardResidues()
+
+        fixer.findMissingResidues()
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+
+        PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
+
+    if not os.path.exists(f_out):
+        vargs = (
+            f"mk_prepare_receptor.py -i {f_fixed} -o {new_path} -p --write_pdb {f_out}"
+        )
+        os.system(vargs)
+
+
 def preprocess_pdb(file_list: List[str]):
+    signal.signal(signal.SIGALRM, handler)
     for i, f in enumerate(file_list):
         if i + 1 < len(file_list):
             f_amber_next = file_list[i + 1].replace(".pdb", "_amber.pdb")
             if os.path.exists(f_amber_next):
                 continue
-
-        f_amber = f.replace(".pdb", "_amber.pdb")
-        f_fixed = f.replace(".pdb", "_fixed.pdb")
-        f_out = f.replace(".pdb", "_processed.pdb")
-        new_path = f.replace(".pdb", "")
-
-        if not os.path.exists(f_amber):
-            # First preprocess with pdb4amber
-            os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d")
-
-        # Pass through pdbfixer
-        if not os.path.exists(f_fixed):
-            fixer = PDBFixer(filename=f_amber)
-            fixer.removeHeterogens(False)
-
-            fixer.findNonstandardResidues()
-            fixer.replaceNonstandardResidues()
-
-            fixer.findMissingResidues()
-            fixer.findMissingAtoms()
-            fixer.addMissingAtoms()
-
-            PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
-
-        if not os.path.exists(f_out):
-            vargs = f"mk_prepare_receptor.py -i {f_fixed} -o {new_path} -p --write_pdb {f_out}"
-            os.system(vargs)
+        try:
+            preprocess_file(f)
+        except Exception as e:
+            print(e)
 
 
 if __name__ == "__main__":
