@@ -112,6 +112,12 @@ class PocketExtractor:
                     metadata[key] = value
         return dict(metadata)
 
+    @staticmethod
+    def check_prepare_receptor(path: str) -> bool:
+        out_path = os.path.join(os.path.dirname(path), "tmp.pdbqt")
+        status = os.system(f"prepare_receptor -r {path} -o {out_path}")
+        return status == 0
+
     def _get_pdb_file(self, pdb_id: str) -> pd.DataFrame | None:
         path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}.pdb")
 
@@ -212,7 +218,11 @@ class PocketExtractor:
         pocket_score = metadata.get("pocket score", 0)
         drug_score = metadata.get("drug score", 0)
 
-        if pocket_score < self.t_pocket_score or drug_score < self.t_drug_score:
+        if (
+            pocket_score < self.t_pocket_score
+            or drug_score < self.t_drug_score
+            or not self.check_prepare_receptor(pocket_path)
+        ):
             return None
 
         coords = self.extract_pockets_coords(df_pocket, pdb_id)

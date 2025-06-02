@@ -43,13 +43,13 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--t-pocket-score",
         type=float,
-        default=0.5,
+        default=0.8,
         help="Threshold for pocket score to consider a pocket.",
     )
     parser.add_argument(
         "--t-drug-score",
         type=float,
-        default=0.5,
+        default=0.8,
         help="Threshold for drug score to consider a pocket.",
     )
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         split_docking=args.split_docking,
     )
 
-    # Extract pockets from PDB files using fpocket
+    # Extract pockets from PDB files after using fpocket
     if not os.path.exists(os.path.join(args.data_path, "pockets_info.json")):
         print("Extracting pockets from PDB files using fpocket...")
         extractor = PocketExtractor(
