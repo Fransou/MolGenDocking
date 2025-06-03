@@ -9,6 +9,10 @@ from typing import Any, Dict, Iterator, List, Tuple, Union
 import numpy as np
 from numpy import random
 from tqdm import tqdm
+from tmtools import tm_align
+from tmtools.io import get_structure, get_residue_data
+from multiprocessing import Pool
+
 
 from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
@@ -145,13 +149,7 @@ class MolGenerationInstructionsDataset:
                 for k in self.prop_name_mapping
                 if self.prop_name_mapping[k] in self.docking_targets
             ]
-            np.random.shuffle(self.docking_properties)
-            i0 = 0
-            for idx, p in enumerate(config.split_docking):
-                i1 = i0 + int(len(self.docking_properties) * p)
-                i1 = min(i1, len(self.docking_properties))
-                self.docking_properties_split[idx] = self.docking_properties[i0:i1]
-                i0 = i1
+            self.extract_splits(config.split_docking)  # Train, Val, Test (no leakage)
 
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
         self.templates: List[str] = PROMPT_TEMPLATE
@@ -161,6 +159,57 @@ class MolGenerationInstructionsDataset:
             max_occ=config.max_occ,
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
+        # Get similarity matrix per split
+        self.test_sim = self.get_similarity_matrix(2, 2, config.data_path)
+
+        # Get similarity matrix split i to split 0
+
+    def get_similarity_matrix(
+        self, i0: int, i1: int, path: str
+    ) -> Dict[str, Dict[str, float]]:
+        pdb_ids_list0 = [
+            self.prop_name_mapping[p] for p in self.docking_properties_split[i0]
+        ]
+        pdb_ids_list1 = [
+            self.prop_name_mapping[p] for p in self.docking_properties_split[i1]
+        ]
+
+        similarities: Dict[str, Dict[str, float]] = {p: {} for p in pdb_ids_list0}
+        args = [(p0, p1, path) for p0 in pdb_ids_list0 for p1 in pdb_ids_list1]
+        pool = Pool(8)
+        results = list(
+            tqdm(
+                pool.imap(self.get_similarity, args),
+                total=len(args),
+                desc=f"Similarity computing between {i0} and {i1}",
+            )
+        )
+        for r, ar in zip(results, args):
+            similarities[ar[0]][ar[1]] = r
+
+        return similarities
+
+    @staticmethod
+    def get_similarity(inp: Tuple[str, str, str]) -> float:
+        pdb0, pdb1, path = inp
+        s0 = get_structure(os.path.join(path, "pdb_files", pdb0 + "_processed.pdb"))
+        s1 = get_structure(os.path.join(path, "pdb_files", pdb1 + "_processed.pdb"))
+
+        sims = []
+        for chain0 in s0.get_chains():
+            for chain1 in s1.get_chains():
+                try:
+                    coords0, seq0 = get_residue_data(chain0)
+                    coords1, seq1 = get_residue_data(chain1)
+                    if len(seq0) < 3 or len(seq1) < 3:
+                        res = 0
+                    else:
+                        res = tm_align(coords0, coords1, seq0, seq1).rmsd
+                except Exception as e:
+                    print(e)
+                    continue
+            sims.append(res)
+        return np.max(sims)
 
     def load_props(self, path: str):
         assert os.path.exists(path)
@@ -184,6 +233,15 @@ class MolGenerationInstructionsDataset:
             self.prop_name_mapping = json.load(f)
         with open(pocket_info_path) as f:
             self.pockets_info = json.load(f)
+
+    def extract_splits(self, split_docking):
+        np.random.shuffle(self.docking_properties)
+        i0 = 0
+        for idx, p in enumerate(split_docking):
+            i1 = i0 + int(len(self.docking_properties) * p)
+            i1 = min(i1, len(self.docking_properties))
+            self.docking_properties_split[idx] = self.docking_properties[i0:i1]
+            i0 = i1
 
     def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """

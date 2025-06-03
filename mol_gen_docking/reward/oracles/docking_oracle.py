@@ -47,7 +47,7 @@ class PyscreenerOracle:
         else:
             pdb_id = target_name
             receptor_pdb_file = os.path.join(
-                path_to_data, "pdb_files", f"{target_name}.pdb"
+                path_to_data, "pdb_files", f"{target_name}_processed.pdb"
             )
             with open(os.path.join(path_to_data, "pockets_info.json")) as f:
                 pockets_info = json.load(f)

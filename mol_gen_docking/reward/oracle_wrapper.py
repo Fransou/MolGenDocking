@@ -1,11 +1,9 @@
 """Reward functions for molecular optimization."""
 
-import json
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Union
 
 import numpy as np
-import pandas as pd
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles
 from tdc.oracles import Oracle, oracle_names

@@ -9,7 +9,7 @@ from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 
-IS_CONNECTED = True
+IS_CONNECTED = False
 
 
 def get_pdb_description(pdb_id: str) -> str | None:
@@ -95,7 +95,7 @@ def get_pdb_description(pdb_id: str) -> str | None:
 
 def get_names_mapping(docking_targets: List[str], n_proc: int = 8) -> Dict[str, str]:
     names_mapping: Dict[str, str] = {}
-    pool = Pool(8)
+    pool = Pool(64)
     docking_desc = list(
         tqdm(
             pool.imap(get_pdb_description, docking_targets),

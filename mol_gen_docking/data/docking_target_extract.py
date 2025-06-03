@@ -18,12 +18,15 @@ class PocketExtractor:
         save_path: str = "data/SIU",
         t_pocket_score: float = 0.5,
         t_drug_score: float = 0.5,
+        download_siu: bool = False,
     ):
         self.save_path: str = save_path
         self.t_pocket_score: float = t_pocket_score
         self.t_drug_score: float = t_drug_score
         self.processed_pdb_ids: List[str] = []
         self.data: Dict[str, Any] = {}
+        if download_siu:
+            self.load_siu_data()
 
     @staticmethod
     def read_pdb_to_dataframe(
@@ -118,6 +121,10 @@ class PocketExtractor:
         status = os.system(f"prepare_receptor -r {path} -o {out_path}")
         return status == 0
 
+    def load_siu_data(self):
+        with open(os.path.join(self.save_path, "final_dic.pkl"), "rb") as f:
+            self.data = pickle.load(f)
+
     def _get_pdb_file(self, pdb_id: str) -> pd.DataFrame | None:
         path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}.pdb")
 
@@ -153,15 +160,15 @@ class PocketExtractor:
                 _ = self._get_pdb_file(pdb_id)
                 self.processed_pdb_ids.append(pdb_id)
 
-    def process_fpockets(self, n_cpus: int = 8) -> Dict[str, Dict[str, Any]]:
+    def process_fpockets(self, n_cpus: int = 16) -> Dict[str, Dict[str, Any]]:
         """
         Process the downloaded PDB files with fpocket.
         """
         all_pockets_info = {}
         pdb_ids = [
-            f.replace(".pdb", "")
+            f.replace("_processed.pdb", "")
             for f in os.listdir(os.path.join(self.save_path, "pdb_files"))
-            if f.endswith(".pdb")
+            if f.endswith("_processed.pdb")
         ]
 
         if n_cpus == 1:
@@ -204,8 +211,13 @@ class PocketExtractor:
         return pd.DataFrame(pocket_data)
 
     def process_pocket_pdb_id(self, pdb_id: str) -> Dict[str, Any] | None:
+        pdb_path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}_processed.pdb")
         pocket_path = os.path.join(
-            self.save_path, "pdb_files", f"{pdb_id}_out", "pockets", "pocket1_atm.pdb"
+            self.save_path,
+            "pdb_files",
+            f"{pdb_id}_processed_out",
+            "pockets",
+            "pocket1_atm.pdb",
         )
         if not os.path.exists(pocket_path):
             print(
@@ -221,7 +233,7 @@ class PocketExtractor:
         if (
             pocket_score < self.t_pocket_score
             or drug_score < self.t_drug_score
-            or not self.check_prepare_receptor(pocket_path)
+            or not self.check_prepare_receptor(pdb_path)
         ):
             return None
 

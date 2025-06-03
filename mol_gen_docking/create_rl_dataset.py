@@ -18,7 +18,7 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--n-prompts",
         type=int,
-        default=30000,
+        default=512,
         help="The number of prompts to generate",
     )
     parser.add_argument("--vina", action="store_true", dest="vina")
@@ -43,15 +43,16 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--t-pocket-score",
         type=float,
-        default=0.8,
+        default=0.2,
         help="Threshold for pocket score to consider a pocket.",
     )
     parser.add_argument(
         "--t-drug-score",
         type=float,
-        default=0.8,
+        default=0.2,
         help="Threshold for drug score to consider a pocket.",
     )
+    parser.add_argument("--download", action="store_true")
 
     args = parser.parse_args()
 
@@ -99,48 +100,58 @@ if __name__ == "__main__":
         max_n_props=args.max_n_props,
         split_docking=args.split_docking,
     )
+    # Download pdb diles
+    extractor = PocketExtractor(
+        save_path=args.data_path,
+        t_pocket_score=args.t_pocket_score,
+        t_drug_score=args.t_drug_score,
+        download_siu=args.download,
+    )
+    target_info = extractor.download_pdb()
 
-    # Extract pockets from PDB files after using fpocket
-    if not os.path.exists(os.path.join(args.data_path, "pockets_info.json")):
-        print("Extracting pockets from PDB files using fpocket...")
-        extractor = PocketExtractor(
-            save_path=args.data_path,
-            t_pocket_score=args.t_pocket_score,
-            t_drug_score=args.t_drug_score,
-        )
-        target_info = extractor.download_pdb()
-        all_pockets_info = extractor.process_fpockets()
-        df_pockets = extractor.get_pocket_df(all_pockets_info)
+    if not args.download:
+        # Extract pockets from PDB files after using fpocket
+        if True or not os.path.exists(
+            os.path.join(args.data_path, "pockets_info.json")
+        ):
+            print("Extracting pockets from PDB files using fpocket...")
 
-        with open(os.path.join(extractor.save_path, "pockets_info.json"), "w") as f:
-            json.dump(all_pockets_info, f, indent=4)
-        df_pockets.to_csv(
-            os.path.join(extractor.save_path, "pockets_info.csv"), index=False
-        )
-        docking_targets = df_pockets.pdb_id.unique().tolist() + [
-            "3pbl_docking",
-            "1iep_docking",
-            "2rgp_docking",
-            "3eml_docking",
-            "3ny8_docking",
-            "4rlu_docking",
-            "4unn_docking",
-            "5mo4_docking",
-            "7l11_docking",
-        ]
-        with open(os.path.join(extractor.save_path, "docking_targets.json"), "w") as f:
-            json.dump(docking_targets, f, indent=4)
+            all_pockets_info = extractor.process_fpockets()
+            df_pockets = extractor.get_pocket_df(all_pockets_info)
 
-    # Generate names mapping
-    if not os.path.exists(os.path.join(args.data_path, "names_mapping.json")):
-        print("Generating names mapping for docking targets...")
-        docking_targets = json.load(
-            open(os.path.join(args.data_path, "docking_targets.json"))
-        )
-        names_mapping = get_names_mapping(docking_targets, n_proc=8)
-        with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
-            json.dump(names_mapping, f, indent=4)
+            with open(os.path.join(extractor.save_path, "pockets_info.json"), "w") as f:
+                json.dump(all_pockets_info, f, indent=4)
+            df_pockets.to_csv(
+                os.path.join(extractor.save_path, "pockets_info.csv"), index=False
+            )
+            docking_targets = df_pockets.pdb_id.unique().tolist() + [
+                "3pbl_docking",
+                "1iep_docking",
+                "2rgp_docking",
+                "3eml_docking",
+                "3ny8_docking",
+                "4rlu_docking",
+                "4unn_docking",
+                "5mo4_docking",
+                "7l11_docking",
+            ]
+            print(f"Extracted {len(docking_targets)} targets")
 
-    # Finally generates prompt
-    print("Generating prompts...")
-    generate_prompts(config, args)
+            with open(
+                os.path.join(extractor.save_path, "docking_targets.json"), "w"
+            ) as f:
+                json.dump(docking_targets, f, indent=4)
+
+        # Generate names mapping
+        if not os.path.exists(os.path.join(args.data_path, "names_mapping.json")):
+            print("Generating names mapping for docking targets...")
+            docking_targets = json.load(
+                open(os.path.join(args.data_path, "docking_targets.json"))
+            )
+            names_mapping = get_names_mapping(docking_targets, n_proc=8)
+            with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
+                json.dump(names_mapping, f, indent=4)
+
+        # Finally generates prompt
+        print("Generating prompts...")
+        generate_prompts(config, args)

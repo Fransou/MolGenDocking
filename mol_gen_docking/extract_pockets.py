@@ -3,21 +3,11 @@
 import argparse
 import json
 import os
-import shutil
-import signal
 from typing import List
 
 import pandas as pd
-import psutil
 from biopandas.pdb import PandasPdb
-from func_timeout import func_set_timeout
-from openmm.app import PDBFile
-from pdbfixer import PDBFixer
-from prody.utilities import openFile
-
-
-def handler(signum, frame):
-    raise Exception("Timeout")
+from func_timeout import func_set_timeout, FunctionTimedOut
 
 
 def read_pdb_to_dataframe(
@@ -53,7 +43,7 @@ def process_pockets(file_list: List[str]):
         if os.path.isfile(processed_f):
             os.system("fpocket -f " + processed_f)
             # Delete all files that do not end with .pdb in f_out
-            out_path = f.replace(".pdb", "_out")
+            out_path = processed_f.replace(".pdb", "_out")
             for out_f in os.listdir(out_path):
                 if not out_f == "pockets":
                     os.remove(os.path.join(out_path, out_f))
@@ -67,17 +57,18 @@ def process_pockets(file_list: List[str]):
 
 @func_set_timeout(5 * 60)
 def preprocess_file(f: str):
-    f_amber = f.replace(".pdb", "_amber.pdb")
+    from openmm.app import PDBFile
+    from pdbfixer import PDBFixer
+
+    f_amber = f.replace(".pdb", "_processed.pdb")
     f_fixed = f.replace(".pdb", "_fixed.pdb")
-    f_out = f.replace(".pdb", "_processed.pdb")
-    new_path = f.replace(".pdb", "")
 
     if not os.path.exists(f_amber):
         # First preprocess with pdb4amber
-        os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d")
+        os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d --prot")
 
     # Pass through pdbfixer
-    if not os.path.exists(f_fixed):
+    if not os.path.exists(f_fixed) and os.path.exists(f_amber):
         fixer = PDBFixer(filename=f_amber)
         fixer.removeHeterogens(False)
 
@@ -90,23 +81,18 @@ def preprocess_file(f: str):
 
         PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
 
-    if not os.path.exists(f_out):
-        vargs = (
-            f"mk_prepare_receptor.py -i {f_fixed} -o {new_path} -p --write_pdb {f_out}"
-        )
-        os.system(vargs)
-
 
 def preprocess_pdb(file_list: List[str]):
-    signal.signal(signal.SIGALRM, handler)
     for i, f in enumerate(file_list):
+        print("Processing: " + f)
         if i + 1 < len(file_list):
             f_amber_next = file_list[i + 1].replace(".pdb", "_amber.pdb")
             if os.path.exists(f_amber_next):
+                print("This file was excluded for a timeout")
                 continue
         try:
             preprocess_file(f)
-        except Exception as e:
+        except FunctionTimedOut as e:
             print(e)
 
 
