@@ -31,7 +31,7 @@ try:
 except Exception:
     ray.init()
 
-cfg = DatasetConfig(data_path="data/mol_orz")
+cfg = DatasetConfig(data_path=DATA_PATH)
 
 scorers = {
     "valid_smiles": RewardScorer(
