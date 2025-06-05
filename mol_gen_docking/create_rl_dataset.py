@@ -24,6 +24,8 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument("--vina", action="store_true", dest="vina")
     parser.add_argument("--no-vina", action="store_false", dest="vina")
 
+    parser.add_argument("--min-n-pocket-infos", type=int, default=-1)
+
     parser.add_argument(
         "--max-n-props",
         type=int,
@@ -43,13 +45,13 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--t-pocket-score",
         type=float,
-        default=0.2,
+        default=0.3,
         help="Threshold for pocket score to consider a pocket.",
     )
     parser.add_argument(
         "--t-drug-score",
         type=float,
-        default=0.2,
+        default=0.5,
         help="Threshold for drug score to consider a pocket.",
     )
     parser.add_argument("--download", action="store_true")
@@ -99,6 +101,7 @@ if __name__ == "__main__":
         vina=args.vina,
         max_n_props=args.max_n_props,
         split_docking=args.split_docking,
+        min_n_pocket_infos=args.min_n_pocket_infos,
     )
     # Download pdb diles
     extractor = PocketExtractor(
@@ -111,14 +114,11 @@ if __name__ == "__main__":
 
     if not args.download:
         # Extract pockets from PDB files after using fpocket
-        if True or not os.path.exists(
-            os.path.join(args.data_path, "pockets_info.json")
-        ):
+        if not os.path.exists(os.path.join(args.data_path, "pockets_info.json")):
             print("Extracting pockets from PDB files using fpocket...")
 
             all_pockets_info = extractor.process_fpockets()
             df_pockets = extractor.get_pocket_df(all_pockets_info)
-
             with open(os.path.join(extractor.save_path, "pockets_info.json"), "w") as f:
                 json.dump(all_pockets_info, f, indent=4)
             df_pockets.to_csv(

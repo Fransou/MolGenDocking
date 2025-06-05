@@ -32,3 +32,18 @@ OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
         "target a {prop} of {val}",
     ],
 }
+
+POSSIBLE_POCKET_INFO: List[str] = [
+    "number of alpha spheres",
+    "mean alpha-sphere radius",
+    "mean alpha-sphere solvent acc.",
+    "mean b-factor of pocket residues",
+    "hydrophobicity score",
+    "polarity score",
+    "amino acid based volume score",
+    "pocket volume (monte carlo)",
+    "charge score",
+    "local hydrophobic density score",
+    "number of apolar alpha sphere",
+    "proportion of apolar alpha sphere",
+]

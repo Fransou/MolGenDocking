@@ -22,8 +22,11 @@ def template_to_regex(template: str) -> str:
     # Escape special regex characters that might appear in text
     pattern = re.escape(template)
     # Replace escaped {prop} and {val} with regex groups
-    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+)")
-    pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d*\.?\d+([eE][-+]?\d+)?)")
+    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+)?")
+    if r"\{val\}" in pattern:
+        pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d+\.?\d*)")
+    else:
+        pattern += r"(?:\.|$)"
     return pattern
 
 
@@ -107,7 +110,7 @@ class RewardScorer:
                 prompt = prompt[:-1]
 
             props = {}
-            clauses = re.split(r"[;] ?", prompt)
+            clauses = re.split(r";", prompt)
             for clause in clauses:
                 if clause == "":
                     continue

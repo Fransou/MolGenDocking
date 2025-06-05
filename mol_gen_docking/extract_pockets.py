@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from typing import List
+from subprocess import check_call, STDOUT, DEVNULL
 
 import pandas as pd
 from biopandas.pdb import PandasPdb
@@ -41,7 +42,7 @@ def process_pockets(file_list: List[str]):
     for f in file_list:
         processed_f = f.replace(".pdb", "_processed.pdb")
         if os.path.isfile(processed_f):
-            os.system("fpocket -f " + processed_f)
+            check_call(["fpocket", "-f", processed_f], stdout=DEVNULL, stderr=STDOUT)
             # Delete all files that do not end with .pdb in f_out
             out_path = processed_f.replace(".pdb", "_out")
             for out_f in os.listdir(out_path):
@@ -65,7 +66,11 @@ def preprocess_file(f: str):
 
     if not os.path.exists(f_amber):
         # First preprocess with pdb4amber
-        os.system(f"pdb4amber -i {f} -o {f_amber} --model 1 -d --prot")
+        check_call(
+            ["pdb4amber", "-i", f, "-o", f_amber, "-d", "--prot", "--model", "1"],
+            stdout=DEVNULL,
+            stderr=STDOUT,
+        )
 
     # Pass through pdbfixer
     if not os.path.exists(f_fixed) and os.path.exists(f_amber):

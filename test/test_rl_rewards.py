@@ -59,7 +59,36 @@ scorers = {
 
 
 @pytest.fixture(scope="module", params=[True, False])
-def build_prompt(request):
+def build_metada_pocket(request):
+    if not request.param:
+
+        def wrapped_fn(props):
+            return {}
+
+    def wrapped_fn(props):
+        out = {}
+        for p in props:
+            out[p] = {
+                "number of alpha spheres": 10,
+                "mean alpha-sphere radius": 0.561126,
+                "mean alpha-sphere solvent acc.": 1.156,
+                "mean b-factor of pocket residues": 1156.16546,
+                "hydrophobicity score": 0.2,
+                "polarity score": 0.1,
+                "amino acid based volume score": 0.1,
+                "pocket volume (monte carlo)": 0.1,
+                "charge score": 0.1,
+                "local hydrophobic density score": 0.1,
+                "number of apolar alpha sphere": 1564614687684,
+                "proportion of apolar alpha sphere": 0.1,
+            }
+        return out
+
+    return wrapped_fn
+
+
+@pytest.fixture(scope="module", params=[True, False])
+def build_prompt(request, build_metada_pocket):
     def build_prompt_from_dataset(
         property: str | List[str], obj: str = "maximize"
     ) -> str:
@@ -68,7 +97,9 @@ def build_prompt(request):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(properties, [obj] * len(properties))
+        return dummy.fill_prompt(
+            properties, [obj] * len(properties), build_metada_pocket(properties)
+        )
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
