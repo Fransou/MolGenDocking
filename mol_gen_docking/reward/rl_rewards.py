@@ -22,11 +22,11 @@ def template_to_regex(template: str) -> str:
     # Escape special regex characters that might appear in text
     pattern = re.escape(template)
     # Replace escaped {prop} and {val} with regex groups
-    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+)?")
+    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+?)")
     if r"\{val\}" in pattern:
         pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d+\.?\d*)")
     else:
-        pattern += r"(?:\.|$)"
+        pattern += r"(?:[.!?]+|$)"
     return pattern
 
 
@@ -72,8 +72,9 @@ class RewardScorer:
         if not ray.is_initialized():
             ray.init()
 
+    @staticmethod
     def get_mol_props_from_prompt(
-        self, prompts: List[Any]
+        prompts: List[Any], search_templates: List[Tuple[str, str]]
     ) -> List[Dict[str, Tuple[Any, Any]]]:
         """
         Get molecular properties from prompt.
@@ -117,7 +118,7 @@ class RewardScorer:
                 clause = clause.strip()
                 if not clause:
                     continue
-                for pattern, obj_type in self.search_patterns:
+                for pattern, obj_type in search_templates:
                     match = re.search(pattern, clause, re.IGNORECASE)
                     if match:
                         prop = match.group("prop").strip()
@@ -285,7 +286,7 @@ class RewardScorer:
                     for valid_smiles_c in smiles_list_per_completion
                 ]
             )
-        objectives = self.get_mol_props_from_prompt(prompts)
+        objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
         )

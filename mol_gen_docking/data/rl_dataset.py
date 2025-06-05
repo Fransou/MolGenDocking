@@ -173,6 +173,16 @@ class MolGenerationInstructionsDataset:
 
         # Get similarity matrix split i to split 0
 
+    @staticmethod
+    def _get_allowed_props(
+        original_prop_list: List[str], rule_set: RuleSet, n_props: int
+    ):
+        return [
+            p
+            for p in original_prop_list
+            if p not in rule_set.prohibited_props_at_n.get(n_props, [])
+        ]
+
     def get_similarity_matrix(
         self, i0: int, i1: int, path: str
     ) -> Dict[str, Dict[str, float]]:
@@ -304,6 +314,93 @@ class MolGenerationInstructionsDataset:
             full_prompt += new_sentence
         return full_prompt
 
+    def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
+        pocket_datas: Dict[str, Any] = {}
+        if self.add_pocket_info:
+            for p in properties:
+                pdb_id = self.prop_name_mapping[p]
+                if pdb_id in self.docking_targets and pdb_id in self.pockets_info:
+                    pocket_metadata = self.pockets_info[pdb_id].get("metadata", {})
+                    if not isinstance(pocket_metadata, dict):
+                        pocket_metadata = dict(pocket_metadata)
+                    n_props = np.random.randint(
+                        self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
+                    )
+                    dict_keys = np.random.choice(
+                        POSSIBLE_POCKET_INFO, n_props, replace=False
+                    )
+                    pocket_data = {
+                        k: pocket_metadata[k] for k in dict_keys if k in pocket_metadata
+                    }
+                    pocket_datas[pdb_id] = pocket_data
+        return pocket_datas
+
+    def _get_prompt_metadata(
+        self,
+        properties: List[str],
+        objectives: List[str],
+        identifier: str,
+        n_props: int,
+    ) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
+        metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
+        metadata["target"] = [
+            0 if len(obj.split(" ")) == 1 else obj.split(" ")[1] for obj in objectives
+        ]
+        metadata["prompt_id"] = identifier
+        metadata["n_props"] = n_props
+        metadata["docking_metadata"] = {}
+        for p in properties:
+            if self.prop_name_mapping[p] in self.docking_targets:
+                pdb_id = self.prop_name_mapping[p]
+                if pdb_id in self.pockets_info:
+                    pocket_data = self.pockets_info[pdb_id]
+                    if not isinstance(pocket_data, dict):
+                        pocket_data = dict(pocket_data)
+                    metadata["docking_metadata"][self.prop_name_mapping[p]] = (
+                        pocket_data
+                    )
+                else:
+                    metadata["docking_metadata"][self.prop_name_mapping[p]] = {
+                        "pdb_id": pdb_id.split("_")[0]
+                    }
+        return metadata
+
+    def _sample_properties(
+        self, n_props: int, docking_properties_list: List[str]
+    ) -> List[str]:
+        allowed_docking_props = self._get_allowed_props(
+            docking_properties_list, self.rule_set, n_props=n_props
+        )
+        allowed_std_props = self._get_allowed_props(
+            self.std_properties, self.rule_set, n_props=n_props
+        )
+
+        if len(allowed_docking_props) == 0:
+            probas = None
+        else:
+            allowed_docking_props = np.random.choice(
+                allowed_docking_props,
+                min(self.rule_set.max_docking_per_prompt, len(allowed_docking_props)),
+                replace=False,
+            ).tolist()
+            probas = [
+                (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
+            ] * len(allowed_std_props) + [
+                self.rule_set.probs_docking_targets / len(allowed_docking_props)
+            ] * len(allowed_docking_props)
+
+        property_list = allowed_std_props + allowed_docking_props
+
+        properties = list(
+            random.choice(property_list, n_props, replace=False, p=probas)
+        )
+        # If n_props>=2, we ensure that we have at least one docking property
+        if n_props >= 2 and len(np.intersect1d(allowed_docking_props, properties)) == 0:
+            properties[0] = allowed_docking_props[0]
+        return properties
+
     def generate(
         self,
         n: int,
@@ -322,49 +419,8 @@ class MolGenerationInstructionsDataset:
                 if len(self.rule_set.prohibited_props_at_n.get(i, []))
                 < len(docking_properties_list)
             ]
-            # Sample properties and objectives
-            metadata: Dict[str, Any] = {}
-
             n_props: int = int(np.random.choice(possible_n))
-            allowed_docking_props = [
-                p
-                for p in docking_properties_list
-                if p not in self.rule_set.prohibited_props_at_n.get(n_props, [])
-            ]
-            allowed_std_props = [
-                p
-                for p in self.std_properties
-                if p not in self.rule_set.prohibited_props_at_n.get(n_props, [])
-            ]
-
-            property_list = allowed_std_props + allowed_docking_props
-
-            if len(allowed_docking_props) == 0:
-                probas = None
-
-            else:
-                probas = [
-                    (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
-                ] * len(allowed_std_props) + [
-                    self.rule_set.probs_docking_targets / len(allowed_docking_props)
-                ] * len(allowed_docking_props)
-
-            properties = list(
-                random.choice(property_list, n_props, replace=False, p=probas)
-            )
-            # If n_props>=2, we ensure that we have at least one docking property
-            if n_props >= 2:
-                new_p = list(random.choice(allowed_docking_props, 1, replace=False))
-                properties[0] = new_p[0]
-
-            # If we generated more that self.rule_set.max_docking_per_prompt docking properties,
-            # we remove the last and replace it by a standard property
-            if (
-                len([p for p in properties if p in allowed_docking_props])
-                > self.rule_set.max_docking_per_prompt
-            ):
-                new_p = list(random.choice(allowed_std_props, 1, replace=False))
-                properties[-1] = new_p[0]
+            properties = self._sample_properties(n_props, docking_properties_list)
 
             objectives = []
             for prop in properties:
@@ -385,12 +441,6 @@ class MolGenerationInstructionsDataset:
                     obj += f" {v / 10}"
                 objectives.append(obj)
 
-            metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
-            metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
-            metadata["target"] = [
-                0 if len(obj.split(" ")) == 1 else obj.split(" ")[1]
-                for obj in objectives
-            ]
             identifier = "".join(
                 sorted(
                     [
@@ -405,47 +455,12 @@ class MolGenerationInstructionsDataset:
                     ]
                 )
             )
-            metadata["prompt_id"] = identifier
-            metadata["n_props"] = n_props
-            pocket_datas: Dict[str, Dict[str, Any]] = {}
-            for p in properties:
-                pdb_id = self.prop_name_mapping[p]
-                if (
-                    pdb_id in self.docking_targets
-                    and self.add_pocket_info
-                    and pdb_id in self.pockets_info
-                ):
-                    pocket_metadata = self.pockets_info[pdb_id].get("metadata", {})
-                    if not isinstance(pocket_metadata, dict):
-                        pocket_metadata = dict(pocket_metadata)
-                    n_props = np.random.randint(
-                        self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
-                    )
-                    dict_keys = np.random.choice(
-                        POSSIBLE_POCKET_INFO, n_props, replace=False
-                    )
-                    pocket_data = {
-                        k: pocket_metadata[k] for k in dict_keys if k in pocket_metadata
-                    }
-                    pocket_datas[pdb_id] = pocket_data
 
+            pocket_datas = self._generate_pocket_additional_data(properties)
             prompt_text = self.fill_prompt(properties, objectives, pocket_datas)
-            metadata["docking_metadata"] = {}
-
-            for p in properties:
-                if self.prop_name_mapping[p] in self.docking_targets:
-                    pdb_id = self.prop_name_mapping[p]
-                    if pdb_id in self.pockets_info:
-                        pocket_data = self.pockets_info[pdb_id]
-                        if not isinstance(pocket_data, dict):
-                            pocket_data = dict(pocket_data)
-                        metadata["docking_metadata"][self.prop_name_mapping[p]] = (
-                            pocket_data
-                        )
-                    else:
-                        metadata["docking_metadata"][self.prop_name_mapping[p]] = {
-                            "pdb_id": pdb_id.split("_")[0]
-                        }
+            metadata = self._get_prompt_metadata(
+                properties, objectives, identifier, n_props
+            )
 
             prompt: List[Dict[str, Any]] = []
             completion: List[Dict[str, Any]] = []
