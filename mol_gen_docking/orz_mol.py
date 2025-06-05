@@ -632,7 +632,9 @@ class PPOExp(BasePPOExp):
 
 
 if __name__ == "__main__":
-    exp = PPOExp().set_cfg(PPOExpConfig())
+    cfg = PPOExpConfig()
+    print(cfg)
+    exp = PPOExp().set_cfg(cfg)
     logger.info(exp.get_cfg_as_str(exp.cfg))
     if not os.path.exists(exp.cfg.save_path):
         os.makedirs(exp.cfg.save_path, exist_ok=True)
