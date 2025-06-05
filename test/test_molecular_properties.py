@@ -91,8 +91,9 @@ def test_vina(smiles_data):
     """
     oracle = get_oracle(
         "3pbl_docking",
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        path_to_data=DATA_PATH,
+        property_name_mapping=PROPERTIES_NAMES_SIMPLE,
+        docking_target_list=DOCKING_PROP_LIST,
         ncpu=1,
         exhaustiveness=1,
     )

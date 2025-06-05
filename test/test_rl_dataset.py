@@ -13,7 +13,7 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import DATA_PATH, OBJECTIVES_TO_TEST, PROP_LIST
 
-cfg = DatasetConfig(data_path="data/mol_orz", vina=True, split_docking=[0.3, 0.3, 0.4])
+cfg = DatasetConfig(data_path=DATA_PATH, vina=True, split_docking=[0.3, 0.3, 0.4])
 templates = dict(
     none="{{prompt}}",
     prompt_template_jinja="""\
