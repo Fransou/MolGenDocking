@@ -121,7 +121,7 @@ def test_generation_json():
 @pytest.mark.parametrize(
     "path, file, template",
     product(
-        ["data/mol_orz", "data/mol_orz_pocket_desc"],
+        [DATA_PATH],
         [
             "train_prompts.json",
             "test_data/test_prompts.json",

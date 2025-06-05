@@ -6,7 +6,6 @@ import pandas as pd
 
 DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
 
-print(DATA_PATH)
 with open(f"{DATA_PATH}/names_mapping.json") as f:
     PROPERTIES_NAMES_SIMPLE: dict = json.load(f)
 with open(f"{DATA_PATH}/docking_targets.json") as f:
