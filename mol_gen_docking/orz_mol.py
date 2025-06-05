@@ -97,7 +97,7 @@ class PPOExpConfig(BasePPOExpConfig):
         ]
     )
     eval_prompt_data: ListConfig = ListConfig(
-        [base_data_path + "data/mol_orz/eval_data/eval_prompts.json"]
+        [base_data_path + "/eval_data/eval_prompts.json"]
     )
     prompt_data_probs: ListConfig = ListConfig([1.0])
 

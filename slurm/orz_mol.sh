@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=rrg-josedolz
-#SBATCH --time=01:00:00
+#SBATCH --time=00:30:00
 #SBATCH --gres=gpu:4
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=48
@@ -29,4 +29,4 @@ ray status
 
 export DATA_PATH=$SLURM_TMPDIR/mol_orz
 #export DEBUG_MODE=1
-python -m mol_gen_docking.orz_mol
+DATA_PATH=$SLURM_TMPDIR/mol_orz python -m mol_gen_docking.orz_mol
