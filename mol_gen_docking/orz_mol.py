@@ -90,13 +90,14 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # MathTrain dataset and Math500 eval dataset
     # data related settings
+    base_data_path: str = os.environ.get("ORZ_DATA_PATH", "data/mol_orz")
     prompt_data: ListConfig = ListConfig(
         [
-            "data/mol_orz/train_prompts.json",
+            base_data_path + "/train_prompts.json",
         ]
     )
     eval_prompt_data: ListConfig = ListConfig(
-        ["data/mol_orz/eval_data/eval_prompts.json"]
+        [base_data_path + "data/mol_orz/eval_data/eval_prompts.json"]
     )
     prompt_data_probs: ListConfig = ListConfig([1.0])
 

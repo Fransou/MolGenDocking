@@ -11,8 +11,10 @@
 
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
-export SIU_DATA_PATH=$SCRATCH/MolGenDocking_data/SIU
 
+cp $SCRATCH/MolGenData/mol_orz.zip $SLURM_TMPDIR
+cd $SLURM_TMPDIR
+unzip mol_orz.zip
 cd $WORKING_DIR
 
 module load cuda
@@ -24,5 +26,7 @@ ray start --head
 nvidia-smi
 ray status
 
+
+export DATA_PATH=$SLURM_TMPDIR/mol_orz
 #export DEBUG_MODE=1
 python -m mol_gen_docking.orz_mol

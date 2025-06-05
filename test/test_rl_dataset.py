@@ -1,7 +1,8 @@
 import json
 import os
-from itertools import product
+from itertools import chain, product
 
+import numpy as np
 import pytest
 
 from mol_gen_docking.data.rl_dataset import (
@@ -12,9 +13,7 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import DATA_PATH, OBJECTIVES_TO_TEST, PROP_LIST
 
-cfg = DatasetConfig(
-    data_path="data/mol_orz",
-)
+cfg = DatasetConfig(data_path="data/mol_orz", vina=True, split_docking=[0.3, 0.3, 0.4])
 templates = dict(
     none="{{prompt}}",
     prompt_template_jinja="""\
@@ -72,6 +71,51 @@ def test_fill_prompt(props, obj, build_metada_pocket):
     assert parsed[props][0] == obj.split()[0]
     value = float(parsed[props][1])
     assert value == float(obj.split()[1] if len(obj.split()) > 1 else 0)
+
+
+def test_generation_json():
+    dataset = MolGenerationInstructionsDataset(cfg)
+    metadatas = []
+    for i in range(3):
+        dialogues = dataset.generate_prompt_json(n=100, docking_split=i)
+        metadatas.append([prompt[-1]["metadata"] for prompt in dialogues])
+
+    docking_props = []
+    for i in range(3):
+        docking_props_list = []
+        counts = {i: [] for i in range(1, 4)}
+
+        for m in metadatas[i]:
+            props = m["properties"]
+            assert len(props) <= dataset.max_n_props
+
+            dock_p = np.intersect1d(m["properties"], dataset.docking_properties)
+            assert len(np.unique(dock_p)) == len(dock_p)
+            assert len(dock_p) <= dataset.rule_set.max_docking_per_prompt
+
+            for p in dock_p:
+                counts[len(props)][p] = counts[len(props)].get(p, 0) + 1
+
+            docking_props_list.append(dock_p)
+
+        for n_props in counts:
+            for p in counts[n_props]:
+                assert counts[n_props][p] <= dataset.rule_set.max_occ
+
+        docking_props.append(docking_props_list)
+
+    assert (
+        sum(
+            len(
+                np.intersect1d(
+                    list(chain(*docking_props[i])),
+                    list(chain(*docking_props[(i + 1) % 3])),
+                )
+            )
+            for i in range(3)
+        )
+        == 0
+    )
 
 
 @pytest.mark.parametrize(

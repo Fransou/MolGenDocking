@@ -132,7 +132,7 @@ class MolGenerationInstructionsDataset:
 
         self.add_pocket_info = config.min_n_pocket_infos > 0
         self.min_n_pocket_infos = config.min_n_pocket_infos
-        self.load_props(config.data_path)
+        self._load_props(config.data_path)
         self.max_n_props = config.max_n_props
 
         self.std_properties: List[str] = [
@@ -151,7 +151,7 @@ class MolGenerationInstructionsDataset:
                 for k in self.prop_name_mapping
                 if self.prop_name_mapping[k] in self.docking_targets
             ]
-            self.extract_splits(config.split_docking)  # Train, Val, Test (no leakage)
+            self._extract_splits(config.split_docking)  # Train, Val, Test (no leakage)
 
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
         self.templates: List[str] = PROMPT_TEMPLATE
@@ -167,19 +167,19 @@ class MolGenerationInstructionsDataset:
         with open(
             os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
         ) as f:
-            json.dump(self.get_similarity_matrix(0, 1, self.config.data_path), f)
+            json.dump(self._get_similarity_matrix(0, 1, self.config.data_path), f)
         with open(
             os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
         ) as f:
-            json.dump(self.get_similarity_matrix(0, 2, self.config.data_path), f)
+            json.dump(self._get_similarity_matrix(0, 2, self.config.data_path), f)
         with open(
             os.path.join(self.config.data_path, "val_dist_to_val.json"), "w"
         ) as f:
-            json.dump(self.get_similarity_matrix(1, 1, self.config.data_path), f)
+            json.dump(self._get_similarity_matrix(1, 1, self.config.data_path), f)
         with open(
             os.path.join(self.config.data_path, "test_dist_to_test.json"), "w"
         ) as f:
-            json.dump(self.get_similarity_matrix(2, 2, self.config.data_path), f)
+            json.dump(self._get_similarity_matrix(2, 2, self.config.data_path), f)
 
     @staticmethod
     def _get_allowed_props(
@@ -191,7 +191,7 @@ class MolGenerationInstructionsDataset:
             if p not in rule_set.prohibited_props_at_n.get(n_props, [])
         ]
 
-    def get_similarity_matrix(
+    def _get_similarity_matrix(
         self, i0: int, i1: int, path: str
     ) -> Dict[str, Dict[str, float]]:
         pdb_ids_list0 = [
@@ -244,7 +244,7 @@ class MolGenerationInstructionsDataset:
             return 10
         return np.max(sims)
 
-    def load_props(self, path: str):
+    def _load_props(self, path: str):
         assert os.path.exists(path)
         docking_target_list_path = os.path.join(path, "docking_targets.json")
         prop_name_mapping_path = os.path.join(path, "names_mapping.json")
@@ -267,7 +267,7 @@ class MolGenerationInstructionsDataset:
         with open(pocket_info_path) as f:
             self.pockets_info = json.load(f)
 
-    def extract_splits(self, split_docking):
+    def _extract_splits(self, split_docking):
         np.random.shuffle(self.docking_properties)
         i0 = 0
         for idx, p in enumerate(split_docking):
