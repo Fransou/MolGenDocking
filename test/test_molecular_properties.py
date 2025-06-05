@@ -9,7 +9,7 @@ from tdc import single_pred
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
-from .utils import DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE, DATA_PATH
+from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE
 
 
 def is_rdkit_use(name: str):

@@ -3,12 +3,12 @@
 import argparse
 import json
 import os
+from subprocess import DEVNULL, STDOUT, check_call
 from typing import List
-from subprocess import check_call, STDOUT, DEVNULL
 
 import pandas as pd
 from biopandas.pdb import PandasPdb
-from func_timeout import func_set_timeout, FunctionTimedOut
+from func_timeout import FunctionTimedOut, func_set_timeout
 
 
 def read_pdb_to_dataframe(

@@ -366,7 +366,7 @@ def test_ray(prop, smiles, build_prompt):
 
 
 @pytest.mark.skipif(
-    os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
+    os.system("qvina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
     reason="requires vina and debug mode",
 )
 @pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
@@ -383,7 +383,7 @@ def test_runtime(
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"])
+        return dataset_cls.fill_prompt([property1], ["maximize"], {})
 
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generation

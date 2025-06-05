@@ -4,23 +4,22 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import numpy as np
 from numpy import random
-from tqdm import tqdm
 from tmtools import tm_align
-from tmtools.io import get_structure, get_residue_data
-from multiprocessing import Pool
-
+from tmtools.io import get_residue_data, get_structure
+from tqdm import tqdm
 
 from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 from mol_gen_docking.reward.utils import (
     OBJECTIVES_TEMPLATES,
-    PROMPT_TEMPLATE,
     POSSIBLE_POCKET_INFO,
+    PROMPT_TEMPLATE,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,6 +124,8 @@ class MolGenerationInstructionsDataset:
         """
         :param max_n_props: Maximal number of properties to optimize
         """
+        self.config = config
+
         self.docking_targets: List[str] = []
         self.prop_name_mapping: Dict[str, str] = {}
         self.pockets_info: Dict[str, Any] = {}
@@ -161,17 +162,24 @@ class MolGenerationInstructionsDataset:
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
 
-        # # Get similarity matrix per split
-        # with open(os.path.join(config.data_path, "val_dist_to_train.json"), "w") as f:
-        #     json.dump(self.get_similarity_matrix(0, 1, config.data_path), f)
-        # with open(os.path.join(config.data_path, "val_dist_to_train.json"), "w") as f:
-        #     json.dump(self.get_similarity_matrix(0, 2, config.data_path), f)
-        # with open(os.path.join(config.data_path, "val_dist_to_val.json"), "w") as f:
-        #     json.dump(self.get_similarity_matrix(1, 1, config.data_path), f)
-        # with open(os.path.join(config.data_path, "test_dist_to_test.json"), "w") as f:
-        #     json.dump(self.get_similarity_matrix(2, 2, config.data_path), f)
-
-        # Get similarity matrix split i to split 0
+    def save_sim_matrices(self):
+        # Get similarity matrix per split
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
+        ) as f:
+            json.dump(self.get_similarity_matrix(0, 1, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
+        ) as f:
+            json.dump(self.get_similarity_matrix(0, 2, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_val.json"), "w"
+        ) as f:
+            json.dump(self.get_similarity_matrix(1, 1, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "test_dist_to_test.json"), "w"
+        ) as f:
+            json.dump(self.get_similarity_matrix(2, 2, self.config.data_path), f)
 
     @staticmethod
     def _get_allowed_props(
@@ -187,10 +195,14 @@ class MolGenerationInstructionsDataset:
         self, i0: int, i1: int, path: str
     ) -> Dict[str, Dict[str, float]]:
         pdb_ids_list0 = [
-            self.prop_name_mapping[p] for p in self.docking_properties_split[i0]
+            self.prop_name_mapping[p]
+            for p in self.docking_properties_split[i0]
+            if not self.prop_name_mapping[p].endswith("_docking")
         ]
         pdb_ids_list1 = [
-            self.prop_name_mapping[p] for p in self.docking_properties_split[i1]
+            self.prop_name_mapping[p]
+            for p in self.docking_properties_split[i1]
+            if not self.prop_name_mapping[p].endswith("_docking")
         ]
 
         similarities: Dict[str, Dict[str, float]] = {p: {} for p in pdb_ids_list0}

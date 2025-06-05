@@ -1,20 +1,19 @@
+import logging
 import os
 import pickle
 import re
 import urllib.request
-from typing import Any, Dict, List, Optional
 from multiprocessing import Pool
-
-from scipy.cluster.hierarchy import fcluster, linkage
-from scipy.spatial.distance import pdist
 from subprocess import DEVNULL, STDOUT, check_call
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 from biopandas.pdb import PandasPdb
 from prody.utilities import openFile
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import pdist
 from tqdm import tqdm
-
-import logging
 
 logger = logging.getLogger(__name__)
 
