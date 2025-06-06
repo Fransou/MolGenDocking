@@ -9,10 +9,12 @@ import numpy as np
 import pandas as pd
 import ray
 import torch
-from rdkit import Chem
+from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
+
+RDLogger.DisableLog("rdApp.*")
 
 
 def template_to_regex(template: str) -> str:
@@ -147,7 +149,9 @@ class RewardScorer:
             # First we split the completion by newlines and spaces
             re.split("\n| |.", comp)
             # Then we filter by removing any string that does not contain "C"
-            s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+            s_poss = [
+                x for x in comp.split() if "C" in x or x.count("c") > 1 and "e" not in x
+            ]
             # Finally we remove any string that is not a valid SMILES
             s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
 

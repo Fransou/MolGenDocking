@@ -26,7 +26,7 @@ from omegaconf.listconfig import ListConfig
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
 from orz.ppo.utils import check_reflection_pattern
-from rdkit import Chem
+from rdkit import Chem, RDLogger
 from typing_extensions import override
 
 from mol_gen_docking.playground.zero_setting_base import (
@@ -37,12 +37,14 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
-
 os.environ["VLLM_USE_V1"] = "0"
+RDLogger.DisableLog("rdApp.*")
+
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
 )  # Global debug flag
+
 file_name = (
     f"{'debug_' if DEBUG_MODE else ''}{os.path.splitext(os.path.basename(__file__))[0]}"
 )
@@ -460,7 +462,11 @@ class CustomRewardTrainer(RayPPOTrainer):
             for comp in responses:
                 re.split("\n| |.", comp)
                 # Then we filter by removing any string that does not contain "C"
-                s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+                s_poss = [
+                    x
+                    for x in comp.split()
+                    if ("C" in x or x.count("c") > 1) and "e" not in x
+                ]
                 # Finally we remove any string that is not a valid SMILES
                 s_spl = [x + " - " for x in s_poss if Chem.MolFromSmiles(x) is not None]
 
