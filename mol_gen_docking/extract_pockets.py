@@ -52,7 +52,7 @@ def process_pockets(file_list: List[str]):
             out_path = os.path.join(out_path, "pockets")
             for out_f in os.listdir(out_path):
                 id_pocket = int(out_f.replace("pocket", "").split("_")[0])
-                if id_pocket >= 5:  # Keep top 5 pockets
+                if id_pocket >= 3 or not out_f.endswith(".pdb"):  # Keep top 3 pockets
                     os.remove(os.path.join(out_path, out_f))
 
 
