@@ -207,7 +207,7 @@ class MolGenerationInstructionsDataset:
 
         similarities: Dict[str, Dict[str, float]] = {p: {} for p in pdb_ids_list0}
         args = [(p0, p1, path) for p0 in pdb_ids_list0 for p1 in pdb_ids_list1]
-        pool = Pool(8)
+        pool = Pool(4)
         results = list(
             tqdm(
                 pool.imap(self.get_similarity, args),
@@ -220,29 +220,86 @@ class MolGenerationInstructionsDataset:
 
         return similarities
 
-    @staticmethod
-    def get_similarity(inp: Tuple[str, str, str]) -> float:
+    def get_similarity(self, inp: Tuple[str, str, str]) -> float:
         pdb0, pdb1, path = inp
+
+        pocket_id0 = self.pockets_info[pdb0]["metadata"]["pocket_id"]
+        pocket_id1 = self.pockets_info[pdb1]["metadata"]["pocket_id"]
+
+        pocket0 = get_structure(
+            os.path.join(
+                path,
+                "pdb_files",
+                pdb0 + "_processed_out",
+                "pockets",
+                f"pocket{pocket_id0}_atm.pdb",
+            )
+        )
+        pocket1 = get_structure(
+            os.path.join(
+                path,
+                "pdb_files",
+                pdb1 + "_processed_out",
+                "pockets",
+                f"pocket{pocket_id1}_atm.pdb",
+            )
+        )
+
         s0 = get_structure(os.path.join(path, "pdb_files", pdb0 + "_processed.pdb"))
         s1 = get_structure(os.path.join(path, "pdb_files", pdb1 + "_processed.pdb"))
 
-        sims = []
-        for chain0 in s0.get_chains():
-            for chain1 in s1.get_chains():
+        def get_closest_chain(structure, pocket):
+            pocket_atoms = [atom.get_coord() for atom in pocket.get_atoms()]
+            pocket_center = np.mean(pocket_atoms, axis=0)
+
+            min_dist = float("inf")
+            closest_chain = None
+            for chain in structure.get_chains():
                 try:
-                    coords0, seq0 = get_residue_data(chain0)
-                    coords1, seq1 = get_residue_data(chain1)
-                    if len(seq0) < 3 or len(seq1) < 3:
-                        res = 0
-                    else:
-                        res = tm_align(coords0, coords1, seq0, seq1).rmsd
+                    chain_coords = np.array(
+                        [atom.get_coord() for atom in chain.get_atoms()]
+                    )
+                    if chain_coords.shape[0] < 3:
+                        continue
+                    chain_center = np.mean(chain_coords, axis=0)
+                    dist = np.linalg.norm(pocket_center - chain_center)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_chain = chain
                 except Exception:
-                    res = 0
                     continue
-                sims.append(res)
-        if sims == []:
-            return 10
-        return np.max(sims)
+            return closest_chain
+
+        chain0 = get_closest_chain(s0, pocket0)
+        chain1 = get_closest_chain(s1, pocket1)
+
+        def normalize_resnames(chain):
+            rename_map = {
+                "HIE": "HIS",
+                "HIP": "HIS",
+                "HID": "HIS",
+                "ASH": "ASP",
+                "GLH": "GLU",
+                "CYX": "CYS",
+                "CSS": "CYS",
+                # Add more if needed
+            }
+            for res in chain:
+                if res.resname in rename_map:
+                    res.resname = rename_map[res.resname]
+
+        normalize_resnames(chain0)
+        normalize_resnames(chain1)
+
+        try:
+            coords0, seq0 = get_residue_data(chain0)
+            coords1, seq1 = get_residue_data(chain1)
+            if len(seq0) < 3 or len(seq1) < 3:
+                out = 10.0
+            out = tm_align(coords0, coords1, seq0, seq1).rmsd
+        except Exception:
+            out = 10.0
+        return out
 
     def _load_props(self, path: str):
         assert os.path.exists(path)
