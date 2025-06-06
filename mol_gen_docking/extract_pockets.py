@@ -58,12 +58,7 @@ def process_pockets(file_list: List[str]):
 
 @func_set_timeout(5 * 60)
 def preprocess_file(f: str):
-    from openmm.app import PDBFile
-    from pdbfixer import PDBFixer
-
     f_amber = f.replace(".pdb", "_processed.pdb")
-    f_fixed = f.replace(".pdb", "_fixed.pdb")
-
     if not os.path.exists(f_amber):
         # First preprocess with pdb4amber
         check_call(
@@ -83,20 +78,6 @@ def preprocess_file(f: str):
             stdout=DEVNULL,
             stderr=STDOUT,
         )
-
-    # Pass through pdbfixer
-    if not os.path.exists(f_fixed) and os.path.exists(f_amber):
-        fixer = PDBFixer(filename=f_amber)
-        fixer.removeHeterogens(False)
-
-        fixer.findNonstandardResidues()
-        fixer.replaceNonstandardResidues()
-
-        fixer.findMissingResidues()
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
-
-        PDBFile.writeFile(fixer.topology, fixer.positions, open(f_fixed, "w"))
 
 
 def preprocess_pdb(file_list: List[str]):
