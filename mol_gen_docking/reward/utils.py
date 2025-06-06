@@ -1,8 +1,8 @@
 from itertools import product
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
-PROMPT_TEMPLATE: List[Tuple[str, str]] = [
-    (b + e[0], b + e[1])
+PROMPT_TEMPLATE: List[str] = [
+    b + e[0] + "|" + b + e[1]
     for b, e in product(
         [
             "Design a molecule ",
@@ -62,7 +62,6 @@ POSSIBLE_POCKET_INFO: List[str] = [
     "number of alpha spheres",
     "mean alpha-sphere radius",
     "mean alpha-sphere solvent acc.",
-    "mean b-factor of pocket residues",
     "hydrophobicity score",
     "polarity score",
     "amino acid based volume score",

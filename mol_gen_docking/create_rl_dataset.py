@@ -45,7 +45,7 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument(
         "--t-pocket-score",
         type=float,
-        default=0.3,
+        default=0.2,
         help="Threshold for pocket score to consider a pocket.",
     )
     parser.add_argument(
@@ -92,6 +92,8 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace):
             )
         with open(os.path.join(args.data_path, name), "w") as f:
             json.dump(prompts, f, indent=4)
+
+        dataset.save_sim_matrices()
 
 
 if __name__ == "__main__":
