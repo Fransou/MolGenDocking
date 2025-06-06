@@ -345,6 +345,12 @@ class CustomRewardTrainer(RayPPOTrainer):
                     scores[i] /= std
 
         def dump_results(prompts, outputs, scores):
+            if isinstance(prompts, np.ndarray) or isinstance(prompts, torch.Tensor):
+                scores = prompts.tolist()
+            if isinstance(outputs, np.ndarray) or isinstance(outputs, torch.Tensor):
+                scores = outputs.tolist()
+            if isinstance(scores, np.ndarray) or isinstance(scores, torch.Tensor):
+                scores = scores.tolist()
             saved = []
             for prompt, output, score in zip(prompts, outputs, scores):
                 saved.append(dict(prompt=prompt, score=score, outputs=output))
