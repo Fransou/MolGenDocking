@@ -67,7 +67,19 @@ def preprocess_file(f: str):
     if not os.path.exists(f_amber):
         # First preprocess with pdb4amber
         check_call(
-            ["pdb4amber", "-i", f, "-o", f_amber, "-d", "--prot", "--model", "1"],
+            [
+                "pdb4amber",
+                "-i",
+                f,
+                "-o",
+                f_amber,
+                "-d",
+                "--prot",
+                "--model",
+                "1",
+                "--reduce",
+                "--add-missing-atoms",
+            ],
             stdout=DEVNULL,
             stderr=STDOUT,
         )
