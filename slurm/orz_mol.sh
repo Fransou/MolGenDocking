@@ -27,6 +27,6 @@ nvidia-smi
 ray status
 
 
-export DATA_PATH=$SLURM_TMPDIR/mol_orz
+export ORZ_DATA_PATH=$SLURM_TMPDIR/mol_orz
 #export DEBUG_MODE=1
-DATA_PATH=$SLURM_TMPDIR/mol_orz python -m mol_gen_docking.orz_mol
+python -m mol_gen_docking.orz_mol
