@@ -56,7 +56,7 @@ def process_pockets(file_list: List[str]):
                     os.remove(os.path.join(out_path, out_f))
 
 
-@func_set_timeout(5 * 60)
+@func_set_timeout(15 * 60)
 def preprocess_file(f: str):
     f_amber = f.replace(".pdb", "_processed.pdb")
     if not os.path.exists(f_amber):

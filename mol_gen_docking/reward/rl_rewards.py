@@ -230,7 +230,7 @@ class RewardScorer:
         elif obj == "minimize":
             reward += 1 - mol_prop
         elif obj == "equal":
-            reward += 1 - (mol_prop - target_value) ** 2
+            reward += np.clip(1 - 100 * (mol_prop - target_value) ** 2, 0, 1)
         return reward
 
     def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:

@@ -154,7 +154,7 @@ class MolGenerationInstructionsDataset:
             self._extract_splits(config.split_docking)  # Train, Val, Test (no leakage)
 
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
-        self.templates: List[str] = PROMPT_TEMPLATE
+        self.templates: List[Tuple[str, str]] = PROMPT_TEMPLATE
         self.prop_key_list = list(self.prop_name_mapping.keys())
         self.rule_set = RuleSet(
             probs_docking_targets=config.probs_docking_targets,
@@ -309,7 +309,7 @@ class MolGenerationInstructionsDataset:
             phrases.append(phrase)
 
         # Top-level prompt templates
-        prompt: str = random.choice(self.templates)
+        prompt: str = random.choice(self.templates)[int(len(props) > 1)]
         full_prompt = prompt.format(objectives="; ".join(phrases))
 
         if not pocket_data == {}:

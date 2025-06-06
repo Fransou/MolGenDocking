@@ -1,11 +1,36 @@
-from typing import Dict, List
+from itertools import product
+from typing import Dict, List, Tuple
 
-PROMPT_TEMPLATE: List[str] = [
-    "Design a molecule that satisfies the following objectives: {objectives}.",
-    "Create a compound that meets these goals: {objectives}.",
-    "Suggest a molecule with the following optimization targets: {objectives}.",
-    "Please propose a structure that fulfills these requirements: {objectives}.",
-    "Generate a candidate molecule optimized for: {objectives}.",
+PROMPT_TEMPLATE: List[Tuple[str, str]] = [
+    (b + e[0], b + e[1])
+    for b, e in product(
+        [
+            "Design a molecule ",
+            "Create a compound ",
+            "Suggest a molecule ",
+            "Propose a structure that ",
+            "Generate a candidate molecule ",
+        ],
+        [
+            (
+                "that satisfies the following objective: {objectives}.",
+                "that satisfies the following objectives: {objectives}.",
+            ),
+            (
+                "that meets this goal: {objectives}.",
+                "that meets these goals: {objectives}.",
+            ),
+            (
+                "with the following optimization target: {objectives}.",
+                "with the following optimization targets: {objectives}.",
+            ),
+            (
+                "that fulfills this requirement: {objectives}.",
+                "that fulfills these requirements: {objectives}.",
+            ),
+            ("optimized for: {objectives}.", "optimized for: {objectives}."),
+        ],
+    )
 ]
 
 
