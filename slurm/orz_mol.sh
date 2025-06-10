@@ -12,7 +12,7 @@
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 
-cp $SCRATCH/MolGenData/mol_orz.zip $SLURM_TMPDIR
+cp $SCRATCH/MolGenData/mol_orz_pocket_desc.zip $SLURM_TMPDIR
 cd $SLURM_TMPDIR
 unzip mol_orz.zip
 cd $WORKING_DIR
