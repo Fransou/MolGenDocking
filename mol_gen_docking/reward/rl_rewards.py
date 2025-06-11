@@ -231,7 +231,7 @@ class RewardScorer:
             reward += 1 - mol_prop
         elif obj == "equal":
             reward += np.clip(1 - 100 * (mol_prop - target_value) ** 2, 0, 1)
-        return reward
+        return float(reward)
 
     def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:
         smiles = self.get_all_completions_smiles(completions)

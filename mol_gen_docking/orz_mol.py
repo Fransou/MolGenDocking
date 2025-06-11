@@ -144,7 +144,7 @@ class PPOExpConfig(BasePPOExpConfig):
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.9
+    gpu_memory_utilization: float = 0.9 if not DEBUG_MODE else 0.5
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
@@ -303,8 +303,8 @@ class CustomRewardTrainer(RayPPOTrainer):
             )
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
-            output["molecule_score"] = m_score
-            output["valid_score"] = v_score
+            output["molecule_score"] = float(m_score)
+            output["valid_score"] = float(v_score)
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
@@ -345,14 +345,14 @@ class CustomRewardTrainer(RayPPOTrainer):
                     scores[i] /= std
 
         def dump_results(prompts, outputs, scores):
-            if isinstance(prompts, np.ndarray) or isinstance(prompts, torch.Tensor):
-                scores = prompts.tolist()
-            if isinstance(outputs, np.ndarray) or isinstance(outputs, torch.Tensor):
-                scores = outputs.tolist()
-            if isinstance(scores, np.ndarray) or isinstance(scores, torch.Tensor):
-                scores = scores.tolist()
             saved = []
             for prompt, output, score in zip(prompts, outputs, scores):
+                if isinstance(score, torch.Tensor):
+                    score = score.tolist()
+                if isinstance(output, torch.Tensor):
+                    output = output.tolist()
+                if isinstance(prompt, torch.Tensor):
+                    prompt = prompt.tolist()
                 saved.append(dict(prompt=prompt, score=score, outputs=output))
             json.dump(
                 saved,
@@ -464,6 +464,8 @@ class CustomRewardTrainer(RayPPOTrainer):
         @ray.remote(num_cpus=1)
         def extract_final_answers_batch(responses: List[str]) -> List[Any | str]:
             # pattern = re.compile(r"(\\boxed{.*})")
+            RDLogger.DisableLog("rdApp.*")
+
             final_answers = []
             for comp in responses:
                 re.split("\n| |.", comp)
