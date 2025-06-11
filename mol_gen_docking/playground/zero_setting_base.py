@@ -5,8 +5,11 @@ from orz.ppo import PromptDataset
 
 
 class CustomDataset(PromptDataset):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, n_prompts, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if n_prompts > 1:
+            n_prompts = min(n_prompts, len(self.dialogues))
+            self.dialogues = self.dialogues[:n_prompts]
 
     def process_dialogue(self, dialogue: List):
         prompt_template_jinja = """\

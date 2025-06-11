@@ -93,6 +93,7 @@ class PPOExpConfig(BasePPOExpConfig):
     # MathTrain dataset and Math500 eval dataset
     # data related settings
     base_data_path: str = os.environ["ORZ_DATA_PATH"]
+    n_prompts: int = 256
     prompt_data: ListConfig = ListConfig(
         [
             base_data_path + "/train_prompts.json",
@@ -162,6 +163,9 @@ class WandbWriter:
 
     def add_scalar(self, key: str, value: float, step: int):
         wandb.log({key: value}, step=step)
+
+    def add_dict(self, dict_vals: Dict[str, Any], step: int):
+        wandb.log(dict, step=step)
 
     def add_histogram(self, key: str, value: np.ndarray, step: int):
         wandb.log({key: wandb.Histogram(value)}, step=step)
@@ -615,6 +619,7 @@ class PPOExp(BasePPOExp):
                 dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
         prompts_dataset = CustomDataset(
+            self.cfg.n_prompts,
             dialogues,
             self.tokenizer,
             self.cfg.prompt_max_len,
@@ -647,7 +652,6 @@ class PPOExp(BasePPOExp):
 
 if __name__ == "__main__":
     cfg = PPOExpConfig()
-    print(cfg)
     exp = PPOExp().set_cfg(cfg)
     logger.info(exp.get_cfg_as_str(exp.cfg))
     if not os.path.exists(exp.cfg.save_path):
