@@ -51,6 +51,7 @@ executor = ThreadPoolExecutor(max_workers=64)
 
 os.environ["VLLM_USE_V1"] = "0"
 
+
 @dataclass
 class PPOExpConfig(BasePPOExpConfig):
     use_compute_reward_fn: bool = True
@@ -61,7 +62,7 @@ class PPOExpConfig(BasePPOExpConfig):
     num_nodes: int = 1
 
     # resource related settings
-    scorer_ncpus: int = 0.5
+    scorer_ncpus: float = 0.5
     scorer_exhaustivness: int = 1  # TODO change to 4
 
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
@@ -140,7 +141,9 @@ class PPOExpConfig(BasePPOExpConfig):
     temperature: float = 1.0
     top_p: float = 1.0
     top_k: int = -1
-    stop: ListConfig = field(default_factory= lambda : ["User:", "Human:", "Assistant:", "</answer>"])
+    stop: ListConfig = field(
+        default_factory=lambda: ["User:", "Human:", "Assistant:", "</answer>"]
+    )
 
     # grpo related settings
     use_grpo: bool = False

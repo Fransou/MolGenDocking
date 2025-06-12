@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "mol_gen_docking"
 version = "2025.8.4"
 dependencies = [
-    "torch==2.6.0",
+    "torch>=2.6.0",
     "torchvision",
     "torchaudio",
     "datasets",
