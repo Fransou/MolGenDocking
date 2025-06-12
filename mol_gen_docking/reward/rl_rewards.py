@@ -171,7 +171,7 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
-        @ray.remote(num_cpus=1)
+        @ray.remote(num_cpus=0.3)
         def _get_property(
             smiles: List[str],
             prop: str,

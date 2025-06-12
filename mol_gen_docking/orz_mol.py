@@ -12,7 +12,7 @@ import os
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -37,7 +37,6 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
-os.environ["VLLM_USE_V1"] = "0"
 RDLogger.DisableLog("rdApp.*")
 
 
@@ -50,6 +49,7 @@ file_name = (
 )
 executor = ThreadPoolExecutor(max_workers=64)
 
+os.environ["VLLM_USE_V1"] = "0"
 
 @dataclass
 class PPOExpConfig(BasePPOExpConfig):
@@ -61,7 +61,7 @@ class PPOExpConfig(BasePPOExpConfig):
     num_nodes: int = 1
 
     # resource related settings
-    scorer_ncpus: int = 4
+    scorer_ncpus: int = 0.5
     scorer_exhaustivness: int = 1  # TODO change to 4
 
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
@@ -83,7 +83,7 @@ class PPOExpConfig(BasePPOExpConfig):
     zero_stage: int = 3
 
     # path related settings
-    pretrain: Optional[str] = "SFT_SMOL/model"
+    pretrain: Optional[str] = "/scratch/fransou/Qwen/Qwen3-1.7B"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
     ckpt_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
@@ -114,9 +114,9 @@ class PPOExpConfig(BasePPOExpConfig):
     advantage_normalize: bool = True
 
     num_episodes: int = 20
-    rollout_batch_size: int = 128 if not DEBUG_MODE else 4
-    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
-    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 4
+    rollout_batch_size: int = 16 if not DEBUG_MODE else 2
+    n_samples_per_prompt: int = 4 if not DEBUG_MODE else 2
+    micro_rollout_batch_size: int = 16 if not DEBUG_MODE else 2
 
     policy_update_steps: int = 1
     critic_update_steps: int = 12 if not DEBUG_MODE else 1
@@ -140,12 +140,12 @@ class PPOExpConfig(BasePPOExpConfig):
     temperature: float = 1.0
     top_p: float = 1.0
     top_k: int = -1
-    stop: ListConfig = ListConfig(["User:", "Human:", "Assistant:", "</answer>"])
+    stop: ListConfig = field(default_factory= lambda : ["User:", "Human:", "Assistant:", "</answer>"])
 
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.9 if not DEBUG_MODE else 0.5
+    gpu_memory_utilization: float = 0.7 if not DEBUG_MODE else 0.5
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
@@ -165,7 +165,7 @@ class WandbWriter:
         wandb.log({key: value}, step=step)
 
     def add_dict(self, dict_vals: Dict[str, Any], step: int):
-        wandb.log(dict, step=step)
+        wandb.log(dict_vals, step=step)
 
     def add_histogram(self, key: str, value: np.ndarray, step: int):
         wandb.log({key: wandb.Histogram(value)}, step=step)
