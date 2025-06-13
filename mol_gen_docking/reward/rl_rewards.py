@@ -149,14 +149,15 @@ class RewardScorer:
             re.split("\n| |.|\t|:", comp)
             # Then we filter by removing any string that does not contain "C"
             valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+
             def filter_smiles(x: str) -> bool:
-                if "e" in x or len(x)<3:
+                if "e" in x or len(x) < 3:
                     return False
                 if "C" in x or x.count("c") > 2:
                     return valid_smiles_pattern.fullmatch(x) is not None
-            s_poss = [
-                x for x in comp.split() if filter_smiles(x)
-            ]
+                return False
+
+            s_poss = [x for x in comp.split() if filter_smiles(x)]
             # Finally we remove any string that is not a valid SMILES
             s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
 
@@ -290,9 +291,9 @@ class RewardScorer:
         smiles_list_per_completion = self._get_smiles_list(completions)
         if self.reward == "smiles" or self.reward == "valid_smiles":
             return [
-                    float(len(valid_smiles_c) > 0)
-                    for valid_smiles_c in smiles_list_per_completion
-                ]
+                float(len(valid_smiles_c) > 0)
+                for valid_smiles_c in smiles_list_per_completion
+            ]
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
