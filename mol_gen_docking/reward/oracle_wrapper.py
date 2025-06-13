@@ -4,7 +4,6 @@ import warnings
 from typing import Any, Callable, Dict, List, Union
 
 import numpy as np
-import pandas as pd
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles
 from tdc.oracles import Oracle, oracle_names
@@ -30,7 +29,6 @@ class OracleWrapper:
     def __init__(
         self,
         debug: bool = False,
-        propeties_csv: pd.DataFrame = pd.DataFrame(),
     ):
         self.logger = create_logger(
             __name__ + "/" + self.__class__.__name__,
@@ -39,7 +37,6 @@ class OracleWrapper:
         self.name: str = ""
         self.evaluator: Callable[[Any], Any] = lambda x: None
         self.task_label = None
-        self.propeties_csv = propeties_csv
 
     def assign_evaluator(self, evaluator: Callable[[Any], Any], name: str):
         """Assign the evaluator to the OracleWrapper."""
@@ -116,8 +113,9 @@ class OracleWrapper:
 
 def get_oracle(
     oracle_name: str,
-    property_name_mapping: Dict[str, str],
-    docking_target_list: List[str],
+    path_to_data: str = "",
+    property_name_mapping: Dict[str, str] = {},
+    docking_target_list: List[str] = [],
     **kwargs,
 ):
     """
@@ -134,7 +132,8 @@ def get_oracle(
         from mol_gen_docking.reward.oracles.docking_oracle import PyscreenerOracle
 
         oracle_wrapper.assign_evaluator(
-            PyscreenerOracle(oracle_name, **kwargs), f"docking_prop/{oracle_name}"
+            PyscreenerOracle(oracle_name, path_to_data=path_to_data, **kwargs),
+            f"docking_prop/{oracle_name}",
         )
     elif oracle_name.lower() in oracle_names:
         oracle_wrapper.assign_evaluator(

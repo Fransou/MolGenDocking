@@ -12,7 +12,7 @@ import os
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -26,7 +26,7 @@ from omegaconf.listconfig import ListConfig
 from orz.exps.examples.ppo.ppo_base_exp import BasePPOExp, BasePPOExpConfig
 from orz.ppo import RayPPOTrainer
 from orz.ppo.utils import check_reflection_pattern
-from rdkit import Chem
+from rdkit import Chem, RDLogger
 from typing_extensions import override
 
 from mol_gen_docking.playground.zero_setting_base import (
@@ -37,16 +37,19 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 # set wandb offline
 os.environ["WANDB_MODE"] = "offline"
+RDLogger.DisableLog("rdApp.*")
 
-os.environ["VLLM_USE_V1"] = "0"
 
 DEBUG_MODE = (
     False if os.environ.get("DEBUG_MODE", "False") == "False" else True
 )  # Global debug flag
+
 file_name = (
     f"{'debug_' if DEBUG_MODE else ''}{os.path.splitext(os.path.basename(__file__))[0]}"
 )
 executor = ThreadPoolExecutor(max_workers=64)
+
+os.environ["VLLM_USE_V1"] = "0"
 
 
 @dataclass
@@ -59,7 +62,7 @@ class PPOExpConfig(BasePPOExpConfig):
     num_nodes: int = 1
 
     # resource related settings
-    scorer_ncpus: int = 4
+    scorer_ncpus: float = 0.5
     scorer_exhaustivness: int = 1  # TODO change to 4
 
     ref_num_nodes: int = num_nodes * (num_gpus_per_node // 4)
@@ -81,7 +84,7 @@ class PPOExpConfig(BasePPOExpConfig):
     zero_stage: int = 3
 
     # path related settings
-    pretrain: Optional[str] = "SFT_SMOL/model"
+    pretrain: Optional[str] = "/scratch/fransou/Qwen/Qwen3-1.7B"
     reward_pretrain: Optional[str] = None
     save_interval: int = 50
     ckpt_path: str = f"/scratch/fransou/orz_ckpt/{file_name}"
@@ -90,13 +93,15 @@ class PPOExpConfig(BasePPOExpConfig):
 
     # MathTrain dataset and Math500 eval dataset
     # data related settings
+    base_data_path: str = os.environ["ORZ_DATA_PATH"]
+    n_prompts: int = 256
     prompt_data: ListConfig = ListConfig(
         [
-            "data/mol_orz/train_prompts.json",
+            base_data_path + "/train_prompts.json",
         ]
     )
     eval_prompt_data: ListConfig = ListConfig(
-        ["data/mol_orz/eval_data/eval_prompts.json"]
+        [base_data_path + "/eval_data/eval_prompts.json"]
     )
     prompt_data_probs: ListConfig = ListConfig([1.0])
 
@@ -110,9 +115,9 @@ class PPOExpConfig(BasePPOExpConfig):
     advantage_normalize: bool = True
 
     num_episodes: int = 20
-    rollout_batch_size: int = 128 if not DEBUG_MODE else 4
-    n_samples_per_prompt: int = 64 if not DEBUG_MODE else 2
-    micro_rollout_batch_size: int = 128 if not DEBUG_MODE else 4
+    rollout_batch_size: int = 16 if not DEBUG_MODE else 2
+    n_samples_per_prompt: int = 4 if not DEBUG_MODE else 2
+    micro_rollout_batch_size: int = 16 if not DEBUG_MODE else 2
 
     policy_update_steps: int = 1
     critic_update_steps: int = 12 if not DEBUG_MODE else 1
@@ -136,12 +141,14 @@ class PPOExpConfig(BasePPOExpConfig):
     temperature: float = 1.0
     top_p: float = 1.0
     top_k: int = -1
-    stop: ListConfig = ListConfig(["User:", "Human:", "Assistant:", "</answer>"])
+    stop: ListConfig = field(
+        default_factory=lambda: ["User:", "Human:", "Assistant:", "</answer>"]
+    )
 
     # grpo related settings
     use_grpo: bool = False
 
-    gpu_memory_utilization: float = 0.9
+    gpu_memory_utilization: float = 0.7 if not DEBUG_MODE else 0.5
     critic_pretrain: Optional[str] = "" if use_grpo else pretrain
 
     gamma: float = 1.0
@@ -159,6 +166,9 @@ class WandbWriter:
 
     def add_scalar(self, key: str, value: float, step: int):
         wandb.log({key: value}, step=step)
+
+    def add_dict(self, dict_vals: Dict[str, Any], step: int):
+        wandb.log(dict_vals, step=step)
 
     def add_histogram(self, key: str, value: np.ndarray, step: int):
         wandb.log({key: wandb.Histogram(value)}, step=step)
@@ -205,17 +215,12 @@ class CustomRewardTrainer(RayPPOTrainer):
 
         # Find the directory of the training set:
         data_path = os.path.dirname(cfg.prompt_data[0])
-        # Open the "names_mapping.json" file and "docking_targets.json" file
-        with open(os.path.join(data_path, "names_mapping.json")) as f:
-            property_name_mapping = json.load(f)
-        with open(os.path.join(data_path, "docking_targets.json")) as f:
-            docking_target_list = json.load(f)
+
         self._reward_properties = (
             ray.remote(RewardScorer)
             .options(num_cpus=1)
             .remote(
-                property_name_mapping=property_name_mapping,
-                docking_target_list=docking_target_list,
+                path_to_mappings=data_path,
                 parse_whole_completion=True,
                 oracle_kwargs=dict(
                     exhaustiveness=cfg.scorer_exhaustivness,
@@ -228,8 +233,7 @@ class CustomRewardTrainer(RayPPOTrainer):
             ray.remote(RewardScorer)
             .options(num_cpus=1)
             .remote(
-                property_name_mapping=property_name_mapping,
-                docking_target_list=docking_target_list,
+                path_to_mappings=data_path,
                 reward="valid_smiles",
                 parse_whole_completion=True,
             )  # type: ignore
@@ -306,8 +310,8 @@ class CustomRewardTrainer(RayPPOTrainer):
             )
             stop_reason = output["stop_reason"]
             response_token = len(out_token)
-            output["molecule_score"] = m_score
-            output["valid_score"] = v_score
+            output["molecule_score"] = float(m_score)
+            output["valid_score"] = float(v_score)
             output["reflection_pattern_score"] = reflection_pattern_score
             # only correct and stoped response can aquire reward
             if stop_reason == "stop":
@@ -350,6 +354,12 @@ class CustomRewardTrainer(RayPPOTrainer):
         def dump_results(prompts, outputs, scores):
             saved = []
             for prompt, output, score in zip(prompts, outputs, scores):
+                if isinstance(score, torch.Tensor):
+                    score = score.tolist()
+                if isinstance(output, torch.Tensor):
+                    output = output.tolist()
+                if isinstance(prompt, torch.Tensor):
+                    prompt = prompt.tolist()
                 saved.append(dict(prompt=prompt, score=score, outputs=output))
             json.dump(
                 saved,
@@ -461,11 +471,17 @@ class CustomRewardTrainer(RayPPOTrainer):
         @ray.remote(num_cpus=1)
         def extract_final_answers_batch(responses: List[str]) -> List[Any | str]:
             # pattern = re.compile(r"(\\boxed{.*})")
+            RDLogger.DisableLog("rdApp.*")
+
             final_answers = []
             for comp in responses:
                 re.split("\n| |.", comp)
                 # Then we filter by removing any string that does not contain "C"
-                s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+                s_poss = [
+                    x
+                    for x in comp.split()
+                    if ("C" in x or x.count("c") > 1) and "e" not in x
+                ]
                 # Finally we remove any string that is not a valid SMILES
                 s_spl = [x + " - " for x in s_poss if Chem.MolFromSmiles(x) is not None]
 
@@ -606,6 +622,7 @@ class PPOExp(BasePPOExp):
                 dialogues.extend(json.load(f))
         logger.info(f"Start processing {len(dialogues)} dialogues")
         prompts_dataset = CustomDataset(
+            self.cfg.n_prompts,
             dialogues,
             self.tokenizer,
             self.cfg.prompt_max_len,
@@ -637,7 +654,8 @@ class PPOExp(BasePPOExp):
 
 
 if __name__ == "__main__":
-    exp = PPOExp().set_cfg(PPOExpConfig())
+    cfg = PPOExpConfig()
+    exp = PPOExp().set_cfg(cfg)
     logger.info(exp.get_cfg_as_str(exp.cfg))
     if not os.path.exists(exp.cfg.save_path):
         os.makedirs(exp.cfg.save_path, exist_ok=True)

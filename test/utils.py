@@ -1,11 +1,14 @@
 import json
+import os
 from typing import Callable, List
 
 import pandas as pd
 
-with open("data/mol_orz/names_mapping.json") as f:
+DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
+
+with open(f"{DATA_PATH}/names_mapping.json") as f:
     PROPERTIES_NAMES_SIMPLE: dict = json.load(f)
-with open("data/mol_orz/docking_targets.json") as f:
+with open(f"{DATA_PATH}/docking_targets.json") as f:
     DOCKING_PROP_LIST: List[str] = json.load(f)
 
 PROP_LIST: List[str] = [

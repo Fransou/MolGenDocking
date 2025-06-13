@@ -9,7 +9,7 @@ from tdc import single_pred
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
-from .utils import DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE
+from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE
 
 
 def is_rdkit_use(name: str):
@@ -53,7 +53,12 @@ def rdkit_oracle(request) -> RDKITOracle:
 
 @pytest.fixture(params=PROP_LIST)
 def oracle(request):
-    return get_oracle(request.param, PROPERTIES_NAMES_SIMPLE, DOCKING_PROP_LIST)
+    return get_oracle(
+        request.param,
+        path_to_data=DATA_PATH,
+        property_name_mapping=PROPERTIES_NAMES_SIMPLE,
+        docking_target_list=DOCKING_PROP_LIST,
+    )
 
 
 def test_RDKITOracle(rdkit_oracle, smiles_data):
@@ -79,15 +84,16 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props[0], float)
 
 
-@pytest.mark.skipif(True or os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
 def test_vina(smiles_data):
     """
     Tests the oracle with vina
     """
     oracle = get_oracle(
         "3pbl_docking",
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        path_to_data=DATA_PATH,
+        property_name_mapping=PROPERTIES_NAMES_SIMPLE,
+        docking_target_list=DOCKING_PROP_LIST,
         ncpu=1,
         exhaustiveness=1,
     )

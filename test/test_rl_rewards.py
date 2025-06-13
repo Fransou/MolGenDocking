@@ -16,6 +16,7 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
     COMPLETIONS,
+    DATA_PATH,
     DOCKING_PROP_LIST,
     OBJECTIVES_TO_TEST,
     PROP_LIST,
@@ -30,28 +31,25 @@ try:
 except Exception:
     ray.init()
 
-cfg = DatasetConfig(data_path="data/mol_orz")
+cfg = DatasetConfig(data_path=DATA_PATH)
 
 scorers = {
     "valid_smiles": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "property",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
     "property_whole": RewardScorer(
-        PROPERTIES_NAMES_SIMPLE,
-        DOCKING_PROP_LIST,
+        DATA_PATH,
         "property",
         parse_whole_completion=False,
         rescale=False,
@@ -61,7 +59,36 @@ scorers = {
 
 
 @pytest.fixture(scope="module", params=[True, False])
-def build_prompt(request):
+def build_metada_pocket(request):
+    if not request.param:
+
+        def wrapped_fn(props):
+            return {}
+
+    def wrapped_fn(props):
+        out = {}
+        for p in props:
+            out[p] = {
+                "number of alpha spheres": 10,
+                "mean alpha-sphere radius": 0.561126,
+                "mean alpha-sphere solvent acc.": 1.156,
+                "mean b-factor of pocket residues": 1156.16546,
+                "hydrophobicity score": 0.2,
+                "polarity score": 0.1,
+                "amino acid based volume score": 0.1,
+                "pocket volume (monte carlo)": 0.1,
+                "charge score": 0.1,
+                "local hydrophobic density score": 0.1,
+                "number of apolar alpha sphere": 1564614687684,
+                "proportion of apolar alpha sphere": 0.1,
+            }
+        return out
+
+    return wrapped_fn
+
+
+@pytest.fixture(scope="module", params=[True, False])
+def build_prompt(request, build_metada_pocket):
     def build_prompt_from_dataset(
         property: str | List[str], obj: str = "maximize"
     ) -> str:
@@ -70,7 +97,9 @@ def build_prompt(request):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(properties, [obj] * len(properties))
+        return dummy.fill_prompt(
+            properties, [obj] * len(properties), build_metada_pocket(properties)
+        )
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
@@ -303,7 +332,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif obj == "above 0.5":
         val = (rewards_max >= 0.5).float()
     elif obj == "equal 0.5":
-        val = 1 - (rewards_max - 0.5) ** 2
+        val = np.clip(1 - 100 * (rewards_max - 0.5) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
 
@@ -327,6 +356,7 @@ def test_ray(prop, smiles, build_prompt):
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
+            DATA_PATH,
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
         )  # type: ignore
@@ -336,13 +366,10 @@ def test_ray(prop, smiles, build_prompt):
 
 
 @pytest.mark.skipif(
-    os.system("qvina --help") == 32512 and os.environ.get("DEBUG_MODE", 0) == "1",
+    os.system("qvina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
     reason="requires vina and debug mode",
 )
-@pytest.mark.parametrize(
-    "property1",
-    DOCKING_PROP_LIST[:10],
-)
+@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
 def test_runtime(
     property1,
     n_generation=4,
@@ -356,7 +383,7 @@ def test_runtime(
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"])
+        return dataset_cls.fill_prompt([property1], ["maximize"], {})
 
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generation
@@ -367,6 +394,8 @@ def test_runtime(
         ray.remote(RewardScorer)
         .options(num_cpus=1)
         .remote(
+            DATA_PATH,
+            "property",
             parse_whole_completion=True,
             oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
         )  # type: ignore

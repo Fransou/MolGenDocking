@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
+from multiprocessing import Pool
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import numpy as np
@@ -15,11 +16,11 @@ from mol_gen_docking.reward.property_utils.classical_properties import (
 )
 from mol_gen_docking.reward.utils import (
     OBJECTIVES_TEMPLATES,
+    POSSIBLE_POCKET_INFO,
     PROMPT_TEMPLATE,
 )
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
@@ -61,11 +62,6 @@ class RuleSet:
         if (
             metadata["prompt_id"] in self.prompt_ids[n_props]
         ):  # Already generated this prompt
-            logger.info(
-                "Prompt %s already generated for n_props=%d",
-                metadata["prompt_id"],
-                n_props,
-            )
             return False
         for prop in properties:
             if prop not in self.n_occ_prop[n_props]:
@@ -90,7 +86,7 @@ class RuleSet:
                     self.prohibited_props_at_n[n_props] = []
                 self.prohibited_props_at_n[n_props].append(prop)
                 logger.info(
-                    "Prohibiting docking property %s for n_props=%d",
+                    "Prohibiting %s for n_props=%d",
                     prop,
                     n_props,
                 )
@@ -113,6 +109,7 @@ class DatasetConfig:
     probs_docking_targets: float = 0.5
     max_occ: int = 10
     max_docking_per_prompt: int = 2
+    min_n_pocket_infos: int = -1
 
 
 class MolGenerationInstructionsDataset:
@@ -125,11 +122,15 @@ class MolGenerationInstructionsDataset:
         """
         :param max_n_props: Maximal number of properties to optimize
         """
+        self.config = config
+
         self.docking_targets: List[str] = []
         self.prop_name_mapping: Dict[str, str] = {}
         self.pockets_info: Dict[str, Any] = {}
 
-        self.load_props(config.data_path)
+        self.add_pocket_info = config.min_n_pocket_infos > 0
+        self.min_n_pocket_infos = config.min_n_pocket_infos
+        self._load_props(config.data_path)
         self.max_n_props = config.max_n_props
 
         self.std_properties: List[str] = [
@@ -148,13 +149,7 @@ class MolGenerationInstructionsDataset:
                 for k in self.prop_name_mapping
                 if self.prop_name_mapping[k] in self.docking_targets
             ]
-            np.random.shuffle(self.docking_properties)
-            i0 = 0
-            for idx, p in enumerate(config.split_docking):
-                i1 = i0 + int(len(self.docking_properties) * p)
-                i1 = min(i1, len(self.docking_properties))
-                self.docking_properties_split[idx] = self.docking_properties[i0:i1]
-                i0 = i1
+            self._extract_splits(config.split_docking)  # Train, Val, Test (no leakage)
 
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
         self.templates: List[str] = PROMPT_TEMPLATE
@@ -165,7 +160,149 @@ class MolGenerationInstructionsDataset:
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
 
-    def load_props(self, path: str):
+    def save_sim_matrices(self):
+        # Get similarity matrix per split
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
+        ) as f:
+            json.dump(self._get_similarity_matrix(0, 1, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
+        ) as f:
+            json.dump(self._get_similarity_matrix(0, 2, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "val_dist_to_val.json"), "w"
+        ) as f:
+            json.dump(self._get_similarity_matrix(1, 1, self.config.data_path), f)
+        with open(
+            os.path.join(self.config.data_path, "test_dist_to_test.json"), "w"
+        ) as f:
+            json.dump(self._get_similarity_matrix(2, 2, self.config.data_path), f)
+
+    @staticmethod
+    def _get_allowed_props(
+        original_prop_list: List[str], rule_set: RuleSet, n_props: int
+    ):
+        return [
+            p
+            for p in original_prop_list
+            if p not in rule_set.prohibited_props_at_n.get(n_props, [])
+        ]
+
+    def _get_similarity_matrix(
+        self, i0: int, i1: int, path: str
+    ) -> Dict[str, Dict[str, float]]:
+        from tmtools import tm_align
+        from tmtools.io import get_residue_data, get_structure
+        
+        pdb_ids_list0 = [
+            self.prop_name_mapping[p]
+            for p in self.docking_properties_split[i0]
+            if not self.prop_name_mapping[p].endswith("_docking")
+        ]
+        pdb_ids_list1 = [
+            self.prop_name_mapping[p]
+            for p in self.docking_properties_split[i1]
+            if not self.prop_name_mapping[p].endswith("_docking")
+        ]
+
+        similarities: Dict[str, Dict[str, float]] = {p: {} for p in pdb_ids_list0}
+        args = [(p0, p1, path) for p0 in pdb_ids_list0 for p1 in pdb_ids_list1]
+        pool = Pool(4)
+        results = list(
+            tqdm(
+                pool.imap(self.get_similarity, args),
+                total=len(args),
+                desc=f"Similarity computing between {i0} and {i1}",
+            )
+        )
+        for r, ar in zip(results, args):
+            similarities[ar[0]][ar[1]] = r
+
+        return similarities
+
+    def get_similarity(self, inp: Tuple[str, str, str]) -> float:
+        pdb0, pdb1, path = inp
+
+        pocket_id0 = self.pockets_info[pdb0]["metadata"]["pocket_id"]
+        pocket_id1 = self.pockets_info[pdb1]["metadata"]["pocket_id"]
+
+        pocket0 = get_structure(
+            os.path.join(
+                path,
+                "pdb_files",
+                pdb0 + "_processed_out",
+                "pockets",
+                f"pocket{pocket_id0}_atm.pdb",
+            )
+        )
+        pocket1 = get_structure(
+            os.path.join(
+                path,
+                "pdb_files",
+                pdb1 + "_processed_out",
+                "pockets",
+                f"pocket{pocket_id1}_atm.pdb",
+            )
+        )
+
+        s0 = get_structure(os.path.join(path, "pdb_files", pdb0 + "_processed.pdb"))
+        s1 = get_structure(os.path.join(path, "pdb_files", pdb1 + "_processed.pdb"))
+
+        def get_closest_chain(structure, pocket):
+            pocket_atoms = [atom.get_coord() for atom in pocket.get_atoms()]
+            pocket_center = np.mean(pocket_atoms, axis=0)
+
+            min_dist = float("inf")
+            closest_chain = None
+            for chain in structure.get_chains():
+                try:
+                    chain_coords = np.array(
+                        [atom.get_coord() for atom in chain.get_atoms()]
+                    )
+                    if chain_coords.shape[0] < 3:
+                        continue
+                    chain_center = np.mean(chain_coords, axis=0)
+                    dist = np.linalg.norm(pocket_center - chain_center)
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_chain = chain
+                except Exception:
+                    continue
+            return closest_chain
+
+        chain0 = get_closest_chain(s0, pocket0)
+        chain1 = get_closest_chain(s1, pocket1)
+
+        def normalize_resnames(chain):
+            rename_map = {
+                "HIE": "HIS",
+                "HIP": "HIS",
+                "HID": "HIS",
+                "ASH": "ASP",
+                "GLH": "GLU",
+                "CYX": "CYS",
+                "CSS": "CYS",
+                # Add more if needed
+            }
+            for res in chain:
+                if res.resname in rename_map:
+                    res.resname = rename_map[res.resname]
+
+        normalize_resnames(chain0)
+        normalize_resnames(chain1)
+
+        try:
+            coords0, seq0 = get_residue_data(chain0)
+            coords1, seq1 = get_residue_data(chain1)
+            if len(seq0) < 3 or len(seq1) < 3:
+                out = 10.0
+            out = tm_align(coords0, coords1, seq0, seq1).rmsd
+        except Exception:
+            out = 10.0
+        return out
+
+    def _load_props(self, path: str):
         assert os.path.exists(path)
         docking_target_list_path = os.path.join(path, "docking_targets.json")
         prop_name_mapping_path = os.path.join(path, "names_mapping.json")
@@ -188,7 +325,18 @@ class MolGenerationInstructionsDataset:
         with open(pocket_info_path) as f:
             self.pockets_info = json.load(f)
 
-    def fill_prompt(self, props: List[str], objs: List[str]) -> str:
+    def _extract_splits(self, split_docking):
+        np.random.shuffle(self.docking_properties)
+        i0 = 0
+        for idx, p in enumerate(split_docking):
+            i1 = i0 + int(len(self.docking_properties) * p)
+            i1 = min(i1, len(self.docking_properties))
+            self.docking_properties_split[idx] = self.docking_properties[i0:i1]
+            i0 = i1
+
+    def fill_prompt(
+        self, props: List[str], objs: List[str], pocket_data: Dict[str, Any]
+    ) -> str:
         """
         Takes a list of properties and corresponding objectives
         and returns a diverse natural language prompt for multi-objective optimization.
@@ -219,9 +367,109 @@ class MolGenerationInstructionsDataset:
             phrases.append(phrase)
 
         # Top-level prompt templates
-        prompt: str = random.choice(self.templates)
+        prompt: str = random.choice(self.templates).split("|")[int(len(props) > 1)]
         full_prompt = prompt.format(objectives="; ".join(phrases))
+
+        if not pocket_data == {}:
+            new_sentence = (
+                " Here are some descriptors of the pocket"
+                + "s" * int(len(pocket_data) > 1)
+                + " we want the compound to bind to: \n"
+            )
+            for p in pocket_data:
+                new_sentence += p + ":\n"
+                for k in pocket_data[p]:
+                    new_sentence += "    " + k + ":" + str(pocket_data[p][k]) + "\n"
+
+            full_prompt += new_sentence
         return full_prompt
+
+    def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
+        pocket_datas: Dict[str, Any] = {}
+        if self.add_pocket_info:
+            for p in properties:
+                pdb_id = self.prop_name_mapping[p]
+                if pdb_id in self.docking_targets and pdb_id in self.pockets_info:
+                    pocket_metadata = self.pockets_info[pdb_id].get("metadata", {})
+                    if not isinstance(pocket_metadata, dict):
+                        pocket_metadata = dict(pocket_metadata)
+                    n_props = np.random.randint(
+                        self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
+                    )
+                    dict_keys = np.random.choice(
+                        POSSIBLE_POCKET_INFO, n_props, replace=False
+                    )
+                    pocket_data = {
+                        k: pocket_metadata[k] for k in dict_keys if k in pocket_metadata
+                    }
+                    pocket_datas[pdb_id] = pocket_data
+        return pocket_datas
+
+    def _get_prompt_metadata(
+        self,
+        properties: List[str],
+        objectives: List[str],
+        identifier: str,
+        n_props: int,
+    ) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
+        metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
+        metadata["target"] = [
+            0 if len(obj.split(" ")) == 1 else obj.split(" ")[1] for obj in objectives
+        ]
+        metadata["prompt_id"] = identifier
+        metadata["n_props"] = n_props
+        metadata["docking_metadata"] = {}
+        for p in properties:
+            if self.prop_name_mapping[p] in self.docking_targets:
+                pdb_id = self.prop_name_mapping[p]
+                if pdb_id in self.pockets_info:
+                    pocket_data = self.pockets_info[pdb_id]
+                    if not isinstance(pocket_data, dict):
+                        pocket_data = dict(pocket_data)
+                    metadata["docking_metadata"][self.prop_name_mapping[p]] = (
+                        pocket_data
+                    )
+                else:
+                    metadata["docking_metadata"][self.prop_name_mapping[p]] = {
+                        "pdb_id": pdb_id.split("_")[0]
+                    }
+        return metadata
+
+    def _sample_properties(
+        self, n_props: int, docking_properties_list: List[str]
+    ) -> List[str]:
+        allowed_docking_props = self._get_allowed_props(
+            docking_properties_list, self.rule_set, n_props=n_props
+        )
+        allowed_std_props = self._get_allowed_props(
+            self.std_properties, self.rule_set, n_props=n_props
+        )
+
+        if len(allowed_docking_props) == 0:
+            probas = None
+        else:
+            allowed_docking_props = np.random.choice(
+                allowed_docking_props,
+                min(self.rule_set.max_docking_per_prompt, len(allowed_docking_props)),
+                replace=False,
+            ).tolist()
+            probas = [
+                (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
+            ] * len(allowed_std_props) + [
+                self.rule_set.probs_docking_targets / len(allowed_docking_props)
+            ] * len(allowed_docking_props)
+
+        property_list = allowed_std_props + allowed_docking_props
+
+        properties = list(
+            random.choice(property_list, n_props, replace=False, p=probas)
+        )
+        # If n_props>=2, we ensure that we have at least one docking property
+        if n_props >= 2 and len(np.intersect1d(allowed_docking_props, properties)) == 0:
+            properties[0] = allowed_docking_props[0]
+        return properties
 
     def generate(
         self,
@@ -234,51 +482,15 @@ class MolGenerationInstructionsDataset:
         :param return_n_props: if True, returns the number of properties to optimize
         :return:
         """
-
         for _ in range(n):
-            # Sample properties and objectives
-            metadata: Dict[str, Any] = {}
-
-            n_props: int = int(random.randint(1, 1 + self.max_n_props))
-            allowed_docking_props = [
-                p
-                for p in docking_properties_list
-                if p not in self.rule_set.prohibited_props_at_n.get(n_props, [])
+            possible_n = [
+                i
+                for i in range(1, self.max_n_props + 1)
+                if len(self.rule_set.prohibited_props_at_n.get(i, []))
+                < len(docking_properties_list)
             ]
-            allowed_std_props = [
-                p
-                for p in self.std_properties
-                if p not in self.rule_set.prohibited_props_at_n.get(n_props, [])
-            ]
-
-            property_list = allowed_std_props + allowed_docking_props
-
-            if len(allowed_docking_props) == 0:
-                probas = None
-
-            else:
-                probas = [
-                    (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
-                ] * len(allowed_std_props) + [
-                    self.rule_set.probs_docking_targets / len(allowed_docking_props)
-                ] * len(allowed_docking_props)
-
-            properties = list(
-                random.choice(property_list, n_props, replace=False, p=probas)
-            )
-            # If n_props>=2, we ensure that we have at least one docking property
-            if n_props >= 2:
-                new_p = list(random.choice(allowed_docking_props, 1, replace=False))
-                properties[0] = new_p[0]
-
-            # If we generated more that self.rule_set.max_docking_per_prompt docking properties,
-            # we remove the last and replace it by a standard property
-            if (
-                len([p for p in properties if p in allowed_docking_props])
-                > self.rule_set.max_docking_per_prompt
-            ):
-                new_p = list(random.choice(allowed_std_props, 1, replace=False))
-                properties[-1] = new_p[0]
+            n_props: int = int(np.random.choice(possible_n))
+            properties = self._sample_properties(n_props, docking_properties_list)
 
             objectives = []
             for prop in properties:
@@ -299,12 +511,6 @@ class MolGenerationInstructionsDataset:
                     obj += f" {v / 10}"
                 objectives.append(obj)
 
-            metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
-            metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
-            metadata["target"] = [
-                0 if len(obj.split(" ")) == 1 else obj.split(" ")[1]
-                for obj in objectives
-            ]
             identifier = "".join(
                 sorted(
                     [
@@ -319,25 +525,12 @@ class MolGenerationInstructionsDataset:
                     ]
                 )
             )
-            metadata["prompt_id"] = identifier
-            metadata["n_props"] = n_props
 
-            prompt_text = self.fill_prompt(properties, objectives)
-            metadata["docking_metadata"] = {}
-            for p in properties:
-                if self.prop_name_mapping[p] in self.docking_targets:
-                    pdb_id = self.prop_name_mapping[p]
-                    if pdb_id in self.pockets_info:
-                        pocket_data = self.pockets_info[pdb_id]
-                        if not isinstance(pocket_data, dict):
-                            pocket_data = dict(pocket_data)
-                        metadata["docking_metadata"][self.prop_name_mapping[p]] = (
-                            pocket_data
-                        )
-                    else:
-                        metadata["docking_metadata"][self.prop_name_mapping[p]] = {
-                            "pdb_id": pdb_id.split("_")[0]
-                        }
+            pocket_datas = self._generate_pocket_additional_data(properties)
+            prompt_text = self.fill_prompt(properties, objectives, pocket_datas)
+            metadata = self._get_prompt_metadata(
+                properties, objectives, identifier, n_props
+            )
 
             prompt: List[Dict[str, Any]] = []
             completion: List[Dict[str, Any]] = []
@@ -400,9 +593,22 @@ class MolGenerationInstructionsDataset:
         for prompt, _, metadata in self.generate_with_rule(
             n, eval_name=eval_name, docking_split=docking_split
         ):
+            jsonize_dict(metadata)
             # prompt["metadata"] = metadata
+            if isinstance(prompt, list):
+                prompt[-1]["metadata"] = metadata
+            elif isinstance(prompt, dict):
+                prompt["metadata"] = metadata
             out_dictionary.append(prompt)
             tqdm.update(p_bar)
 
         self.rule_set.partial_reset()
         return out_dictionary
+
+
+def jsonize_dict(d: Dict[Any, Any]):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            jsonize_dict(v)
+        elif isinstance(v, np.ndarray):
+            d[k] = v.tolist()

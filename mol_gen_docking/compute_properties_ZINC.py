@@ -5,9 +5,7 @@ from multiprocess import Pool
 from tdc.generation import MolGen
 from tqdm import tqdm
 
-from mol_gen_docking.reward.oracle_wrapper import (
-    get_oracle,
-)
+from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.property_utils.classical_properties import (
     CLASSICAL_PROPERTIES_NAMES,
 )
@@ -66,7 +64,11 @@ if __name__ == "__main__":
     for i_name, oracle_name in enumerate(CLASSICAL_PROPERTIES_NAMES.values()):
         oracle_name = CLASSICAL_PROPERTIES_NAMES.get(oracle_name, oracle_name)
 
-        oracle = get_oracle(oracle_name, CLASSICAL_PROPERTIES_NAMES, [])
+        oracle = get_oracle(
+            oracle_name,
+            property_name_mapping=CLASSICAL_PROPERTIES_NAMES,
+            docking_target_list=[],
+        )
         pool = Pool(16)
 
         def get_property(batch: List[str]) -> dict:

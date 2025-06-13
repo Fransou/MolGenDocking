@@ -1,18 +1,19 @@
 """Rewards for the RL task."""
 
+import json
+import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import ray
-import torch
-from rdkit import Chem
+from rdkit import Chem, RDLogger
 
-from mol_gen_docking.reward.oracle_wrapper import (
-    get_oracle,
-)
+from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
+
+RDLogger.DisableLog("rdApp.*")
 
 
 def template_to_regex(template: str) -> str:
@@ -22,8 +23,11 @@ def template_to_regex(template: str) -> str:
     # Escape special regex characters that might appear in text
     pattern = re.escape(template)
     # Replace escaped {prop} and {val} with regex groups
-    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+)")
-    pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d*\.?\d+([eE][-+]?\d+)?)")
+    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+?)")
+    if r"\{val\}" in pattern:
+        pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d+\.?\d*)")
+    else:
+        pattern += r"(?:[.!?]+|$)"
     return pattern
 
 
@@ -43,15 +47,21 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
 class RewardScorer:
     def __init__(
         self,
-        property_name_mapping: Dict[str, str] = {},
-        docking_target_list: List[str] = [],
+        path_to_mappings: Optional[str] = None,
         reward: str = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
     ):
+        if path_to_mappings is not None:
+            with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
+                property_name_mapping = json.load(f)
+            with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
+                docking_target_list = json.load(f)
+
         self.property_name_mapping = property_name_mapping
         self.docking_target_list = docking_target_list
+        self.path_to_mappings = path_to_mappings
 
         self.rescale = rescale
         self.reward = reward
@@ -63,8 +73,9 @@ class RewardScorer:
         if not ray.is_initialized():
             ray.init()
 
+    @staticmethod
     def get_mol_props_from_prompt(
-        self, prompts: List[Any]
+        prompts: List[Any], search_templates: List[Tuple[str, str]]
     ) -> List[Dict[str, Tuple[Any, Any]]]:
         """
         Get molecular properties from prompt.
@@ -101,14 +112,14 @@ class RewardScorer:
                 prompt = prompt[:-1]
 
             props = {}
-            clauses = re.split(r"[;] ?", prompt)
+            clauses = re.split(r";", prompt)
             for clause in clauses:
                 if clause == "":
                     continue
                 clause = clause.strip()
                 if not clause:
                     continue
-                for pattern, obj_type in self.search_patterns:
+                for pattern, obj_type in search_templates:
                     match = re.search(pattern, clause, re.IGNORECASE)
                     if match:
                         prop = match.group("prop").strip()
@@ -135,9 +146,18 @@ class RewardScorer:
         else:
             # Parse the whole completion with no "<SMILES>" tag
             # First we split the completion by newlines and spaces
-            re.split("\n| |.", comp)
+            re.split("\n| |.|\t|:", comp)
             # Then we filter by removing any string that does not contain "C"
-            s_poss = [x for x in comp.split() if "C" in x or x.count("c") > 1]
+            valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+
+            def filter_smiles(x: str) -> bool:
+                if "e" in x or len(x) < 3:
+                    return False
+                if "C" in x or x.count("c") > 2:
+                    return valid_smiles_pattern.fullmatch(x) is not None
+                return False
+
+            s_poss = [x for x in comp.split() if filter_smiles(x)]
             # Finally we remove any string that is not a valid SMILES
             s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
 
@@ -157,7 +177,7 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame):
-        @ray.remote(num_cpus=1)
+        @ray.remote(num_cpus=0.3)
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -169,12 +189,13 @@ class RewardScorer:
             """
             oracle_fn = get_oracle(
                 prop,
-                property_name_mapping=self.property_name_mapping,
+                path_to_data=self.path_to_mappings if self.path_to_mappings else "",
                 docking_target_list=self.docking_target_list,
+                property_name_mapping=self.property_name_mapping,
                 **kwargs,
             )
             property_reward = oracle_fn(smiles, rescale=rescale)
-            return property_reward
+            return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
         prop_smiles = {
@@ -215,8 +236,8 @@ class RewardScorer:
         elif obj == "minimize":
             reward += 1 - mol_prop
         elif obj == "equal":
-            reward += 1 - (mol_prop - target_value) ** 2
-        return reward
+            reward += np.clip(1 - 100 * (mol_prop - target_value) ** 2, 0, 1)
+        return float(reward)
 
     def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:
         smiles = self.get_all_completions_smiles(completions)
@@ -269,13 +290,11 @@ class RewardScorer:
 
         smiles_list_per_completion = self._get_smiles_list(completions)
         if self.reward == "smiles" or self.reward == "valid_smiles":
-            return torch.tensor(
-                [
-                    float(len(valid_smiles_c) > 0)
-                    for valid_smiles_c in smiles_list_per_completion
-                ]
-            )
-        objectives = self.get_mol_props_from_prompt(prompts)
+            return [
+                float(len(valid_smiles_c) > 0)
+                for valid_smiles_c in smiles_list_per_completion
+            ]
+        objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
         )
