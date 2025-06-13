@@ -147,10 +147,16 @@ class RewardScorer:
         else:
             # Parse the whole completion with no "<SMILES>" tag
             # First we split the completion by newlines and spaces
-            re.split("\n| |.", comp)
+            re.split("\n| |.|\t|:", comp)
             # Then we filter by removing any string that does not contain "C"
+            valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+            def filter_smiles(x: str) -> bool:
+                if "e" in x or len(x)<3:
+                    return False
+                if "C" in x or x.count("c") > 2:
+                    return valid_smiles_pattern.fullmatch(x) is not None
             s_poss = [
-                x for x in comp.split() if "C" in x or x.count("c") > 1 and "e" not in x
+                x for x in comp.split() if filter_smiles(x)
             ]
             # Finally we remove any string that is not a valid SMILES
             s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
