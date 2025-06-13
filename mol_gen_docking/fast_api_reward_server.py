@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
 
+import torch
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 logger = init_logger(__name__)
@@ -61,7 +62,7 @@ if __name__ == "__main__":
         rewards = reward_model(prompts=prompts, completions=queries)
         valid_reward = reward_valid_smiles(prompts=prompts, completions=queries)
 
-        final_reward = [(r + r_v) / 2 for r, r_v in zip(rewards, valid_reward)]
+        final_reward = torch.tensor([(r + r_v) / 2 for r, r_v in zip(rewards, valid_reward)])
 
         result = {
             "rewards": final_reward,

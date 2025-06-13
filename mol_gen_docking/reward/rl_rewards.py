@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import ray
-import torch
 from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
