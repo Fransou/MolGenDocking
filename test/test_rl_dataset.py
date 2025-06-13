@@ -4,6 +4,7 @@ from itertools import chain, product
 
 import numpy as np
 import pytest
+from datasets import load_from_disk
 
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
@@ -123,11 +124,11 @@ def test_generation_json():
     product(
         [DATA_PATH],
         [
-            "train_prompts.json",
-            "test_data/test_prompts.json",
-            "test_data/test_prompts_ood.json",
-            "eval_data/eval_prompts.json",
-            "eval_data/eval_prompts_ood.json",
+            "train_prompts",
+            "test_data/test_prompts",
+            "test_data/test_prompts_ood",
+            "eval_data/eval_prompts",
+            "eval_data/eval_prompts_ood",
         ],
         [
             "none",
@@ -139,12 +140,11 @@ def test_generation_json():
 def test_saved_train_dataset(path, file, template):
     template = templates[template]
     file_path = os.path.join(DATA_PATH, file)
-    with open(file_path) as f:
-        data = json.load(f)
+    dataset = load_from_disk(file_path)
 
     scorer = RewardScorer(path_to_mappings=path)
 
-    for dialogue in data:
+    for dialogue in dataset["prompt"]:
         if isinstance(dialogue, list):
             prompt = dialogue[0]["value"]
             metadata = dialogue[1]["metadata"]
