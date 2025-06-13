@@ -290,12 +290,10 @@ class RewardScorer:
 
         smiles_list_per_completion = self._get_smiles_list(completions)
         if self.reward == "smiles" or self.reward == "valid_smiles":
-            return torch.tensor(
-                [
+            return [
                     float(len(valid_smiles_c) > 0)
                     for valid_smiles_c in smiles_list_per_completion
                 ]
-            )
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
