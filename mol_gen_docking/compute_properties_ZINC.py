@@ -1,6 +1,7 @@
 import argparse
 from typing import List
 
+import numpy as np
 from multiprocess import Pool
 from tdc.generation import MolGen
 from tqdm import tqdm
@@ -73,7 +74,7 @@ if __name__ == "__main__":
 
         def get_property(batch: List[str]) -> dict:
             """Get the property for a batch of SMILES strings."""
-            props = oracle(batch)
+            props: np.ndarray = oracle(batch)
             return {smi: prop for smi, prop in zip(batch, props)}
 
         props_pbar = tqdm(

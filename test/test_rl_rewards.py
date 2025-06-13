@@ -8,6 +8,7 @@ import pytest
 import ray
 import torch
 
+from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
@@ -332,7 +333,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif obj == "above 0.5":
         val = (rewards_max >= 0.5).float()
     elif obj == "equal 0.5":
-        val = np.clip(1 - 100*(rewards_max - 0.5) ** 2,0,1)
+        val = np.clip(1 - 100 * (rewards_max - 0.5) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
 
@@ -414,3 +415,12 @@ def test_runtime(
     assert (torch.tensor(r) > 0).all(), (
         "Some rewards are not positive, check the oracle."
     )
+
+
+@pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
+def test_baseline_reward_fn(smiles, property, build_prompt):
+    prompt = build_prompt([property])
+    reward_fn = get_reward_fn(prompt, DATA_PATH)
+    s = smiles[0]
+    print(s, reward_fn(s))
+    assert reward_fn(s) == float(reward_fn(s))
