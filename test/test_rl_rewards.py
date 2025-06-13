@@ -332,7 +332,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif obj == "above 0.5":
         val = (rewards_max >= 0.5).float()
     elif obj == "equal 0.5":
-        val = np.clip(1 - 100*(rewards_max - 0.5) ** 2)
+        val = np.clip(1 - 100*(rewards_max - 0.5) ** 2,0,1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
 
