@@ -195,7 +195,7 @@ class RewardScorer:
                 **kwargs,
             )
             property_reward = oracle_fn(smiles, rescale=rescale)
-            return property_reward
+            return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
         prop_smiles = {
