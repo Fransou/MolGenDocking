@@ -1,12 +1,11 @@
 import argparse
 import os
 from dataclasses import dataclass
-from typing import Callable
 
 from datasets import load_from_disk
 from molopt.base import BaseOptimizer
 
-from mol_gen_docking.reward.rl_rewards import RewardScorer
+from mol_gen_docking.baselines.reward_fn import get_reward_fn
 
 
 @dataclass(frozen=False)
@@ -117,18 +116,6 @@ def get_mol_opt_cls(baseline_name: str) -> BaseOptimizer:
 
         return Stoned
     raise ValueError(f"Baseline {baseline_name} is not supported. ")
-
-
-def get_reward_fn(prompt: str, datasets_path: str) -> Callable[[str], float]:
-    SCORER = RewardScorer(datasets_path, "property", parse_whole_completion=False)
-
-    def reward_fn(smiles: str) -> float:
-        if smiles is None:
-            return 0.0
-        reward = SCORER([prompt], [smiles])[0]
-        return reward
-
-    return reward_fn
 
 
 if __name__ == "__main__":

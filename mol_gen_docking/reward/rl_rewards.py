@@ -1,5 +1,3 @@
-"""Rewards for the RL task."""
-
 import json
 import os
 import re
