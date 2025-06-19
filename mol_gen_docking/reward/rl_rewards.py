@@ -9,9 +9,8 @@ import numpy as np
 import pandas as pd
 import ray
 from rdkit import Chem, RDLogger
-from reward.oracle_wrapper import OracleWrapper
 
-from mol_gen_docking.reward.oracle_wrapper import get_oracle
+from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 RDLogger.DisableLog("rdApp.*")
@@ -202,7 +201,7 @@ class RewardScorer:
             )
             if prop not in self.oracles:
                 self.oracles[prop] = oracle_fn
-            property_reward = oracle_fn(smiles, rescale=rescale)
+            property_reward: np.ndarray[float] = oracle_fn(smiles, rescale=rescale)
             return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
