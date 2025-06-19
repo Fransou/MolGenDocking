@@ -1,11 +1,12 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import ray
+import tdc
 from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
@@ -46,7 +47,7 @@ class RewardScorer:
     def __init__(
         self,
         path_to_mappings: Optional[str] = None,
-        reward: str = "property",
+        reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
@@ -294,11 +295,22 @@ class RewardScorer:
         """
 
         smiles_list_per_completion = self._get_smiles_list(completions)
-        if self.reward == "smiles" or self.reward == "valid_smiles":
+        if self.reward == "valid_smiles":
             return [
                 float(len(valid_smiles_c) > 0)
                 for valid_smiles_c in smiles_list_per_completion
             ]
+        elif self.reward == "MolFilters":
+            filters = tdc.chem_utils.oracle.filter.MolFilter(
+                filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
+            )
+            return [
+                len(filters(valid_smiles_c)) / len(valid_smiles_c)
+                if len(valid_smiles_c) > 0
+                else 0
+                for valid_smiles_c in smiles_list_per_completion
+            ]
+
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives

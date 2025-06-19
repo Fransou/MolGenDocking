@@ -65,7 +65,7 @@ def test_fill_prompt(props, obj, build_metada_pocket):
     prompt = dataset.fill_prompt([props], [obj], build_metada_pocket(props))
     assert isinstance(prompt, str)
     assert len(prompt) > 0
-    scorer = RewardScorer(DATA_PATH, "properties")
+    scorer = RewardScorer(DATA_PATH, "property")
     parsed = scorer.get_mol_props_from_prompt([prompt], scorer.search_patterns)[0]
     assert props in parsed
     assert parsed[props][0] == obj.split()[0]

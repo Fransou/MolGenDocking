@@ -42,6 +42,13 @@ scorers = {
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
     ),
+    "MolFilters": RewardScorer(
+        DATA_PATH,
+        "MolFilters",
+        parse_whole_completion=True,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+    ),
     "property": RewardScorer(
         DATA_PATH,
         "property",
@@ -138,7 +145,10 @@ def is_reward_valid(rewards, smiles, properties):
 @pytest.fixture(scope="module", params=[True, False])
 def valid_smiles_scorer(request):
     """Fixture to test the function molecular_properties."""
-    return scorers["valid_smiles"]
+    if request.param:
+        return scorers["valid_smiles"]
+    else:
+        return scorers["MolFilters"]
 
 
 @pytest.fixture(scope="module")
