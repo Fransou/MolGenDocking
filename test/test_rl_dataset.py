@@ -143,13 +143,7 @@ def test_saved_train_dataset(path, file, template):
 
     scorer = RewardScorer(path_to_mappings=path)
 
-    for dialogue in dataset["prompt"]:
-        if isinstance(dialogue, list):
-            prompt = dialogue[0]["value"]
-            metadata = dialogue[1]["metadata"]
-        else:
-            prompt = dialogue["prompt"][0]["value"]
-            metadata = dialogue["metadata"]
+    for prompt, metadata in zip(dataset["prompt"], dataset["metadata"]):
         assert isinstance(prompt, str)
         gt_objectives = []
         for p, o, t in zip(
