@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import ray
 from rdkit import Chem, RDLogger
+from reward.oracle_wrapper import OracleWrapper
 
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
@@ -68,6 +69,8 @@ class RewardScorer:
         self.oracle_kwargs = oracle_kwargs
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
+
+        self.oracles: Dict[str, OracleWrapper] = {}
 
         self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
         if not ray.is_initialized():
@@ -187,13 +190,18 @@ class RewardScorer:
             """
             Get property reward
             """
-            oracle_fn = get_oracle(
+            oracle_fn = self.oracles.get(
                 prop,
-                path_to_data=self.path_to_mappings if self.path_to_mappings else "",
-                docking_target_list=self.docking_target_list,
-                property_name_mapping=self.property_name_mapping,
-                **kwargs,
+                get_oracle(
+                    prop,
+                    path_to_data=self.path_to_mappings if self.path_to_mappings else "",
+                    docking_target_list=self.docking_target_list,
+                    property_name_mapping=self.property_name_mapping,
+                    **kwargs,
+                ),
             )
+            if prop not in self.oracles:
+                self.oracles[prop] = oracle_fn
             property_reward = oracle_fn(smiles, rescale=rescale)
             return [float(p) for p in property_reward]
 

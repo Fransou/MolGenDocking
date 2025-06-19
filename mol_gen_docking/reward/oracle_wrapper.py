@@ -117,7 +117,7 @@ def get_oracle(
     property_name_mapping: Dict[str, str] = {},
     docking_target_list: List[str] = [],
     **kwargs,
-):
+) -> OracleWrapper:
     """
     Get the Oracle object for the specified name.
     :param name: Name of the Oracle
