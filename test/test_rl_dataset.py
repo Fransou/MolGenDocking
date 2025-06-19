@@ -143,12 +143,11 @@ def test_saved_train_dataset(path, file, template):
 
     scorer = RewardScorer(path_to_mappings=path)
 
-    for prompt, metadata in zip(dataset["prompt"], dataset["metadata"]):
+    for row in dataset:
+        prompt = row["prompt"]
         assert isinstance(prompt, str)
         gt_objectives = []
-        for p, o, t in zip(
-            metadata["properties"], metadata["objectives"], metadata["target"]
-        ):
+        for p, o, t in zip(row["properties"], row["objectives"], row["target"]):
             if isinstance(t, str):
                 t = float(t)
             p = scorer.property_name_mapping.get(p, p)
