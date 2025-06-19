@@ -21,6 +21,7 @@ cd $WORKING_DIR
 module load cuda
 
 export PATH=$HOME/qvina:$PATH
+export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
 
 ray start --head --node-ip-address 0.0.0.0 --num-gpus 4

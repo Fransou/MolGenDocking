@@ -192,8 +192,8 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     """Test the function molecular_properties."""
     completions = [valid_smiles_filler(smiles, completion)]
     prompts = [""] * len(completions)
-    rewards = valid_smiles_scorer(prompts, completions)
-    assert rewards.sum().item() == float(
+    rewards = np.array(valid_smiles_scorer(prompts, completions))
+    assert rewards.sum() == float(
         "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
     )
 
