@@ -65,7 +65,7 @@ def test_fill_prompt(props, obj, build_metada_pocket):
     prompt = dataset.fill_prompt([props], [obj], build_metada_pocket(props))
     assert isinstance(prompt, str)
     assert len(prompt) > 0
-    scorer = RewardScorer(DATA_PATH, "properties")
+    scorer = RewardScorer(DATA_PATH, "property")
     parsed = scorer.get_mol_props_from_prompt([prompt], scorer.search_patterns)[0]
     assert props in parsed
     assert parsed[props][0] == obj.split()[0]
@@ -143,22 +143,15 @@ def test_saved_train_dataset(path, file, template):
 
     scorer = RewardScorer(path_to_mappings=path)
 
-    for dialogue in dataset["prompt"]:
-        if isinstance(dialogue, list):
-            prompt = dialogue[0]["value"]
-            metadata = dialogue[1]["metadata"]
-        else:
-            prompt = dialogue["prompt"][0]["value"]
-            metadata = dialogue["metadata"]
-        assert isinstance(prompt, str)
+    for row in dataset:
+        prompt = row["prompt"]
         gt_objectives = []
-        for p, o, t in zip(
-            metadata["properties"], metadata["objectives"], metadata["target"]
-        ):
+        for p, o, t in zip(row["properties"], row["objectives"], row["target"]):
             if isinstance(t, str):
                 t = float(t)
             p = scorer.property_name_mapping.get(p, p)
             gt_objectives.append((p, (o, t)))
+        prompt = prompt[0]["value"]
         prompt_fmt = template.replace("{{prompt}}", prompt)
         extracted = scorer.get_mol_props_from_prompt(
             [prompt_fmt], scorer.search_patterns

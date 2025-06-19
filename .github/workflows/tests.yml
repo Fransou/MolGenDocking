@@ -38,16 +38,3 @@ jobs:
       run: |
         rm -rf .coverage
         docker run -v ${PWD}:/tmp fransou/reward
-
-    - name: Commit files
-      run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        git add coverage.svg
-        git commit -m "[actions] Tests: update coverage badge" || echo "No changes to commit"
-
-    - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        branch: ${{ env.BRANCH_NAME }}
-        force_with_lease: true

@@ -1,9 +1,11 @@
 import argparse
 import os
 from dataclasses import dataclass
+from typing import List
 
 from datasets import load_from_disk
-from molopt.base import BaseOptimizer
+from molopt.base import BaseOptimizer, Oracle
+from rdkit import Chem
 
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
 
@@ -74,6 +76,76 @@ class BaselineConfig:
         os.makedirs(self.output_dir, exist_ok=True)
 
 
+class BatchedOracle(Oracle):
+    def __init__(
+        self, max_oracle_calls=10000, freq_log=100, output_dir="results", mol_buffer={}
+    ) -> None:
+        super().__init__(
+            max_oracle_calls=10000, freq_log=100, output_dir="results", mol_buffer={}
+        )
+
+    def batch_score_smi(self, smi_lst: List[str]) -> List[float]:
+        if len(self.mol_buffer) > self.max_oracle_calls:
+            return [0.0 for _ in smi_lst]
+        scores = [0.0 for _ in smi_lst]
+        to_score_idx = []
+        for i, smi in enumerate(smi_lst):
+            if smi is None:
+                continue
+            mol = Chem.MolFromSmiles(smi)
+            if mol is None or len(smi) == 0:
+                continue
+            to_score_idx.append(i)
+
+        smis_to_score = [
+            smi_lst[i] for i in to_score_idx if smi_lst[i] not in self.mol_buffer
+        ]
+        res_scores: List[float] = self.evaluator(smis_to_score)
+        for smi, score in zip(smi_lst, res_scores):
+            self.mol_buffer[smi] = [score, len(self.mol_buffer) + 1]
+
+        for i in range(len(scores)):
+            if i not in to_score_idx:
+                scores[i] = self.mol_buffer[smi][0]
+        return scores
+
+    def __call__(self, smiles_lst):
+        """
+        Score
+        """
+        if isinstance(smiles_lst, list):
+            score_list = self.batch_score_smi(smiles_lst)
+            for smi in smiles_lst:
+                if (
+                    len(self.mol_buffer) % self.freq_log == 0
+                    and len(self.mol_buffer) > self.last_log
+                ):
+                    self.sort_buffer()
+                    self.log_intermediate()
+                    self.last_log = len(self.mol_buffer)
+                    self.save_result(self.task_label)
+        else:  ### a string of SMILES
+            score_list = self.score_smi(smiles_lst)
+            if (
+                len(self.mol_buffer) % self.freq_log == 0
+                and len(self.mol_buffer) > self.last_log
+            ):
+                self.sort_buffer()
+                self.log_intermediate()
+                self.last_log = len(self.mol_buffer)
+                self.save_result(self.task_label)
+        return score_list
+
+    @classmethod
+    def from_oracle(cls, oracle: Oracle):
+        return cls(
+            oracle.max_oracle_calls,
+            freq_log=oracle.freq_log,
+            output_dir=oracle.output_dir,
+            mol_buffer=oracle.mol_buffer,
+        )
+
+
 def get_mol_opt_cls(baseline_name: str) -> BaseOptimizer:
     if baseline_name == "GPBO":
         from molopt.gpbo import GPBO
@@ -142,6 +214,7 @@ if __name__ == "__main__":
             output_dir=config.output_dir,
             log_results=config.log_results,
         )
+        optimizer.oracle = BatchedOracle.from_oracle(optimizer.oracle)
         optimizer.optimize(
             oracle=get_reward_fn(prompt, args.datasets_path),
             patience=config.patience,
