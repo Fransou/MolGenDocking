@@ -145,13 +145,13 @@ def test_saved_train_dataset(path, file, template):
 
     for row in dataset:
         prompt = row["prompt"]
-        assert isinstance(prompt, str)
         gt_objectives = []
         for p, o, t in zip(row["properties"], row["objectives"], row["target"]):
             if isinstance(t, str):
                 t = float(t)
             p = scorer.property_name_mapping.get(p, p)
             gt_objectives.append((p, (o, t)))
+        prompt = prompt[0]["value"]
         prompt_fmt = template.replace("{{prompt}}", prompt)
         extracted = scorer.get_mol_props_from_prompt(
             [prompt_fmt], scorer.search_patterns
