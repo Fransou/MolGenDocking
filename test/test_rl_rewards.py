@@ -452,5 +452,4 @@ def test_baseline_reward_fn(smiles, property, build_prompt):
     prompt = build_prompt([property])
     reward_fn = get_reward_fn(prompt, DATA_PATH)
     s = smiles[0]
-    print(s, reward_fn(s))
     assert reward_fn(s) == float(reward_fn(s))
