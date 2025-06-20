@@ -8,6 +8,7 @@ import pytest
 import ray
 import torch
 
+from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
@@ -37,6 +38,13 @@ scorers = {
     "valid_smiles": RewardScorer(
         DATA_PATH,
         "valid_smiles",
+        parse_whole_completion=True,
+        rescale=False,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+    ),
+    "MolFilters": RewardScorer(
+        DATA_PATH,
+        "MolFilters",
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
@@ -134,16 +142,28 @@ def is_reward_valid(rewards, smiles, properties):
         assert torch.isclose(rewards, props, atol=1e-3).all()
 
 
-@pytest.fixture(scope="module", params=[True, False])
+@pytest.fixture(scope="module")
 def valid_smiles_scorer(request):
     """Fixture to test the function molecular_properties."""
     return scorers["valid_smiles"]
 
 
 @pytest.fixture(scope="module")
+def filter_smiles_scorer(request):
+    """Fixture to test the function molecular_properties."""
+    return scorers["MolFilters"]
+
+
+@pytest.fixture(scope="module")
 def valid_smiles_filler(valid_smiles_scorer):
     """Fixture to test the function molecular_properties."""
     return get_fill_completions(valid_smiles_scorer.parse_whole_completion)
+
+
+@pytest.fixture(scope="module")
+def filter_smiles_filler(filter_smiles_scorer):
+    """Fixture to test the function molecular_properties."""
+    return get_fill_completions(filter_smiles_scorer.parse_whole_completion)
 
 
 @pytest.fixture(scope="module", params=[True, False])
@@ -181,8 +201,19 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     """Test the function molecular_properties."""
     completions = [valid_smiles_filler(smiles, completion)]
     prompts = [""] * len(completions)
-    rewards = valid_smiles_scorer(prompts, completions)
-    assert rewards.sum().item() == float(
+    rewards = np.array(valid_smiles_scorer(prompts, completions))
+    assert rewards.sum() == float(
+        "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
+    )
+
+
+@pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
+def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
+    """Test the function molecular_properties."""
+    completions = [filter_smiles_filler(smiles, completion)]
+    prompts = [""] * len(completions)
+    rewards = np.array(filter_smiles_scorer(prompts, completions))
+    assert rewards.sum() == float(
         "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
     )
 
@@ -414,3 +445,11 @@ def test_runtime(
     assert (torch.tensor(r) > 0).all(), (
         "Some rewards are not positive, check the oracle."
     )
+
+
+@pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
+def test_baseline_reward_fn(smiles, property, build_prompt):
+    prompt = build_prompt([property])
+    reward_fn = get_reward_fn(prompt, DATA_PATH)
+    s = smiles[0]
+    assert reward_fn(s) == float(reward_fn(s))
