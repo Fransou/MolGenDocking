@@ -9,6 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
+
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 export DATASET=mol_orz
