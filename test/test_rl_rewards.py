@@ -366,7 +366,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     property_scorer.rescale = False
 
 
-@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize(
     "prop, smiles",
     list(
@@ -395,7 +395,7 @@ def test_ray(prop, smiles, build_prompt):
 
 
 @pytest.mark.skipif(
-    os.system("qvina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
+    os.system("vina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
     reason="requires vina and debug mode",
 )
 @pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))

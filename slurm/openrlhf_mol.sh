@@ -21,14 +21,13 @@ cd $WORKING_DIR
 
 module load cuda
 
-export PATH=$HOME/qvina:$PATH
+export PATH=$HOME/autodock_vina_1_1_2_linux_x86/bin/vina:$PATH
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
 
-ray start --head --node-ip-address 0.0.0.0 --num-gpus 4
+ray start --head --node-ip-address 0.0.0.0
 
 python -m mol_gen_docking.fast_api_reward_server --data-path $SLURM_TMPDIR/$DATASET &
-sleep 15
 
 wandb offline
 #export DEBUG_MODE=1
