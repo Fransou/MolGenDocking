@@ -171,8 +171,9 @@ cython_debug/
 .pypirc
 
 SFT*
-/data/*
-/data/SIU/pdb_files
+/data/SIU/*
+/data/mol_orz_pocket_desc/*
+/data/mol_orz/*.zip
 /data/*.zip
 /data/*.tab
 external_libraries
