@@ -74,7 +74,8 @@ if __name__ == "__main__":
 
         def get_property(batch: List[str]) -> dict:
             """Get the property for a batch of SMILES strings."""
-            props: np.ndarray = oracle(batch)
+            props: np.ndarray | float = oracle(batch)
+            assert isinstance(props, np.ndarray)
             return {smi: prop for smi, prop in zip(batch, props)}
 
         props_pbar = tqdm(

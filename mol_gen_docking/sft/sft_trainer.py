@@ -1,48 +1,23 @@
-"""Base class for the trainer."""
+"""Trainer callable for SFT."""
 
 import argparse
-import functools
 import json
 import os
 from typing import Optional, Tuple
 
 import torch
-from datasets import Dataset
-from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType
-from torch.profiler import ProfilerActivity, profile, record_function
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer
+from datasets import Dataset, concatenate_datasets
+from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
+from tokenizers import AutoModelForCausalLM, AutoTokenizer
+from trl import SFTConfig, SFTTrainer, setup_chat_format
+
+from mol_gen_docking.sft.sft_data import InstructionDatasetProcessor
 
 
-def torch_profiler_decorator(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        with profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            record_shapes=False,
-        ) as prof:
-            with record_function("model_inference"):
-                result = func(*args, **kwargs)
-        # Save chrome trace
-        prof.export_chrome_trace("profile.json")
-        return result
-
-    return wrapper
-
-
-def record_function_decorator_builder(name):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with record_function(name):
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-class MolTrainer:
-    """Base class for the trainer."""
+class SFTMolTrainer:
+    """
+    Trainer for SFT for molecular instructions.
+    """
 
     def __init__(
         self,
@@ -53,8 +28,6 @@ class MolTrainer:
         :param args: Parameters for the training
         :param datasets: training and evaluation datasets (if None, will be loaded)
         """
-        super().__init__()
-
         self.args = args
         self.checkpoint_path = ""
         self.last_epoch = 0
@@ -67,6 +40,18 @@ class MolTrainer:
         self.eval_dataset = datasets[1]
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
+
+    def get_dataset(self) -> Tuple[Dataset, Dataset]:
+        """Loads the dataset."""
+        tuple_datasets = tuple(
+            InstructionDatasetProcessor(d).get_training_corpus(self.args.train_size)
+            for d in self.args.dataset
+        )
+        # Concatenate the datasets
+        return (
+            concatenate_datasets([d[0] for d in tuple_datasets]),
+            concatenate_datasets([d[1] for d in tuple_datasets]),
+        )
 
     def retrieve_checkpoint_step(self) -> str:
         """
@@ -124,14 +109,6 @@ class MolTrainer:
         )
         return model, tokenizer
 
-    def get_dataset(self) -> Tuple[Dataset, Dataset]:
-        """Loads the dataset."""
-        raise NotImplementedError
-
-    def get_trainer(self) -> Trainer:
-        """Get the trainer."""
-        raise NotImplementedError
-
     def get_peft_config(self, train_tokens: bool = False) -> LoraConfig:
         assert self.model is not None or self.tokenizer is not None, (
             "Model and tokenizer must be initialized before calling get_peft_config"
@@ -143,14 +120,57 @@ class MolTrainer:
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
         )
 
-    def __call__(self, profile: bool = False):
+    def get_trainer(self) -> SFTTrainer:
+        """:return: Trainer for SFT."""
+        peft_config = self.get_peft_config(True)
+        self.model = get_peft_model(self.model, peft_config)
+        try:
+            self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
+        except ValueError:
+            pass
+        self.model.print_trainable_parameters()
+
+        training_args = SFTConfig(
+            output_dir=self.args.output_dir,
+            run_name=self.args.output_dir,
+            num_train_epochs=self.args.num_train_epochs,
+            eval_strategy="steps",
+            save_strategy="steps",
+            logging_strategy="steps",
+            save_steps=500,
+            eval_steps=500,
+            logging_steps=10,
+            learning_rate=self.args.learning_rate,
+            weight_decay=self.args.weight_decay,
+            per_device_train_batch_size=self.args.batch_size,
+            per_device_eval_batch_size=self.args.batch_size,
+            dataloader_num_workers=self.args.dataloader_num_workers,
+            max_seq_length=1024,
+            dataset_num_proc=8,
+            packing=True,
+            bf16=True,
+            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
+            save_total_limit=3,
+            dataloader_prefetch_factor=2,
+            completion_only_loss=True,
+        )
+
+        trainer = SFTTrainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=self.dataset,
+            eval_dataset=self.eval_dataset,
+            processing_class=self.tokenizer,
+        )
+
+        return trainer
+
+    def __call__(self):
         """
         Launch the training
         """
         if self.args.slurm:
             os.environ["WANDB_MODE"] = "offline"
-
-        # wandb.require("legacy-service")
 
         self.checkpoint_path = self.retrieve_checkpoint_step()
         self.model, self.tokenizer = self.get_model()
@@ -165,23 +185,6 @@ class MolTrainer:
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
         self.tokenizer.padding_side = "left"
-
-        if profile:
-            trainer.train = torch_profiler_decorator(trainer.train)
-            trainer._prepare_inputs = record_function_decorator_builder(
-                "prepare_inputs"
-            )(trainer._prepare_inputs)
-            if hasattr(trainer, "_generate_and_score_completions"):
-                trainer._generate_and_score_completions = (
-                    record_function_decorator_builder("generate_and_score_completions")(
-                        trainer._generate_and_score_completions
-                    )
-                )
-            if hasattr(trainer, "reward_funcs"):
-                for i in range(len(trainer.reward_funcs)):
-                    trainer.reward_funcs[i] = record_function_decorator_builder(
-                        f"reward_func_{i}"
-                    )(trainer.reward_funcs[i])
 
         trainer.train(
             resume_from_checkpoint=(

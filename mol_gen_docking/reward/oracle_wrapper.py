@@ -1,5 +1,6 @@
 """Reward functions for molecular optimization."""
 
+import logging
 import warnings
 from typing import Any, Callable, Dict, List, Union
 
@@ -9,7 +10,6 @@ from rdkit.Chem.rdmolfiles import MolToSmiles
 from tdc.oracles import Oracle, oracle_names
 
 from mol_gen_docking.reward.property_utils.classical_properties import RESCALE
-from mol_gen_docking.utils.logger import create_logger
 
 
 class OracleWrapper:
@@ -30,9 +30,8 @@ class OracleWrapper:
         self,
         debug: bool = False,
     ):
-        self.logger = create_logger(
+        self.logger = logging.getLogger(
             __name__ + "/" + self.__class__.__name__,
-            level="DEBUG" if debug else "WARNING",
         )
         self.name: str = ""
         self.evaluator: Callable[[Any], Any] = lambda x: None
