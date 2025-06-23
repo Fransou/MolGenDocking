@@ -118,6 +118,10 @@ def test_generation_json():
     )
 
 
+@pytest.mark.skipif(
+    not os.path.exists(os.path.join(DATA_PATH, "train_prompts")),
+    reason="No train_prompts on the system",
+)
 @pytest.mark.parametrize(
     "path, file, template",
     product(
