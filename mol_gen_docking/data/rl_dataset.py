@@ -9,8 +9,6 @@ from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import numpy as np
 from numpy import random
-from tmtools import tm_align
-from tmtools.io import get_residue_data, get_structure
 from tqdm import tqdm
 
 from mol_gen_docking.reward.property_utils.classical_properties import (
@@ -221,6 +219,9 @@ class MolGenerationInstructionsDataset:
         return similarities
 
     def get_similarity(self, inp: Tuple[str, str, str]) -> float:
+        from tmtools import tm_align
+        from tmtools.io import get_residue_data, get_structure
+
         pdb0, pdb1, path = inp
 
         pocket_id0 = self.pockets_info[pdb0]["metadata"]["pocket_id"]
