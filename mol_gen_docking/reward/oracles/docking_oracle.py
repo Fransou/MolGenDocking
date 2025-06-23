@@ -15,7 +15,7 @@ class PyscreenerOracle:
         self,
         target_name: str,
         path_to_data: str,
-        software_class: str = "qvina",
+        software_class: str = "vina",
         ncpu: int = 16,
         exhaustiveness: int = 8,
         **kwargs,
