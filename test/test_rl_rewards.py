@@ -213,7 +213,7 @@ def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_f
     completions = [filter_smiles_filler(smiles, completion)]
     prompts = [""] * len(completions)
     rewards = np.array(filter_smiles_scorer(prompts, completions))
-    assert not rewards.sum().isna()
+    assert not np.isnan(rewards.sum())
 
 
 @pytest.mark.parametrize(
