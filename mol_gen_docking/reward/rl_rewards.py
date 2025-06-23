@@ -200,7 +200,8 @@ class RewardScorer:
             )
             if prop not in self.oracles:
                 self.oracles[prop] = oracle_fn
-            property_reward: np.ndarray[float] = oracle_fn(smiles, rescale=rescale)
+            property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
+            assert isinstance(property_reward, np.ndarray)
             return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()

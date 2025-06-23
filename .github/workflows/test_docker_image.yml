@@ -1,6 +1,6 @@
-name: Tests
+name: Tests-DOCKER
 
-on: [ pull_request ]
+on: [ merge_group ]
 
 jobs:
   test-python:

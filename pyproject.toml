@@ -7,9 +7,9 @@ name = "mol_gen_docking"
 version = "2025.8.4"
 dependencies = [
     "torch>=2.6.0",
-    "torchvision",
-    "torchaudio",
-    "datasets",
+    "ray",
+    "selfies",
+    "fastapi",
     "PyTDC",
     "coverage",
     "pytest",
@@ -17,16 +17,11 @@ dependencies = [
     "loguru",
     "omegaconf",
     "hydra-core",
+    "peft",
+    "transformers",
+    "tokenizers",
+    "datasets",
 ]
 
 requires-python = ">=3.10"
 description = ""
-
-[project.optional-dependencies]
-orz = [
-    "vllm",
-    "tensorboard",
-    "deepspeed",
-    "flash-attn",
-    "peft",
-]

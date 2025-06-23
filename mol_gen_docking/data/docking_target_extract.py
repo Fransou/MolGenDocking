@@ -281,7 +281,7 @@ class PocketExtractor:
 
             center = (coords.max(0) + coords.min(0)) / 2
             size = np.round(
-                np.clip((coords - coords.mean()).abs().max().values + 3, 10, 25)
+                np.clip((coords - coords.mean()).abs().max().values + 3, 10, 25)  # type: ignore
             )
 
             metadata["pocket_id"] = pocket_id
