@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import numpy as np
 import pandas as pd
 import ray
-import tdc
 from rdkit import Chem, RDLogger
+from tdc.chem_utils.oracle.filter import MolFilter
 
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
@@ -302,7 +302,7 @@ class RewardScorer:
                 for valid_smiles_c in smiles_list_per_completion
             ]
         elif self.reward == "MolFilters":
-            filters = tdc.chem_utils.oracle.filter.MolFilter(
+            filters = MolFilter(
                 filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
             )
             return [
