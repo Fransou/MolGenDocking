@@ -48,6 +48,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_enable_sleep \
    --deepspeed_enable_sleep \
    --colocate_all_models \
+   --vllm_gpu_memory_utilization 0.6 \
    --pretrain $SCRATCH/Qwen/Qwen3-1.7B \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
