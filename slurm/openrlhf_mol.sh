@@ -28,12 +28,15 @@ source $HOME/OpenRLHF/bin/activate
 ray start --head --node-ip-address 0.0.0.0
 
 python -m mol_gen_docking.fast_api_reward_server --data-path $SLURM_TMPDIR/$DATASET &
+sleep 15
 
 wandb offline
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json='{"setup_commands": ["export WANDB_MODE=offline"]}' \
    -- python3 -m openrlhf.cli.train_ppo_ray \
+   --ref_num_nodes 1 \
+   --ref_num_gpus_per_node 1 \
    --reward_num_nodes 1 \
    --reward_num_gpus_per_node 1 \
    --critic_num_nodes 1 \
@@ -45,6 +48,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_enable_sleep \
    --deepspeed_enable_sleep \
    --colocate_all_models \
+   --vllm_gpu_memory_utilization 0.6 \
    --pretrain $SCRATCH/Qwen/Qwen3-1.7B \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
@@ -54,7 +58,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --rollout_batch_size 1024 \
    --max_samples 100000 \
    --max_epochs 1 \
-   --prompt_max_len 1024 \
+   --prompt_max_len 512 \
    --generate_max_len 1024 \
    --zero_stage 3 \
    --bf16 \
