@@ -69,6 +69,7 @@ if __name__ == "__main__":
     @app.post("/get_reward")
     async def get_reward(request: Request):
         data = await request.json()
+        print(data)
         queries = data.get("query")
         prompts = data.get("prompts")
         rewards = reward_model(prompts=prompts, completions=queries)
