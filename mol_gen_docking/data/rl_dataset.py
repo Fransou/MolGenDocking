@@ -5,9 +5,10 @@ import logging
 import os
 from dataclasses import dataclass, field
 from multiprocessing import Pool
-from typing import Any, Dict, Iterator, List, Tuple, Union
+from typing import Any, Dict, Iterator, List, Tuple
 
 import numpy as np
+from datasets import Dataset
 from numpy import random
 from tqdm import tqdm
 
@@ -110,6 +111,9 @@ class DatasetConfig:
     max_occ: int = 10
     max_docking_per_prompt: int = 2
     min_n_pocket_infos: int = -1
+    chat_template: Dict[str, str] = field(
+        default_factory=lambda: {"user": "role", "content": "content"}
+    )
 
 
 class MolGenerationInstructionsDataset:
@@ -123,6 +127,7 @@ class MolGenerationInstructionsDataset:
         :param max_n_props: Maximal number of properties to optimize
         """
         self.config = config
+        self.chat_temp = config.chat_template
 
         self.docking_targets: List[str] = []
         self.prop_name_mapping: Dict[str, str] = {}
@@ -334,9 +339,7 @@ class MolGenerationInstructionsDataset:
             self.docking_properties_split[idx] = self.docking_properties[i0:i1]
             i0 = i1
 
-    def fill_prompt(
-        self, props: List[str], objs: List[str], pocket_data: Dict[str, Any]
-    ) -> str:
+    def fill_prompt(self, props: List[str], objs: List[str]) -> str:
         """
         Takes a list of properties and corresponding objectives
         and returns a diverse natural language prompt for multi-objective optimization.
@@ -370,18 +373,6 @@ class MolGenerationInstructionsDataset:
         prompt: str = random.choice(self.templates).split("|")[int(len(props) > 1)]
         full_prompt = prompt.format(objectives="; ".join(phrases))
 
-        if not pocket_data == {}:
-            new_sentence = (
-                " Here are some descriptors of the pocket"
-                + "s" * int(len(pocket_data) > 1)
-                + " we want the compound to bind to: \n"
-            )
-            for p in pocket_data:
-                new_sentence += p + ":\n"
-                for k in pocket_data[p]:
-                    new_sentence += "    " + k + ":" + str(pocket_data[p][k]) + "\n"
-
-            full_prompt += new_sentence
         return full_prompt
 
     def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
@@ -393,9 +384,12 @@ class MolGenerationInstructionsDataset:
                     pocket_metadata = self.pockets_info[pdb_id].get("metadata", {})
                     if not isinstance(pocket_metadata, dict):
                         pocket_metadata = dict(pocket_metadata)
-                    n_props = np.random.randint(
-                        self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
-                    )
+                    if self.min_n_pocket_infos < len(POSSIBLE_POCKET_INFO):
+                        n_props = np.random.randint(
+                            self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
+                        )
+                    else:
+                        n_props = len(POSSIBLE_POCKET_INFO)
                     dict_keys = np.random.choice(
                         POSSIBLE_POCKET_INFO, n_props, replace=False
                     )
@@ -416,7 +410,8 @@ class MolGenerationInstructionsDataset:
         metadata["properties"] = [self.prop_name_mapping[p] for p in properties]
         metadata["objectives"] = [obj.split(" ")[0] for obj in objectives]
         metadata["target"] = [
-            0 if len(obj.split(" ")) == 1 else obj.split(" ")[1] for obj in objectives
+            0.0 if len(obj.split(" ")) == 1 else float(obj.split(" ")[1])
+            for obj in objectives
         ]
         metadata["prompt_id"] = identifier
         metadata["n_props"] = n_props
@@ -471,11 +466,28 @@ class MolGenerationInstructionsDataset:
             properties[0] = allowed_docking_props[0]
         return properties
 
+    def add_pocket_info_to_prompt(self, full_prompt: str, pocket_data: Dict[str, Any]):
+        if not pocket_data == {}:
+            new_sentence = (
+                " Here are some descriptors of the pocket"
+                + "s" * int(len(pocket_data) > 1)
+                + " we want the compound to bind to: \n"
+            )
+            for p in pocket_data:
+                new_sentence += p + ":\n"
+                for k in pocket_data[p]:
+                    new_sentence += "    " + k + ":" + str(pocket_data[p][k]) + "\n"
+
+            full_prompt += new_sentence
+        return full_prompt
+
     def generate(
         self,
         n: int,
         docking_properties_list: List[str],
-    ) -> Iterator[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]]:
+    ) -> Iterator[
+        Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], Dict[str, Any]]
+    ]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -527,26 +539,46 @@ class MolGenerationInstructionsDataset:
             )
 
             pocket_datas = self._generate_pocket_additional_data(properties)
-            prompt_text = self.fill_prompt(properties, objectives, pocket_datas)
+
+            prompt_text = self.fill_prompt(properties, objectives)
+            prompt_text_with_pocket = self.add_pocket_info_to_prompt(
+                prompt_text, pocket_datas
+            )
+
             metadata = self._get_prompt_metadata(
                 properties, objectives, identifier, n_props
             )
 
-            prompt: List[Dict[str, Any]] = []
-            completion: List[Dict[str, Any]] = []
-
-            prompt = [
-                {"from": "human", "value": prompt_text[:-1] + "."},
-                {"from": "assistant", "ground_truth": {"value": ""}},
-            ]
-            completion = [{}]
+            completion: List[Dict[str, Any]] = [{}]
+            prompt: Dict[str, List[Dict[str, Any]]] = {
+                "standard": [
+                    {
+                        self.chat_temp["user"]: "human",
+                        self.chat_temp["content"]: prompt_text[:-1] + ".",
+                    },
+                    # {
+                    #     self.chat_temp["user"]: "assistant",
+                    #     self.chat_temp["content"]:  "",
+                    # },
+                ],
+                "with_pocket_descriptors": [
+                    {
+                        self.chat_temp["user"]: "human",
+                        self.chat_temp["content"]: prompt_text_with_pocket[:-1] + ".",
+                    },
+                    # {
+                    #     self.chat_temp["user"]: "assistant",
+                    #     self.chat_temp["content"]:  "",
+                    # },
+                ],
+            }
             yield prompt, completion, metadata
 
     def generate_with_rule(
-        self, n: int, eval_name="", docking_split: int = 0
+        self, n: int, docking_split: int = 0
     ) -> Iterator[
         Tuple[
-            Union[List[Dict[str, Any]], Dict[str, Any]],
+            Dict[str, List[Dict[str, Any]]],
             List[Dict[str, Any]],
             Dict[str, Any],
         ]
@@ -566,21 +598,9 @@ class MolGenerationInstructionsDataset:
                     break
             if not found:
                 break
+            yield prompt, completions, metadata
 
-            if eval_name == "":  # Generate a prompt for training
-                yield prompt, completions, metadata
-            else:  # Generate a prompt for evaluation
-                new_prompt: Dict[str, Any] = {}
-                new_prompt["prompt"] = [prompt[0]]
-                new_prompt["final_answer"] = (
-                    prompt[1].get("ground_truth", {}).get("value", "")
-                )
-                new_prompt["file_name"] = eval_name
-                yield new_prompt, completions, metadata
-
-    def generate_prompt_json(
-        self, n: int, eval_name: str = "", docking_split: int = 0
-    ) -> List[Any]:
+    def generate_prompt_json(self, n: int, docking_split: int = 0) -> List[Any]:
         """
         Generates n prompts randomly to generate molecules.
         The generation is controlled by self.rule_set
@@ -591,19 +611,52 @@ class MolGenerationInstructionsDataset:
         out_dictionary = []
         p_bar = tqdm(total=n)
         for prompt, _, metadata in self.generate_with_rule(
-            n, eval_name=eval_name, docking_split=docking_split
+            n, docking_split=docking_split
         ):
             jsonize_dict(metadata)
             # prompt["metadata"] = metadata
             if isinstance(prompt, list):
                 prompt[-1]["metadata"] = metadata
-            elif isinstance(prompt, dict):
-                prompt["metadata"] = metadata
             out_dictionary.append(prompt)
             tqdm.update(p_bar)
 
         self.rule_set.partial_reset()
         return out_dictionary
+
+    def generate_hf_dataset(self, n: int, docking_split: int) -> Dataset:
+        assert docking_split < len(self.docking_properties_split), (
+            f"docking_split must be less than the number of docking splits, here:{len(self.docking_properties_split)}"
+        )
+        data_dict: Dict[str, Any] = {
+            "prompt": [],
+            "prompt_pocket_descriptors": [],
+            # "completion": [],
+            "properties": [],
+            "objectives": [],
+            "target": [],
+            "prompt_id": [],
+            "n_props": [],
+            "docking_metadata": [],
+        }
+        p_bar = tqdm(total=n)
+        for prompt, completion, metadata in self.generate_with_rule(
+            n, docking_split=docking_split
+        ):
+            jsonize_dict(metadata)
+            data_dict["prompt"].append(prompt["standard"])
+            data_dict["prompt_pocket_descriptors"].append(
+                prompt["with_pocket_descriptors"]
+            )
+            # data_dict["completion"].append(completion)
+            for k in metadata:
+                if k in data_dict:
+                    data_dict[k].append(metadata[k])
+            # if "docking_metadata" not in metadata:
+            # data_dict["docking_metadata"].append({})
+            tqdm.update(p_bar)
+
+        self.rule_set.partial_reset()
+        return Dataset.from_dict(data_dict)
 
 
 def jsonize_dict(d: Dict[Any, Any]):

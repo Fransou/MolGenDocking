@@ -105,9 +105,7 @@ def build_prompt(request, build_metada_pocket):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(
-            properties, [obj] * len(properties), build_metada_pocket(properties)
-        )
+        return dummy.fill_prompt(properties, [obj] * len(properties))
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
