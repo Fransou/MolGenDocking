@@ -172,8 +172,11 @@ cython_debug/
 
 SFT*
 /data/SIU/*
-/data/mol_orz_pocket_desc/*
 /data/mol_orz/*.zip
+/data/mol_orz/eval_data/*
+/data/mol_orz/test_data/*
+/data/mol_orz/train_prompts/*
+
 /data/*.zip
 /data/*.tab
 external_libraries
