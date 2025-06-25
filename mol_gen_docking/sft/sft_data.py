@@ -55,7 +55,7 @@ class InstructionDatasetProcessor:
             + " in the SMILES format between the <SMILES> and </SMILES> tags."
         )
 
-    def process_str(self, string) -> str:
+    def process_str(self, string: str) -> str:
         """
         Check if the string is a valid SELFIES, or if it contains special tokens.
         Avoids useless tasks, and processes the string if needed.
@@ -70,15 +70,20 @@ class InstructionDatasetProcessor:
                 found_a_special_tok = True
         if not found_a_special_tok:
             try:
-                mol = sf.decoder(string)
-                if mol != "":
+                smiles = sf.decoder(string)
+                if smiles != "":
                     # Get the molecule
-                    mol = Chem.MolFromSmiles(mol)
+                    mol = Chem.MolFromSmiles(smiles)
                     # Remove stereochemistry
                     Chem.RemoveStereochemistry(mol)
                     # Get the SMILES
-                    string = Chem.MolToSmiles(mol)
-                    return special_tok["smiles"] + string + special_tok["smiles_end"]
+                    smiles = Chem.MolToSmiles(mol)
+                    if not isinstance(smiles, str):
+                        smiles = ""
+                    output: str = (
+                        special_tok["smiles"] + smiles + special_tok["smiles_end"]
+                    )
+                    return output
             except Exception as e:
                 del e
 

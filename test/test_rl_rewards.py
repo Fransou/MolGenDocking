@@ -1,7 +1,7 @@
 import os
 import time
 from itertools import product
-from typing import List
+from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -444,8 +444,9 @@ def test_runtime(
 
 
 @pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
-def test_baseline_reward_fn(smiles, property, build_prompt):
+def test_baseline_reward_fn(smiles: str, property: str, build_prompt: Callable):
     prompt = build_prompt([property])
     reward_fn = get_reward_fn(prompt, DATA_PATH)
     s = smiles[0]
-    assert reward_fn(s) == float(reward_fn(s))
+    reward = reward_fn(s)
+    assert isinstance(reward, float)

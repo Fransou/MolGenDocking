@@ -37,7 +37,7 @@ class OracleWrapper:
         self.evaluator: Callable[[Any], Any] = lambda x: None
         self.task_label = None
 
-    def assign_evaluator(self, evaluator: Callable[[Any], Any], name: str):
+    def assign_evaluator(self, evaluator: Callable[[Any], Any], name: str) -> None:
         """Assign the evaluator to the OracleWrapper."""
         self.evaluator = evaluator
         self.name = name
@@ -115,7 +115,7 @@ def get_oracle(
     path_to_data: str = "",
     property_name_mapping: Dict[str, str] = {},
     docking_target_list: List[str] = [],
-    **kwargs,
+    **kwargs: Any,
 ) -> OracleWrapper:
     """
     Get the Oracle object for the specified name.

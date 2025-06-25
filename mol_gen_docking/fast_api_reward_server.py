@@ -66,8 +66,8 @@ if __name__ == "__main__":
 
     app = FastAPI()
 
-    @app.post("/get_reward")
-    async def get_reward(request: Request):
+    @app.post("/get_reward")  # type: ignore
+    async def get_reward(request: Request) -> JSONResponse:
         data = await request.json()
         queries = data.get("query")
         prompts = data.get("prompts")

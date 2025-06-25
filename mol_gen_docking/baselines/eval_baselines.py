@@ -1,7 +1,7 @@
 import argparse
 import os
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict, List
 
 from datasets import load_from_disk
 from molopt.base import BaseOptimizer, Oracle
@@ -33,7 +33,7 @@ class BaselineConfig:
         )
 
     @staticmethod
-    def add_arguments(parser: argparse.ArgumentParser):
+    def add_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("BASELINE_NAME", type=str)
         parser.add_argument(
             "--n_jobs",
@@ -71,15 +71,20 @@ class BaselineConfig:
             help="Patience for early stopping.",
         )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.output_dir = os.path.join(self.output_dir, self.baseline_name)
         os.makedirs(self.output_dir, exist_ok=True)
 
 
-class BatchedOracle(Oracle):
+class BatchedOracle(Oracle):  # type: ignore
     def __init__(
-        self, max_oracle_calls=10000, freq_log=100, output_dir="results", mol_buffer={}
+        self,
+        max_oracle_calls: int = 10000,
+        freq_log: int = 100,
+        output_dir: str = "results",
+        mol_buffer: Dict[str, Any] = {},
     ) -> None:
+        self.last_log: int = 0
         super().__init__(
             max_oracle_calls=10000, freq_log=100, output_dir="results", mol_buffer={}
         )
@@ -109,7 +114,7 @@ class BatchedOracle(Oracle):
                 scores[i] = self.mol_buffer[smi][0]
         return scores
 
-    def __call__(self, smiles_lst):
+    def __call__(self, smiles_lst: List[str]) -> List[float]:
         """
         Score
         """
@@ -137,7 +142,7 @@ class BatchedOracle(Oracle):
         return score_list
 
     @classmethod
-    def from_oracle(cls, oracle: Oracle):
+    def from_oracle(cls, oracle: Oracle) -> "BatchedOracle":
         return cls(
             oracle.max_oracle_calls,
             freq_log=oracle.freq_log,

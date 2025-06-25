@@ -177,8 +177,8 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
-    def fill_df_properties(self, df_properties: pd.DataFrame):
-        @ray.remote(num_cpus=0.3)
+    def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
+        @ray.remote(num_cpus=0.3)  # type: ignore
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -215,9 +215,12 @@ class RewardScorer:
             smiles = prop_smiles[p]
             values_job.append(
                 _get_property.remote(
-                    smiles, p, rescale=self.rescale, kwargs=self.oracle_kwargs
+                    smiles,
+                    p,
+                    rescale=self.rescale,
+                    kwargs=self.oracle_kwargs,
                 )
-            )  # type: ignore
+            )
 
         all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
@@ -229,7 +232,7 @@ class RewardScorer:
                     "value",
                 ] = v
 
-    def get_reward(self, row: pd.Series) -> float:
+    def get_reward(self, row: pd.Series[Any]) -> float:
         reward: float = 0
         obj = row["obj"]
         mol_prop = row["value"]
@@ -248,9 +251,6 @@ class RewardScorer:
 
     def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:
         smiles = self.get_all_completions_smiles(completions)
-        if self.reward == "smiles":
-            # No need to continue
-            return smiles
         valid_smiles = [
             [s for s in smiles_c if Chem.MolFromSmiles(s) is not None]
             for smiles_c in smiles
@@ -260,7 +260,7 @@ class RewardScorer:
     def _get_prop_to_smiles_dataframe(
         self,
         smiles_list_per_completion: List[List[str]],
-        objectives: List[dict],
+        objectives: List[dict[str, Tuple[str, float]]],
     ) -> pd.DataFrame:
         df_properties = pd.DataFrame(
             columns=[

@@ -93,7 +93,7 @@ class RuleSet:
                 )
         return True
 
-    def partial_reset(self):
+    def partial_reset(self) -> None:
         """Reinitialize the rule set, keeping the prompt_ids"""
         self.n_occ_prop = {}
         self.prohibited_props_at_n = {}
@@ -127,6 +127,8 @@ class MolGenerationInstructionsDataset:
         :param max_n_props: Maximal number of properties to optimize
         """
         self.config = config
+        self.system_prompt = "A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\nThe reasoning process is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
+
         self.chat_temp = config.chat_template
 
         self.docking_targets: List[str] = []
@@ -165,7 +167,7 @@ class MolGenerationInstructionsDataset:
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
 
-    def save_sim_matrices(self):
+    def save_sim_matrices(self) -> None:
         # Get similarity matrix per split
         with open(
             os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
@@ -187,7 +189,7 @@ class MolGenerationInstructionsDataset:
     @staticmethod
     def _get_allowed_props(
         original_prop_list: List[str], rule_set: RuleSet, n_props: int
-    ):
+    ) -> List[str]:
         return [
             p
             for p in original_prop_list
@@ -254,7 +256,7 @@ class MolGenerationInstructionsDataset:
         s0 = get_structure(os.path.join(path, "pdb_files", pdb0 + "_processed.pdb"))
         s1 = get_structure(os.path.join(path, "pdb_files", pdb1 + "_processed.pdb"))
 
-        def get_closest_chain(structure, pocket):
+        def get_closest_chain(structure: Any, pocket: Any) -> Any:
             pocket_atoms = [atom.get_coord() for atom in pocket.get_atoms()]
             pocket_center = np.mean(pocket_atoms, axis=0)
 
@@ -268,7 +270,7 @@ class MolGenerationInstructionsDataset:
                     if chain_coords.shape[0] < 3:
                         continue
                     chain_center = np.mean(chain_coords, axis=0)
-                    dist = np.linalg.norm(pocket_center - chain_center)
+                    dist = float(np.linalg.norm(pocket_center - chain_center))
                     if dist < min_dist:
                         min_dist = dist
                         closest_chain = chain
@@ -279,7 +281,7 @@ class MolGenerationInstructionsDataset:
         chain0 = get_closest_chain(s0, pocket0)
         chain1 = get_closest_chain(s1, pocket1)
 
-        def normalize_resnames(chain):
+        def normalize_resnames(chain: Any) -> None:
             rename_map = {
                 "HIE": "HIS",
                 "HIP": "HIS",
@@ -307,7 +309,7 @@ class MolGenerationInstructionsDataset:
             out = 10.0
         return out
 
-    def _load_props(self, path: str):
+    def _load_props(self, path: str) -> None:
         assert os.path.exists(path)
         docking_target_list_path = os.path.join(path, "docking_targets.json")
         prop_name_mapping_path = os.path.join(path, "names_mapping.json")
@@ -330,7 +332,7 @@ class MolGenerationInstructionsDataset:
         with open(pocket_info_path) as f:
             self.pockets_info = json.load(f)
 
-    def _extract_splits(self, split_docking):
+    def _extract_splits(self, split_docking: List[float]) -> None:
         np.random.shuffle(self.docking_properties)
         i0 = 0
         for idx, p in enumerate(split_docking):
@@ -467,7 +469,9 @@ class MolGenerationInstructionsDataset:
             properties[0] = allowed_docking_props[0]
         return properties
 
-    def add_pocket_info_to_prompt(self, full_prompt: str, pocket_data: Dict[str, Any]):
+    def add_pocket_info_to_prompt(
+        self, full_prompt: str, pocket_data: Dict[str, Any]
+    ) -> str:
         if not pocket_data == {}:
             new_sentence = (
                 " Here are some descriptors of the pocket"
@@ -553,24 +557,20 @@ class MolGenerationInstructionsDataset:
             completion: List[Dict[str, Any]] = [{}]
             prompt: Dict[str, List[Dict[str, Any]]] = {
                 "standard": [
+                    {"role": "system", "content": self.system_prompt},
                     {
                         self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text[:-1] + ".",
                     },
-                    # {
-                    #     self.chat_temp["user"]: "assistant",
-                    #     self.chat_temp["content"]:  "",
-                    # },
+                    {"role": "assistant", "content": "<think>"},
                 ],
                 "with_pocket_descriptors": [
+                    {"role": "system", "content": self.system_prompt},
                     {
                         self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text_with_pocket[:-1] + ".",
                     },
-                    # {
-                    #     self.chat_temp["user"]: "assistant",
-                    #     self.chat_temp["content"]:  "",
-                    # },
+                    {"role": "assistant", "content": "<think>"},
                 ],
             }
             yield prompt, completion, metadata
@@ -660,7 +660,7 @@ class MolGenerationInstructionsDataset:
         return Dataset.from_dict(data_dict)
 
 
-def jsonize_dict(d: Dict[Any, Any]):
+def jsonize_dict(d: Dict[Any, Any]) -> None:
     for k, v in d.items():
         if isinstance(v, dict):
             jsonize_dict(v)

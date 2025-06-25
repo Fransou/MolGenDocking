@@ -62,7 +62,7 @@ def get_rl_data_parser() -> argparse.Namespace:
     return args
 
 
-def generate_prompts(config: DatasetConfig, args: argparse.Namespace):
+def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
     dataset = MolGenerationInstructionsDataset(config)
 
     n_valid_prompts = int(args.n_prompts / 0.7 * 0.1)  # 10% of the training set
@@ -103,7 +103,7 @@ if __name__ == "__main__":
         t_drug_score=args.t_drug_score,
         download_siu=args.download,
     )
-    target_info = extractor.download_pdb()
+    extractor.download_pdb()
 
     if not args.download:
         # Extract pockets from PDB files after using fpocket
