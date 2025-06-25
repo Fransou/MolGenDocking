@@ -3,7 +3,7 @@
 #SBATCH --account=def-ibenayed
 #SBATCH --time=00:30:00
 #SBATCH --gpus=h100:1
-#SBATCH --mem=50G
+#SBATCH --mem=100G
 #SBATCH --cpus-per-task=8
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
@@ -33,7 +33,7 @@ sleep 15
 wandb offline
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
-   --runtime-env-json='{"setup_commands": ["export WANDB_MODE=offline"]}' \
+   --runtime-env-json='{"setup_commands": ["wandb offline"]}' \
    -- python3 -m openrlhf.cli.train_ppo_ray \
    --ref_num_nodes 1 \
    --ref_num_gpus_per_node 1 \
@@ -56,6 +56,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --train_batch_size 128 \
    --micro_rollout_batch_size 1 \
    --rollout_batch_size 128 \
+   --n_samples_per_prompt 64 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \

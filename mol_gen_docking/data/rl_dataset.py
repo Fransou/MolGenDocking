@@ -601,29 +601,6 @@ class MolGenerationInstructionsDataset:
                 break
             yield prompt, completions, metadata
 
-    def generate_prompt_json(self, n: int, docking_split: int = 0) -> List[Any]:
-        """
-        Generates n prompts randomly to generate molecules.
-        The generation is controlled by self.rule_set
-        """
-        assert docking_split < len(self.docking_properties_split), (
-            f"docking_split must be less than the number of docking splits, here:{len(self.docking_properties_split)}"
-        )
-        out_dictionary = []
-        p_bar = tqdm(total=n)
-        for prompt, _, metadata in self.generate_with_rule(
-            n, docking_split=docking_split
-        ):
-            jsonize_dict(metadata)
-            # prompt["metadata"] = metadata
-            if isinstance(prompt, list):
-                prompt[-1]["metadata"] = metadata
-            out_dictionary.append(prompt)
-            tqdm.update(p_bar)
-
-        self.rule_set.partial_reset()
-        return out_dictionary
-
     def generate_hf_dataset(self, n: int, docking_split: int) -> Dataset:
         assert docking_split < len(self.docking_properties_split), (
             f"docking_split must be less than the number of docking splits, here:{len(self.docking_properties_split)}"
