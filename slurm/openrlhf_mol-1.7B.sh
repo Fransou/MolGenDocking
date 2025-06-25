@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
-#SBATCH --account=rrg-josedolz
+#SBATCH --account=def-ibenayed
 #SBATCH --time=00:30:00
-#SBATCH --gres=gpu:4
-#SBATCH --mem=100G
-#SBATCH --cpus-per-task=48
+#SBATCH --gpus=h100:1
+#SBATCH --mem=50G
+#SBATCH --cpus-per-task=8
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
