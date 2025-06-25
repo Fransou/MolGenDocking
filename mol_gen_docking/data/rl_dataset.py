@@ -415,21 +415,22 @@ class MolGenerationInstructionsDataset:
         ]
         metadata["prompt_id"] = identifier
         metadata["n_props"] = n_props
-        metadata["docking_metadata"] = {}
+        metadata["docking_metadata"] = []
         for p in properties:
             if self.prop_name_mapping[p] in self.docking_targets:
                 pdb_id = self.prop_name_mapping[p]
                 if pdb_id in self.pockets_info:
+                    infos = {}
+
                     pocket_data = self.pockets_info[pdb_id]
                     if not isinstance(pocket_data, dict):
                         pocket_data = dict(pocket_data)
-                    metadata["docking_metadata"][self.prop_name_mapping[p]] = (
-                        pocket_data
-                    )
+                    infos = pocket_data
+                    if "pdb_id" not in infos:
+                        infos["pdb_id"] = pdb_id
                 else:
-                    metadata["docking_metadata"][self.prop_name_mapping[p]] = {
-                        "pdb_id": pdb_id.split("_")[0]
-                    }
+                    infos = {"pdb_id": pdb_id.split("_")[0]}
+                metadata["docking_metadata"].append(infos)
         return metadata
 
     def _sample_properties(
@@ -553,7 +554,7 @@ class MolGenerationInstructionsDataset:
             prompt: Dict[str, List[Dict[str, Any]]] = {
                 "standard": [
                     {
-                        self.chat_temp["user"]: "human",
+                        self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text[:-1] + ".",
                     },
                     # {
@@ -563,7 +564,7 @@ class MolGenerationInstructionsDataset:
                 ],
                 "with_pocket_descriptors": [
                     {
-                        self.chat_temp["user"]: "human",
+                        self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text_with_pocket[:-1] + ".",
                     },
                     # {
