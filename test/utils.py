@@ -39,9 +39,9 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
     def fill_completion(smiles: List[str], completion: str) -> str:
         """Fill the completion with the smiles."""
         if no_flags:
-            return " ".join(smiles)
+            smiles_joined = " ".join(smiles)
 
-        smiles_joined: str = "<answer>" + " ".join(smiles) + "</answer>"
+        smiles_joined: str = "<answer> " + " ".join(smiles) + " </answer>"
         return completion.replace("[SMILES]", smiles_joined)
 
     return fill_completion
