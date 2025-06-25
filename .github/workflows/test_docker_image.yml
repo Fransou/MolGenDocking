@@ -1,6 +1,11 @@
 name: Tests-DOCKER
 
-on: [ merge_group ]
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - closed
 
 jobs:
   test-python:
@@ -37,4 +42,4 @@ jobs:
     - name: Test with pytest
       run: |
         rm -rf .coverage
-        docker run -v ${PWD}:/tmp fransou/reward
+        docker run -v ${PWD}:/tmp fransou/reward --entrypoint docker/run_docker_test.sh

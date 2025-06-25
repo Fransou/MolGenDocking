@@ -1,6 +1,11 @@
 name: Tests-PIP
 
-on: [ pull_request ]
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - closed
 
 jobs:
   test-python:
