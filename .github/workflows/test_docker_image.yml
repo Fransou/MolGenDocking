@@ -1,11 +1,7 @@
 name: Tests-DOCKER
 
 on:
-  pull_request:
-    types:
-      - opened
-      - edited
-      - closed
+  pull_request
 
 jobs:
   test-python:

@@ -33,5 +33,5 @@ repos:
   rev: 'v1.15.0'  # Use the sha / tag you want to point at
   hooks:
     - id: mypy
-      exclude: docker
-      args: [ --ignore-missing-imports, --install-types, --non-interactive ]
+      exclude: test
+      args: [ --ignore-missing-imports, --install-types, --non-interactive, --strict ]
