@@ -40,7 +40,7 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
         """Fill the completion with the smiles."""
         smiles_joined: str = "".join(
             [
-                "{} ".format(s) if no_flags else "<SMILES>{}</SMILES> ".format(s)
+                "{} ".format(s) if no_flags else "<answer>{}</answer> ".format(s)
                 for s in smiles
             ]
         )

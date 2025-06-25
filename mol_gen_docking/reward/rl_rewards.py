@@ -141,28 +141,27 @@ class RewardScorer:
         Get smiles from completion
         """
         if not self.parse_whole_completion:
-            s_spl = comp.split("<SMILES>")[1:]
-            s_spl = [x.split("</SMILES>")[0] for x in s_spl]
-            return s_spl
-        else:
-            # Parse the whole completion with no "<SMILES>" tag
-            # First we split the completion by newlines and spaces
-            re.split("\n| |.|\t|:", comp)
-            # Then we filter by removing any string that does not contain "C"
-            valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+            matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
+            comp = matches[0]
 
-            def filter_smiles(x: str) -> bool:
-                if "e" in x or len(x) < 3:
-                    return False
-                if "C" in x or x.count("c") > 2:
-                    return valid_smiles_pattern.fullmatch(x) is not None
+        # Now we identify which elements are possibly SMILES
+        # First we split the completion by newlines and spaces
+        re.split("\n| |.|\t|:", comp)
+        # Then we filter by removing any string that does not contain "C"
+        valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+
+        def filter_smiles(x: str) -> bool:
+            if "e" in x or len(x) < 3:
                 return False
+            if "C" in x or x.count("c") > 2:
+                return valid_smiles_pattern.fullmatch(x) is not None
+            return False
 
-            s_poss = [x for x in comp.split() if filter_smiles(x)]
-            # Finally we remove any string that is not a valid SMILES
-            s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
+        s_poss = [x for x in comp.split() if filter_smiles(x)]
+        # Finally we remove any string that is not a valid SMILES
+        s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
 
-            return s_spl
+        return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
         smiles = []
@@ -232,7 +231,7 @@ class RewardScorer:
                     "value",
                 ] = v
 
-    def get_reward(self, row: pd.Series[Any]) -> float:
+    def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
         obj = row["obj"]
         mol_prop = row["value"]

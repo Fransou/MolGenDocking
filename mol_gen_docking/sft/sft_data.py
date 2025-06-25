@@ -2,11 +2,7 @@
 
 from typing import Any, Dict, List, Tuple
 
-import selfies as sf
 from datasets import Dataset, concatenate_datasets, load_dataset
-from rdkit import Chem
-
-from mol_gen_docking.data import special_tok
 
 SMolInstruct_tasks = [
     "forward_synthesis",
@@ -50,45 +46,6 @@ class InstructionDatasetProcessor:
         else:
             raise ValueError("Unknown dataset")
 
-        self.system_prompt = (
-            "You are a helpful assistant. You can describe molecules"
-            + " in the SMILES format between the <SMILES> and </SMILES> tags."
-        )
-
-    def process_str(self, string: str) -> str:
-        """
-        Check if the string is a valid SELFIES, or if it contains special tokens.
-        Avoids useless tasks, and processes the string if needed.
-        :param string: Input string
-        :return: The input string processed
-        """
-        if string == "":
-            return ""
-        found_a_special_tok = False
-        for spe_tok in special_tok.values():
-            if spe_tok in string:
-                found_a_special_tok = True
-        if not found_a_special_tok:
-            try:
-                smiles = sf.decoder(string)
-                if smiles != "":
-                    # Get the molecule
-                    mol = Chem.MolFromSmiles(smiles)
-                    # Remove stereochemistry
-                    Chem.RemoveStereochemistry(mol)
-                    # Get the SMILES
-                    smiles = Chem.MolToSmiles(mol)
-                    if not isinstance(smiles, str):
-                        smiles = ""
-                    output: str = (
-                        special_tok["smiles"] + smiles + special_tok["smiles_end"]
-                    )
-                    return output
-            except Exception as e:
-                del e
-
-        return string
-
     def process_line(self, line: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """
         Process a line of the dataset.
@@ -99,10 +56,6 @@ class InstructionDatasetProcessor:
         instruction = line.get("instruction", "")
         inp = line.get("input", "")
         out = line["output"]
-
-        inp = self.process_str(inp)
-        instruction = self.process_str(instruction)
-        out = self.process_str(out)
 
         prompt = [
             {
