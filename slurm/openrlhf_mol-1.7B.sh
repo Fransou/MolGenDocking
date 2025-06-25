@@ -53,9 +53,9 @@ ray job submit --address="http://127.0.0.1:8265" \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
    --micro_train_batch_size 16 \
-   --train_batch_size 1024 \
+   --train_batch_size 128 \
    --micro_rollout_batch_size 16 \
-   --rollout_batch_size 1024 \
+   --rollout_batch_size 128 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
