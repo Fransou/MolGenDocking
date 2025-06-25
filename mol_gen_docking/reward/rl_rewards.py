@@ -142,7 +142,10 @@ class RewardScorer:
         """
         if not self.parse_whole_completion:
             matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
-            comp = matches[0]
+            if len(matches) > 0:
+                comp = matches[0]
+            else:
+                comp = ""
 
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
