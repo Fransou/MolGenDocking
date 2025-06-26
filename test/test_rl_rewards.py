@@ -24,6 +24,7 @@ from .utils import (
     PROPERTIES_NAMES_SIMPLE,
     SMILES,
     get_fill_completions,
+    get_unscaled_obj,
     propeties_csv,
 )
 
@@ -331,7 +332,7 @@ def test_properties_single_prompt_vina_reward(
 )
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
     """Test the function molecular_properties with 2 properties."""
-
+    obj = get_unscaled_obj(obj, prop)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
         build_prompt(prop, "maximize")

@@ -127,7 +127,7 @@ class RewardScorer:
                         prop = match.group("prop").strip()
                         if obj_type in ["above", "below", "equal"]:
                             val = match.group("val").strip()
-                            assert str(float(val)) == val, "Value is not a number"
+                            assert f"{float(val):.2f}" == val, "Value is not a number"
                             val = float(val)
                         else:
                             val = 0
