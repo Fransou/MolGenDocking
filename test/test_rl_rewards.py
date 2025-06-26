@@ -14,7 +14,7 @@ from mol_gen_docking.data.rl_dataset import (
     MolGenerationInstructionsDataset,
 )
 from mol_gen_docking.reward.rl_rewards import RewardScorer
-
+from mol_gen_docking.reward.property_utils import rescale_property_values
 from .utils import (
     COMPLETIONS,
     DATA_PATH,
@@ -351,16 +351,19 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     assert not rewards.isnan().any()
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
-    if obj == "maximize":
+    objective = obj.split[0]
+    if objective == "maximize":
         val = rewards_max
-    elif obj == "minimize":
+    elif objective == "minimize":
         val = 1 - rewards_max
-    elif obj == "below 0.5":
-        val = (rewards_max <= 0.5).float()
-    elif obj == "above 0.5":
-        val = (rewards_max >= 0.5).float()
-    elif obj == "equal 0.5":
-        val = np.clip(1 - 100 * (rewards_max - 0.5) ** 2, 0, 1)
+    else:
+        target = rescale_property_values(prop, obj.split()[1], False)
+        if objective == "below":
+            val = (rewards_max <= 0.5).float()
+        elif objective == "above":
+            val = (rewards_max >= 0.5).float()
+        elif objective == "equal":
+            val = np.clip(1 - 100 * (rewards_max - 0.5) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
 
