@@ -8,6 +8,7 @@ from multiprocessing import Pool
 from typing import Any, Dict, Iterator, List, Tuple
 
 import numpy as np
+import pandas as pd
 from datasets import Dataset
 from numpy import random
 from tqdm import tqdm
@@ -129,8 +130,20 @@ class MolGenerationInstructionsDataset:
         :param max_n_props: Maximal number of properties to optimize
         """
         self.config = config
-        self.system_prompt = "A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\nThe reasoning process is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
-
+        self.system_prompt = (
+            "A conversation between User and Assistant. "
+            "The User asks a question, and the Assistant solves it.\n"
+            "The reasoning process is enclosed within <think> </think>"
+            " and answer is enclosed within <answer> </answer> tags, "
+            "respectively, i.e., <think> reasoning process here </think> "
+            "<answer> {{smiles}} </answer>."
+        )
+        properties_csv = pd.read_csv(
+            os.path.join(os.path.dirname(config.data_path), "properties.csv")
+        )
+        self.possible_smiles = properties_csv[
+            properties_csv.smiles.apply(len) < 32
+        ].smiles
         self.chat_temp = config.chat_template
 
         self.docking_targets: List[str] = []
@@ -511,6 +524,12 @@ class MolGenerationInstructionsDataset:
             objectives.append(obj)
         return objectives
 
+    def fill_system_prompt(self, system_prompt: str) -> str:
+        if "{{smiles}}" in system_prompt:
+            smiles = self.possible_smiles.sample(1).values[0]
+            system_prompt = system_prompt.replace("{{smiles}}", smiles)
+        return system_prompt
+
     def generate(
         self,
         n: int,
@@ -561,10 +580,12 @@ class MolGenerationInstructionsDataset:
                 properties, objectives, identifier, n_props
             )
 
+            sys_prompt = self.fill_system_prompt(self.system_prompt)
+
             completion: List[Dict[str, Any]] = [{}]
             prompt: Dict[str, List[Dict[str, Any]]] = {
                 "standard": [
-                    {"role": "system", "content": self.system_prompt},
+                    {"role": "system", "content": sys_prompt},
                     {
                         self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text[:-1] + ".",
@@ -572,7 +593,7 @@ class MolGenerationInstructionsDataset:
                     {"role": "assistant", "content": "<think>"},
                 ],
                 "with_pocket_descriptors": [
-                    {"role": "system", "content": self.system_prompt},
+                    {"role": "system", "content": sys_prompt},
                     {
                         self.chat_temp["user"]: "user",
                         self.chat_temp["content"]: prompt_text_with_pocket[:-1] + ".",
