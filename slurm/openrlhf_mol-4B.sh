@@ -52,15 +52,15 @@ ray job submit --address="http://127.0.0.1:8265" \
    --pretrain $SCRATCH/Qwen/Qwen3-4B \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
-   --micro_train_batch_size 1 \
-   --train_batch_size 128 \
+   --micro_train_batch_size 4 \
+   --train_batch_size 16 \
    --micro_rollout_batch_size 1 \
-   --rollout_batch_size 128 \
+   --rollout_batch_size 16 \
    --n_samples_per_prompt 64 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
-   --generate_max_len 512 \
+   --generate_max_len 2048 \
    --zero_stage 3 \
    --bf16 \
    --actor_learning_rate 5e-7 \
