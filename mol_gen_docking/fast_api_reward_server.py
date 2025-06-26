@@ -85,7 +85,7 @@ if __name__ == "__main__":
                 "mol_filters": filter_reward,
             },
         }
-        logger.info(f"Sent JSON: {result}")
+        
         return JSONResponse(result)
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
