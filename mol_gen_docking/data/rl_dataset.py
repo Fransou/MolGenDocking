@@ -12,8 +12,9 @@ from datasets import Dataset
 from numpy import random
 from tqdm import tqdm
 
-from mol_gen_docking.reward.property_utils.classical_properties import (
+from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
+    inverse_rescale_property_values,
 )
 from mol_gen_docking.reward.utils import (
     OBJECTIVES_TEMPLATES,
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
 DOCKING_SOLO_OBJECTIVES = ["minimize", "below", "equal"]
+DOCKING_OBJECTIVES = ["minimize", "below", "equal", "above"]
 TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 
@@ -486,6 +488,29 @@ class MolGenerationInstructionsDataset:
             full_prompt += new_sentence
         return full_prompt
 
+    def get_obj_from_prop(self, properties: List[str]) -> List[str]:
+        objectives: List[str] = []
+        for prop in properties:
+            short_prop = self.prop_name_mapping[prop]
+            if len(properties) == 1 and short_prop in self.docking_targets:
+                obj = random.choice(DOCKING_SOLO_OBJECTIVES)
+            elif short_prop in self.docking_targets:
+                obj = random.choice(DOCKING_OBJECTIVES)
+            else:
+                obj = random.choice(OBJECTIVES)
+
+            if obj in TARGET_VALUE_OBJECTIVES:
+                # Find the value to target
+                if short_prop in self.docking_targets:
+                    v = random.random() * 0.4 + 0.1
+                    # Only docking scores between -10 and -7
+                else:
+                    v = random.random() * 0.6 + 0.2
+
+                obj += f" {inverse_rescale_property_values(short_prop, v / 10, short_prop in self.docking_targets):.2f}"
+            objectives.append(obj)
+        return objectives
+
     def generate(
         self,
         n: int,
@@ -508,25 +533,7 @@ class MolGenerationInstructionsDataset:
             ]
             n_props: int = int(np.random.choice(possible_n))
             properties = self._sample_properties(n_props, docking_properties_list)
-
-            objectives = []
-            for prop in properties:
-                if (
-                    len(prop) == 1
-                    and self.prop_name_mapping[prop] in self.docking_targets
-                ):
-                    obj = random.choice(DOCKING_SOLO_OBJECTIVES)
-                else:
-                    obj = random.choice(OBJECTIVES)
-                if obj in TARGET_VALUE_OBJECTIVES:
-                    if self.prop_name_mapping[prop] in self.docking_targets:
-                        v = random.randint(
-                            1, 5
-                        )  # Only docking scores between -10 and -7
-                    else:
-                        v = random.randint(1, 9)
-                    obj += f" {v / 10}"
-                objectives.append(obj)
+            objectives = self.get_obj_from_prop(properties)
 
             identifier = "".join(
                 sorted(

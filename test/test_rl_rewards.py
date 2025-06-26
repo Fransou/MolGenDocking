@@ -5,9 +5,9 @@ from typing import Callable, List
 
 import numpy as np
 import pytest
-import ray
 import torch
 
+import ray
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,

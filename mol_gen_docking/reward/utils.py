@@ -43,12 +43,12 @@ OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
     ],
     "above": [
         "ensure {prop} is above {val}",
-        "keep {prop} greater than {val}",
+        "keep {prop} over {val}",
         "target {prop} values higher than {val}",
     ],
     "below": [
         "ensure {prop} is below {val}",
-        "keep {prop} less than {val}",
+        "keep {prop} under {val}",
         "target {prop} values lower than {val}",
     ],
     "equal": [

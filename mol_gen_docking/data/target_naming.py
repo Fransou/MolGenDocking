@@ -5,7 +5,7 @@ from typing import Dict, List
 import requests
 from tqdm import tqdm
 
-from mol_gen_docking.reward.property_utils.classical_properties import (
+from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 
@@ -17,7 +17,7 @@ def fetch_uniprot_id_from_pdbid(pdb_id: str) -> str | None:
     pdb_id = pdb_id.replace("_docking", "")
     url = f"https://rest.uniprot.org/uniprotkb/search?query=(xref:pdb-{pdb_id})"
 
-    response = requests.get(url, timeout=10)
+    response = requests.get(url, timeout=20)
     if response.status_code != 200:
         raise ValueError(f"Failed to query UniProt for PDB ID {pdb_id}")
 
@@ -30,7 +30,13 @@ def fetch_uniprot_id_from_pdbid(pdb_id: str) -> str | None:
 
 def fetch_uniprot_info(uniprot_id: str) -> str:
     url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.json"
-    response = requests.get(url, timeout=10)
+    for i in range(5):
+        try:
+            response = requests.get(url, timeout=180)
+        except Exception as e:
+            print("Error with uniprot request", uniprot_id)
+            if i == 4:
+                raise e
     if response.status_code != 200:
         raise ValueError(f"UniProt ID {uniprot_id} not found.")
     data = response.json()
@@ -83,7 +89,7 @@ def get_pdb_description(pdb_id: str) -> str | None:
 
 def get_names_mapping(docking_targets: List[str], n_proc: int = 8) -> Dict[str, str]:
     names_mapping: Dict[str, str] = {}
-    pool = Pool(64)
+    pool = Pool(16)
     docking_desc = list(
         tqdm(
             pool.imap(get_pdb_description, docking_targets),
@@ -93,7 +99,7 @@ def get_names_mapping(docking_targets: List[str], n_proc: int = 8) -> Dict[str, 
     )
     for pdb_id, desc in zip(docking_targets, docking_desc):
         if desc is not None:
-            names_mapping[f"Binding affinity against {desc} ({pdb_id})"] = pdb_id
+            names_mapping[f"Docking score against {desc} ({pdb_id})"] = pdb_id
 
     pool.close()
 

@@ -5,11 +5,12 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import ray
 from rdkit import Chem, RDLogger
 from tdc.chem_utils.oracle.filter import MolFilter
 
+import ray
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
+from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 RDLogger.DisableLog("rdApp.*")
@@ -180,7 +181,7 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
-        @ray.remote(num_cpus=0.3)  # type: ignore
+        @ray.remote(num_cpus=0.3)
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -239,6 +240,10 @@ class RewardScorer:
         obj = row["obj"]
         mol_prop = row["value"]
         target_value = row["target_value"]
+        target_value = rescale_property_values(
+            mol_prop, target_value, docking=mol_prop in self.docking_target_list
+        )
+
         if obj == "below":
             reward += float(mol_prop <= target_value)
         elif obj == "above":

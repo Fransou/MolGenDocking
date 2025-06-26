@@ -1,7 +1,6 @@
 """Reward functions for molecular optimization."""
 
 import logging
-import warnings
 from typing import Any, Callable, Dict, List, Union
 
 import numpy as np
@@ -9,7 +8,7 @@ from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolToSmiles
 from tdc.oracles import Oracle, oracle_names
 
-from mol_gen_docking.reward.property_utils.classical_properties import RESCALE
+from mol_gen_docking.reward.property_utils import rescale_property_values
 
 
 class OracleWrapper:
@@ -28,11 +27,13 @@ class OracleWrapper:
 
     def __init__(
         self,
+        is_docking: bool = False,
         debug: bool = False,
     ):
         self.logger = logging.getLogger(
             __name__ + "/" + self.__class__.__name__,
         )
+        self.is_docking = is_docking
         self.name: str = ""
         self.evaluator: Callable[[Any], Any] = lambda x: None
         self.task_label = None
@@ -93,20 +94,13 @@ class OracleWrapper:
                 "Input must be a SMILES string or a list of SMILES strings."
             )
 
-        score_arr: np.ndarray = np.array(score_list)
         if rescale:
-            if self.name.startswith("docking"):
-                # Rescale the values by adding 11, dividing by 10
-                # a docking score of -10 is therefore a 0.1 and -7 is 0.4
-                score_arr = (score_arr + 11) / 10
-            elif self.name in RESCALE:
-                max_val, min_val = RESCALE[self.name]
-                # Rescale the values
-                score_arr = (score_arr - min_val) / (max_val - min_val)
-            else:
-                warnings.warn(
-                    "Typical values not found for the property. Returning the raw values."
-                )
+            score_list = [
+                rescale_property_values(self.name, score, self.is_docking)
+                for score in score_list
+            ]
+
+        score_arr: np.ndarray = np.array(score_list)
         return score_arr
 
 
@@ -124,23 +118,30 @@ def get_oracle(
     :param docking_target_list: List of docking targets
     :return: OracleWrapper object
     """
-    oracle_wrapper = OracleWrapper()
-    oracle_name = oracle_name.replace(".", "")
-    oracle_name = property_name_mapping.get(oracle_name, oracle_name)
     if oracle_name in docking_target_list:
         from mol_gen_docking.reward.oracles.docking_oracle import PyscreenerOracle
+
+        oracle_wrapper = OracleWrapper(is_docking=True)
+        oracle_name = oracle_name.replace(".", "")
+        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
 
         oracle_wrapper.assign_evaluator(
             PyscreenerOracle(oracle_name, path_to_data=path_to_data, **kwargs),
             f"docking_prop/{oracle_name}",
         )
     elif oracle_name.lower() in oracle_names:
+        oracle_wrapper = OracleWrapper()
+        oracle_name = oracle_name.replace(".", "")
+        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
         oracle_wrapper.assign_evaluator(
             Oracle(name=oracle_name, **kwargs), f"tdc/{oracle_name}"
         )
     else:
         from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
+        oracle_wrapper = OracleWrapper()
+        oracle_name = oracle_name.replace(".", "")
+        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
         oracle_wrapper.assign_evaluator(
             RDKITOracle(oracle_name), f"rdkit/{oracle_name}"
         )

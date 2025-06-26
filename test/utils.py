@@ -4,6 +4,8 @@ from typing import Callable, List
 
 import pandas as pd
 
+from mol_gen_docking.reward.property_utils import inverse_rescale_property_values
+
 DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
 
 with open(f"{DATA_PATH}/names_mapping.json") as f:
@@ -33,6 +35,16 @@ OBJECTIVES_TO_TEST: List[str] = [
     "below 0.5",
     "equal 0.5",
 ]
+
+
+def get_unscaled_obj(obj: str, prop: str) -> str:
+    if len(obj.split()) == 1:
+        return obj
+    func = obj.split()[0]
+    val = float(obj.split()[1])
+
+    val = inverse_rescale_property_values(prop, val, prop in DOCKING_PROP_LIST)
+    return f"{func} {val:.2f}"
 
 
 def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:

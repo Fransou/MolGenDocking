@@ -55,7 +55,7 @@ def get_rl_data_parser() -> argparse.Namespace:
         help="Threshold for drug score to consider a pocket.",
     )
     parser.add_argument("--download", action="store_true")
-
+    parser.add_argument("--fill-missing-targets", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(args.data_path, exist_ok=True)
@@ -82,6 +82,8 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
             docking_split=docking_split,
         )
         data.save_to_disk(os.path.join(args.data_path, name))
+        for i in range(10):
+            print(data[i]["prompt"][1]["content"])
 
         # dataset.save_sim_matrices()
 
@@ -144,6 +146,21 @@ if __name__ == "__main__":
             names_mapping = get_names_mapping(docking_targets, n_proc=8)
             with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
                 json.dump(names_mapping, f, indent=4)
+        elif args.fill_missing_targets:
+            print("Filling missing targets...")
+            docking_targets = json.load(
+                open(os.path.join(args.data_path, "docking_targets.json"))
+            )
+            with open(os.path.join(args.data_path, "names_mapping.json")) as f:
+                names_mapping = json.load(f)
+            to_requery = []
+            for target in docking_targets:
+                if target not in names_mapping.values():
+                    to_requery.append(target)
+            additional_names_mapping = get_names_mapping(to_requery, n_proc=8)
+            additional_names_mapping.update(names_mapping)
+            with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
+                json.dump(additional_names_mapping, f, indent=4)
 
         # Finally generates prompt
         print("Generating prompts...")

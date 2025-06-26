@@ -4,10 +4,11 @@ import warnings
 from typing import Any, List
 
 import pyscreener as ps
-import ray
 from pyscreener.docking.vina.utils import Software
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
+
+import ray
 
 
 class PyscreenerOracle:

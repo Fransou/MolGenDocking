@@ -34,4 +34,5 @@ repos:
   hooks:
     - id: mypy
       exclude: test
+      additional_dependencies: [ ray ]
       args: [ --ignore-missing-imports, --install-types, --non-interactive, --strict ]
