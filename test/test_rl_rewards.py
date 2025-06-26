@@ -351,13 +351,13 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     assert not rewards.isnan().any()
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
-    objective = obj.split[0]
+    objective = obj.split()[0]
     if objective == "maximize":
         val = rewards_max
     elif objective == "minimize":
         val = 1 - rewards_max
     else:
-        target = rescale_property_values(prop, obj.split()[1], False)
+        target = rescale_property_values(prop, float(obj.split()[1]), False)
         if objective == "below":
             val = (rewards_max <= 0.5).float()
         elif objective == "above":
