@@ -1,7 +1,7 @@
 import json
 import os
 import warnings
-from typing import List
+from typing import Any, List
 
 import pyscreener as ps
 import ray
@@ -18,7 +18,7 @@ class PyscreenerOracle:
         software_class: str = "vina",
         ncpu: int = 16,
         exhaustiveness: int = 8,
-        **kwargs,
+        **kwargs: Any,
     ):
         if software_class not in [
             "vina",
@@ -70,7 +70,7 @@ class PyscreenerOracle:
             metadata.software = Software.QVINA
 
         if hasattr(ps, "virtual_screen"):
-            self.scorer = ps.virtual_screen(  # type: ignore
+            self.scorer = ps.virtual_screen(
                 software_class,
                 [receptor_pdb_file],
                 box_center,
@@ -83,12 +83,12 @@ class PyscreenerOracle:
                 "Pyscreener version is not compatible. Please update to the latest version."
             )
 
-    def __call__(self, test_smiles: str | List[str], error_value=0):
+    def __call__(self, test_smiles: str | List[str], error_value: float = 0.0) -> Any:
+        final_score = self.scorer(test_smiles)
+
         if isinstance(test_smiles, str):
-            final_score = self.scorer(test_smiles)
             return list(final_score)[0]
         else:
-            final_score = self.scorer(test_smiles)
             score_lst = []
             for i, smiles in enumerate(test_smiles):
                 score = final_score[i]

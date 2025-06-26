@@ -59,41 +59,31 @@ def get_rl_data_parser() -> argparse.Namespace:
     args = parser.parse_args()
 
     os.makedirs(args.data_path, exist_ok=True)
-    os.makedirs(os.path.join(args.data_path, "eval_data"), exist_ok=True)
-    os.makedirs(os.path.join(args.data_path, "test_data"), exist_ok=True)
     return args
 
 
-def generate_prompts(config: DatasetConfig, args: argparse.Namespace):
+def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
     dataset = MolGenerationInstructionsDataset(config)
 
     n_valid_prompts = int(args.n_prompts / 0.7 * 0.1)  # 10% of the training set
     n_test_prompts = int(args.n_prompts / 0.7 * 0.2)  # 20% of the training set
 
     variables = [
-        ["train_prompts.json", 0, args.n_prompts],
-        ["eval_data/eval_prompts.json", 0, n_valid_prompts],
-        ["eval_data/eval_prompts_ood.json", 1, n_valid_prompts],
-        ["test_data/test_prompts.json", 0, n_test_prompts],
-        ["test_data/test_prompts_ood.json", 2, n_test_prompts],
+        ["train_prompts", 0, args.n_prompts],
+        ["eval_data/eval_prompts", 0, n_valid_prompts],
+        ["eval_data/eval_prompts_ood", 1, n_valid_prompts],
+        ["test_data/test_prompts", 0, n_test_prompts],
+        ["test_data/test_prompts_ood", 2, n_test_prompts],
     ]
 
     for name, docking_split, n_prompts in variables:
-        if "train" not in name:
-            prompts = dataset.generate_prompt_json(
-                n_prompts,
-                eval_name=os.path.join(args.data_path, name),
-                docking_split=docking_split,
-            )
-        else:
-            prompts = dataset.generate_prompt_json(
-                n_prompts,
-                docking_split=docking_split,
-            )
-        with open(os.path.join(args.data_path, name), "w") as f:
-            json.dump(prompts, f, indent=4)
+        data = dataset.generate_hf_dataset(
+            n_prompts,
+            docking_split=docking_split,
+        )
+        data.save_to_disk(os.path.join(args.data_path, name))
 
-        dataset.save_sim_matrices()
+        # dataset.save_sim_matrices()
 
 
 if __name__ == "__main__":
@@ -104,6 +94,7 @@ if __name__ == "__main__":
         max_n_props=args.max_n_props,
         split_docking=args.split_docking,
         min_n_pocket_infos=args.min_n_pocket_infos,
+        chat_template={"user": "role", "content": "content"},
     )
     # Download pdb diles
     extractor = PocketExtractor(
@@ -112,7 +103,7 @@ if __name__ == "__main__":
         t_drug_score=args.t_drug_score,
         download_siu=args.download,
     )
-    target_info = extractor.download_pdb()
+    extractor.download_pdb()
 
     if not args.download:
         # Extract pockets from PDB files after using fpocket

@@ -35,10 +35,11 @@ def read_pdb_to_dataframe(
     atomic_df = atomic_df.get_model(model_index)
     if len(atomic_df.df["ATOM"]) == 0:
         raise ValueError(f"No model found for index: {model_index}")
-    return pd.concat([atomic_df.df["ATOM"], atomic_df.df["HETATM"]])
+    df_final: pd.DataFrame = pd.concat([atomic_df.df["ATOM"], atomic_df.df["HETATM"]])
+    return df_final
 
 
-def process_pockets(file_list: List[str]):
+def process_pockets(file_list: List[str]) -> None:
     for f in file_list:
         processed_f = f.replace(".pdb", "_processed.pdb")
         if os.path.isfile(processed_f):
@@ -56,8 +57,8 @@ def process_pockets(file_list: List[str]):
                     os.remove(os.path.join(out_path, out_f))
 
 
-@func_set_timeout(15 * 60)
-def preprocess_file(f: str):
+@func_set_timeout(15 * 60)  # type: ignore
+def preprocess_file(f: str) -> None:
     f_amber = f.replace(".pdb", "_processed.pdb")
     if not os.path.exists(f_amber):
         # First preprocess with pdb4amber
@@ -80,7 +81,7 @@ def preprocess_file(f: str):
         )
 
 
-def preprocess_pdb(file_list: List[str]):
+def preprocess_pdb(file_list: List[str]) -> None:
     for i, f in enumerate(file_list):
         print("Processing: " + f)
         if i + 1 < len(file_list):

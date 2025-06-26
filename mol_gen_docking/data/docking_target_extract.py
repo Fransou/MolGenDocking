@@ -59,8 +59,10 @@ class PocketExtractor:
         atomic_df = atomic_df.get_model(model_index)
         if len(atomic_df.df["ATOM"]) == 0:
             raise ValueError(f"No model found for index: {model_index}")
-
-        return pd.concat([atomic_df.df["ATOM"], atomic_df.df["HETATM"]])
+        final_df: pd.DataFrame = pd.concat(
+            [atomic_df.df["ATOM"], atomic_df.df["HETATM"]]
+        )
+        return final_df
 
     @staticmethod
     def extract_pockets_coords(df: pd.DataFrame, pdb_id: str) -> pd.DataFrame:
@@ -119,7 +121,7 @@ class PocketExtractor:
                     metadata[key] = value
         return dict(metadata)
 
-    def load_siu_data(self):
+    def load_siu_data(self) -> None:
         with open(os.path.join(self.save_path, "final_dic.pkl"), "rb") as f:
             self.data = pickle.load(f)
 
@@ -144,7 +146,7 @@ class PocketExtractor:
             logger.info(f"Failed to download {pdb_id}: {e}")
             return None
 
-    def download_pdb(self):
+    def download_pdb(self) -> None:
         for uniprot_id in tqdm(self.data):
             if len(self.data[uniprot_id]) == 0:
                 logger.info("No data for this uniprot id")

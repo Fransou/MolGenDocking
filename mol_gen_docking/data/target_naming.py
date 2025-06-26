@@ -10,7 +10,7 @@ from mol_gen_docking.reward.property_utils.classical_properties import (
 )
 
 
-def fetch_uniprot_id_from_pdbid(pdb_id):
+def fetch_uniprot_id_from_pdbid(pdb_id: str) -> str | None:
     """
     Fetches the UniProt accession ID corresponding to a PDB ID using the UniProt API.
     """
@@ -24,11 +24,11 @@ def fetch_uniprot_id_from_pdbid(pdb_id):
     data = response.json()
     if not data.get("results"):
         raise ValueError(f"No UniProt mapping found for PDB ID {pdb_id}")
+    uniprot_id: str = data["results"][0]["primaryAccession"]
+    return uniprot_id
 
-    return data["results"][0]["primaryAccession"]
 
-
-def fetch_uniprot_info(uniprot_id):
+def fetch_uniprot_info(uniprot_id: str) -> str:
     url = f"https://rest.uniprot.org/uniprotkb/{uniprot_id}.json"
     response = requests.get(url, timeout=10)
     if response.status_code != 200:
@@ -61,7 +61,7 @@ def fetch_uniprot_info(uniprot_id):
     return f"{species} {protein_name.lower()}"
 
 
-def clean_protein_name(name):
+def clean_protein_name(name: str) -> str:
     name = name.replace("β", "beta").replace("α", "alpha")
     name = re.sub(r"\b(chain|isoform.*|fragment)\b", "", name, flags=re.IGNORECASE)
     name = re.sub(r"\s+", " ", name)
@@ -71,6 +71,7 @@ def clean_protein_name(name):
 def get_pdb_description(pdb_id: str) -> str | None:
     try:
         uniprot_id = fetch_uniprot_id_from_pdbid(pdb_id)
+        assert isinstance(uniprot_id, str)
         description = fetch_uniprot_info(uniprot_id)
         return clean_protein_name(description)
     except Exception as e:

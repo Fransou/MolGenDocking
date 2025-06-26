@@ -165,7 +165,7 @@ class SFTMolTrainer:
 
         return trainer
 
-    def __call__(self):
+    def __call__(self) -> None:
         """
         Launch the training
         """

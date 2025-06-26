@@ -1,6 +1,6 @@
 """Reward functions for molecular optimization."""
 
-from typing import List, Union
+from typing import Any, List, Union
 
 from rdkit.Chem import rdMolDescriptors
 from rdkit.Chem.rdmolfiles import MolFromSmiles
@@ -15,7 +15,7 @@ class RDKITOracle:
         self.name = name
         self.descriptor = self.get_descriptor()
 
-    def get_descriptor(self):
+    def get_descriptor(self) -> Any:
         """Get the descriptor from Rdkit."""
         if hasattr(rdMolDescriptors, self.name):
             return getattr(rdMolDescriptors, self.name)

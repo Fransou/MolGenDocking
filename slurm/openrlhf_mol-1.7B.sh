@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
-#SBATCH --account=rrg-josedolz
+#SBATCH --account=def-ibenayed
 #SBATCH --time=00:30:00
-#SBATCH --gres=gpu:4
-#SBATCH --mem=100G
-#SBATCH --cpus-per-task=48
+#SBATCH --gpus=h100:1
+#SBATCH --mem=80G
+#SBATCH --cpus-per-task=8
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
@@ -33,7 +33,7 @@ sleep 15
 wandb offline
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
-   --runtime-env-json='{"setup_commands": ["export WANDB_MODE=offline"]}' \
+   --runtime-env-json='{"setup_commands": ["wandb offline"]}' \
    -- python3 -m openrlhf.cli.train_ppo_ray \
    --ref_num_nodes 1 \
    --ref_num_gpus_per_node 1 \
@@ -48,14 +48,15 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_enable_sleep \
    --deepspeed_enable_sleep \
    --colocate_all_models \
-   --vllm_gpu_memory_utilization 0.6 \
+   --vllm_gpu_memory_utilization 0.9 \
    --pretrain $SCRATCH/Qwen/Qwen3-1.7B \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
-   --micro_train_batch_size 32 \
-   --train_batch_size 1024 \
-   --micro_rollout_batch_size 32 \
-   --rollout_batch_size 1024 \
+   --micro_train_batch_size 16 \
+   --train_batch_size 128 \
+   --micro_rollout_batch_size 16 \
+   --rollout_batch_size 128 \
+   --n_samples_per_prompt 64 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \

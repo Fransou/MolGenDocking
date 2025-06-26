@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Any, Tuple
 
 import submitit
 
@@ -45,7 +45,7 @@ class MolTrainerParser:
         )
         self.parser.set_defaults(slurm=False)
 
-    def add_trainer_args(self):
+    def add_trainer_args(self) -> None:
         """
         Add the arguments for the trainer
         :param self.parser: self.parser to modify
@@ -88,7 +88,7 @@ class MolTrainerParser:
             help="The number of gradient accumulation steps",
         )
 
-    def add_model_data_args(self):
+    def add_model_data_args(self) -> None:
         """
         Add the arguments for the model and data
         :param self.parser: self.parser to modify
@@ -114,7 +114,7 @@ class MolTrainerParser:
         )
         self.add_argument("--local-files-only", action="store_true")
 
-    def add_slurm_args(self):
+    def add_slurm_args(self) -> None:
         """
         Add the arguments for the SLURM configuration
         :param self.parser: self.parser to modify
@@ -130,7 +130,7 @@ class MolTrainerParser:
         self.add_argument("--slurm-job-name", type=str, default="MolGenDocking")
         self.add_argument("--max-slurm-runs", type=int, default=5)
 
-    def add_argument(self, *args, **kwargs):
+    def add_argument(self, *args: Any, **kwargs: Any) -> None:
         """
         Add an argument to the parser
         :param args: The arguments to add

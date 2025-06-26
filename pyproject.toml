@@ -25,3 +25,6 @@ dependencies = [
 
 requires-python = ">=3.10"
 description = ""
+
+[tool.mypy]
+disable_error_code = ["type-arg"]

@@ -1,7 +1,7 @@
 import os
 import time
 from itertools import product
-from typing import List
+from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -105,9 +105,7 @@ def build_prompt(request, build_metada_pocket):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(
-            properties, [obj] * len(properties), build_metada_pocket(properties)
-        )
+        return dummy.fill_prompt(properties, [obj] * len(properties))
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
@@ -299,7 +297,7 @@ def test_multip_prompt_multi_generation(
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(os.system("qvina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", np.random.choice(PROP_LIST, 3))
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=16
@@ -446,8 +444,9 @@ def test_runtime(
 
 
 @pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
-def test_baseline_reward_fn(smiles, property, build_prompt):
+def test_baseline_reward_fn(smiles: str, property: str, build_prompt: Callable):
     prompt = build_prompt([property])
     reward_fn = get_reward_fn(prompt, DATA_PATH)
     s = smiles[0]
-    assert reward_fn(s) == float(reward_fn(s))
+    reward = reward_fn(s)
+    assert isinstance(reward, float)

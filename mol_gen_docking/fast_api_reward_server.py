@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     reward_model = RewardScorer(
         path_to_mappings=args.data_path,
-        parse_whole_completion=True,
+        parse_whole_completion=False,
         oracle_kwargs=dict(
             exhaustiveness=args.scorer_exhaustivness,
             ncpu=args.scorer_ncpus,
@@ -56,18 +56,18 @@ if __name__ == "__main__":
     reward_valid_smiles = RewardScorer(
         path_to_mappings=args.data_path,
         reward="valid_smiles",
-        parse_whole_completion=True,
+        parse_whole_completion=False,
     )
     reward_filters = RewardScorer(
         path_to_mappings=args.data_path,
         reward="MolFilters",
-        parse_whole_completion=True,
+        parse_whole_completion=False,
     )
 
     app = FastAPI()
 
-    @app.post("/get_reward")
-    async def get_reward(request: Request):
+    @app.post("/get_reward")  # type: ignore
+    async def get_reward(request: Request) -> JSONResponse:
         data = await request.json()
         queries = data.get("query")
         prompts = data.get("prompts")

@@ -77,5 +77,3 @@ RUN apt-get update \
     && cd ../ && rm -rf qvina
     # rename qvina02 to qvina otherwise pyscreener raises an error with executable name
 # ------------------------------------------------------------------------------------------------------------
-# Run coverage pytest
-CMD coverage run -m pytest test ; coverage report ; rm coverage.svg ; coverage-badge -o coverage.svg
