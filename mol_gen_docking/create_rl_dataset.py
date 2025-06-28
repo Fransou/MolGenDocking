@@ -161,6 +161,8 @@ if __name__ == "__main__":
             additional_names_mapping.update(names_mapping)
             with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
                 json.dump(additional_names_mapping, f, indent=4)
+        # Featurize all pockets
+
 
         # Finally generates prompt
         print("Generating prompts...")
