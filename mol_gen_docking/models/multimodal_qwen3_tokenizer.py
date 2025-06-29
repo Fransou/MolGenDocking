@@ -37,7 +37,7 @@ class TextPdbProcessor(ProcessorMixin):
     attributes = ["image_processor", "tokenizer"]
     tokenizer_class = "AutoTokenizer"
 
-    def __init__(self, image_processor=None, tokenizer=None,image_token="<|PROT|>", **kwargs):
+    def __init__(self, image_processor=None, tokenizer=None,image_token="<|prot|>", **kwargs):
 
         if image_processor is None:
             raise ValueError("You need to specify an `image_processor`.")

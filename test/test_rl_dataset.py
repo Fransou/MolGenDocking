@@ -62,7 +62,7 @@ def test_fill_prompt(props, obj, build_metada_pocket):
     """Tests if the prompt is generated correctly, i.e it can correctly be parsed."""
     obj = get_unscaled_obj(obj, props)
     dataset = MolGenerationInstructionsDataset(cfg)
-    prompt = dataset.fill_prompt([props], [obj])
+    prompt = dataset.fill_prompt([props], [obj])[0]
     assert isinstance(prompt, str)
     assert len(prompt) > 0
     scorer = RewardScorer(DATA_PATH, "property")

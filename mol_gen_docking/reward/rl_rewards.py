@@ -109,7 +109,7 @@ class RewardScorer:
                     raise ValueError("Prompt not found correctly.")
             assert isinstance(prompt, str), "Prompt not found correctly."
 
-            prompt = prompt.split("User: ")[-1].split("Assistant: ")[0]
+            prompt = prompt.split("user: ")[-1].split("assistant: ")[0]
             if prompt.endswith(".") or prompt.endswith("?"):
                 prompt = prompt[:-1]
 

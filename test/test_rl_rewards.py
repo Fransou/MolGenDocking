@@ -106,7 +106,7 @@ def build_prompt(request, build_metada_pocket):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(properties, [obj] * len(properties))
+        return dummy.fill_prompt(properties, [obj] * len(properties))[0]
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
@@ -414,7 +414,7 @@ def test_runtime(
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"], {})
+        return dataset_cls.fill_prompt([property1], ["maximize"], {})[0]
 
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generation
