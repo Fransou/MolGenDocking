@@ -14,7 +14,7 @@ from tqdm import tqdm
 from itertools import chain
 
 class DockingVirtualScreenWithTimeout(DockingVirtualScreen):
-    def __init__(self, timeout : int = 60,*args, **kwargs):
+    def __init__(self, timeout : int = 60, *args, **kwargs):
         self.timeout = timeout
         super().__init__(*args, **kwargs)
 
@@ -100,6 +100,7 @@ class PyscreenerOracle:
 
         if hasattr(ps, "virtual_screen"):
             self.scorer = DockingVirtualScreenWithTimeout(
+                60,  # Set a timeout of 60 seconds for each docking simulation
                 get_runner(software_class),
                 [receptor_pdb_file],
                 box_center,
