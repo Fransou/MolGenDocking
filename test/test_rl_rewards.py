@@ -334,8 +334,6 @@ def test_properties_single_prompt_vina_reward(
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
     """Test the function molecular_properties with 2 properties."""
     obj = get_unscaled_obj(obj, prop)
-
-    target = rescale_property_values(prop, float(obj.split()[1]), False)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
         build_prompt(prop, "maximize")
@@ -360,6 +358,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif objective == "minimize":
         val = 1 - rewards_max
     else:
+        target = rescale_property_values(prop, float(obj.split()[1]), False)
         if objective == "below":
             val = (rewards_max <= target).float()
         elif objective == "above":
