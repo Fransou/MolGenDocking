@@ -96,7 +96,7 @@ class OracleWrapper:
 
         if rescale:
             score_list = [
-                rescale_property_values(self.name, score, self.is_docking)
+                rescale_property_values(self.name.split("/")[-1], score, self.is_docking)
                 for score in score_list
             ]
 

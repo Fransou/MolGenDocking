@@ -251,11 +251,11 @@ class RewardScorer:
         obj = row["obj"]
         mol_prop = row["value"]
         target_value = row["target_value"]
+        prop = row["property"]
         if self.rescale:
             target_value = rescale_property_values(
-                mol_prop, target_value, docking=mol_prop in self.docking_target_list
+                prop, target_value, docking=mol_prop in self.docking_target_list
             )
-
         if obj == "below":
             reward += float(mol_prop <= target_value)
         elif obj == "above":

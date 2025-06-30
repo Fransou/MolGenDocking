@@ -409,10 +409,10 @@ class MolGenerationInstructionsDataset:
         full_prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
 
         full_prompt_mm = [
-            {"type": "text", "content": full_prompt_mm + "."}
+            {"type": "text", "content": full_prompt_mm}
         ] + path_to_mm_object
 
-        return full_prompt + "." , full_prompt_mm
+        return full_prompt, full_prompt_mm
 
     def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
         pocket_datas: Dict[str, Any] = {}

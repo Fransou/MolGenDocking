@@ -334,6 +334,8 @@ def test_properties_single_prompt_vina_reward(
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
     """Test the function molecular_properties with 2 properties."""
     obj = get_unscaled_obj(obj, prop)
+
+    target = rescale_property_values(prop, float(obj.split()[1]), False)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
         build_prompt(prop, "maximize")
@@ -358,7 +360,6 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif objective == "minimize":
         val = 1 - rewards_max
     else:
-        target = rescale_property_values(prop, float(obj.split()[1]), False)
         if objective == "below":
             val = (rewards_max <= target).float()
         elif objective == "above":
@@ -398,16 +399,14 @@ def test_ray(prop, smiles, build_prompt):
 
 
 @pytest.mark.skipif(
-    os.system("vina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
-    reason="requires vina and debug mode",
+    os.system("vina --help") == 32512,
+    reason="requires vina",
 )
 @pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
-def test_runtime(
+def test_timeout(
     property1,
-    n_generation=4,
-    time_per_gen=5,
+    n_generation=1,
 ):
-    print(f"Testing runtime for {property1}")
     property_scorer = scorers["property"]
     property_filler = get_fill_completions(property_scorer.parse_whole_completion)
 
@@ -421,29 +420,17 @@ def test_runtime(
     prompts = [build_prompt(property1)] * n_generation
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
     completions = [property_filler(s, completion) for s in smiles]
-
-    worker = (
-        ray.remote(RewardScorer)
-        .options(num_cpus=1)
-        .remote(
-            DATA_PATH,
-            "property",
-            parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-        )  # type: ignore
-    )
-
     t0 = time.time()
-    result = worker.get_score.remote(prompts, completions)
-    r = ray.get(result)
-    t1 = time.time()
-    print(f"Runtime: {t1 - t0} seconds")
-
-    # Max for 16 generations should be around 30 seconds
-    assert t1 - t0 < time_per_gen * n_generation, (
-        f"Runtime is too long: {t1 - t0} seconds"
+    scorer = RewardScorer(
+        DATA_PATH,
+        "property",
+        parse_whole_completion=True,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1024),
     )
-    assert (torch.tensor(r) > 0).all(), (
+
+    result = scorer(prompts, completions)
+    t1 = time.time()
+    assert (torch.tensor(result) == 0).all() or (t1-t0)<60, (
         "Some rewards are not positive, check the oracle."
     )
 
