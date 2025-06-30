@@ -5,10 +5,40 @@ from typing import Any, List
 
 import pyscreener as ps
 from pyscreener.docking.vina.utils import Software
+from pyscreener.screen import DockingVirtualScreen
+from pyscreener.runner import DockingRunner
+from pyscreener.docking import get_runner
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
 import ray
+from tqdm import tqdm
+from itertools import chain
+
+class DockingVirtualScreenWithTimeout(DockingVirtualScreen):
+    def __init__(self, timeout : int = 60,*args, **kwargs):
+        self.timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def run(self, simulationss: List[List[Any]]) -> List[List[Any]]:
+        refss = [[self.prepare_and_run.remote(s) for s in sims] for sims in simulationss]
+        resultss = []
+        for refs in tqdm(refss, desc="Docking", unit="ligand", smoothing=0.0):
+            # Wait for all docking simulations to complete with a timeout
+            try:
+                resultss.append(ray.get(refs, timeout=self.timeout))
+            except ray.exceptions.GetTimeoutError:
+                warnings.warn("Docking simulations timed out. Returning None for results.")
+                resultss.append([None] * len(refs))
+                continue
+
+        self.run_simulationss.extend(simulationss)
+        self.resultss.extend(resultss)
+        self.num_ligands += len(resultss)
+        self.num_simulations += len(list(chain(*resultss)))
+
+        return resultss
+
 
 
 class PyscreenerOracle:
@@ -71,8 +101,8 @@ class PyscreenerOracle:
             metadata.software = Software.QVINA
 
         if hasattr(ps, "virtual_screen"):
-            self.scorer = ps.virtual_screen(
-                software_class,
+            self.scorer = DockingVirtualScreenWithTimeout(
+                get_runner(software_class),
                 [receptor_pdb_file],
                 box_center,
                 box_size,
@@ -84,7 +114,7 @@ class PyscreenerOracle:
                 "Pyscreener version is not compatible. Please update to the latest version."
             )
 
-    def __call__(self, test_smiles: str | List[str], error_value: float = 0.0) -> Any:
+    def __call__(self, test_smiles: str | List[str], error_value: float | None = None) -> Any:
         final_score = self.scorer(test_smiles)
 
         if isinstance(test_smiles, str):

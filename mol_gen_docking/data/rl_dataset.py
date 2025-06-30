@@ -388,7 +388,7 @@ class MolGenerationInstructionsDataset:
 
             phrases.append(phrase)
             # Check if it is a docking target
-            if self.prop_name_mapping[prop] in self.docking_targets:
+            if self.prop_name_mapping.get(prop, prop) in self.docking_targets:
                 phrases_mm.append("<|prot|>" + phrase)
                 path_to_mm_object.append(
                     {
