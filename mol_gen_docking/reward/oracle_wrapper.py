@@ -118,21 +118,19 @@ def get_oracle(
     :param docking_target_list: List of docking targets
     :return: OracleWrapper object
     """
+    
+    oracle_name = oracle_name.replace(".", "")
+    oracle_name = property_name_mapping.get(oracle_name, oracle_name)
     if oracle_name in docking_target_list:
         from mol_gen_docking.reward.oracles.docking_oracle import PyscreenerOracle
 
         oracle_wrapper = OracleWrapper(is_docking=True)
-        oracle_name = oracle_name.replace(".", "")
-        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
-
         oracle_wrapper.assign_evaluator(
             PyscreenerOracle(oracle_name, path_to_data=path_to_data, **kwargs),
             f"docking_prop/{oracle_name}",
         )
     elif oracle_name.lower() in oracle_names:
         oracle_wrapper = OracleWrapper()
-        oracle_name = oracle_name.replace(".", "")
-        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
         oracle_wrapper.assign_evaluator(
             Oracle(name=oracle_name, **kwargs), f"tdc/{oracle_name}"
         )
@@ -140,8 +138,6 @@ def get_oracle(
         from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
         oracle_wrapper = OracleWrapper()
-        oracle_name = oracle_name.replace(".", "")
-        oracle_name = property_name_mapping.get(oracle_name, oracle_name)
         oracle_wrapper.assign_evaluator(
             RDKITOracle(oracle_name), f"rdkit/{oracle_name}"
         )

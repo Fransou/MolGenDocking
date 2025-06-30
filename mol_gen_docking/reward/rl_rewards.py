@@ -9,6 +9,9 @@ from rdkit import Chem, RDLogger
 from tdc.chem_utils.oracle.filter import MolFilter
 
 import ray
+from ray.experimental import tqdm_ray
+from ray.exceptions import GetTimeoutError
+
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
@@ -68,6 +71,7 @@ class RewardScorer:
         self.oracle_kwargs = oracle_kwargs
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
+        self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
         self.oracles: Dict[str, OracleWrapper] = {}
 
@@ -144,10 +148,9 @@ class RewardScorer:
         if not self.parse_whole_completion:
             matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
             if len(matches) > 0:
-                comp = matches[0]
+                comp = " ".join(matches)
             else:
                 comp = ""
-
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
         re.split("\n| |.|\t|:", comp)
@@ -164,7 +167,6 @@ class RewardScorer:
         s_poss = [x for x in comp.split() if filter_smiles(x)]
         # Finally we remove any string that is not a valid SMILES
         s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
-
         return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
@@ -187,6 +189,7 @@ class RewardScorer:
             prop: str,
             rescale: bool = True,
             kwargs: Dict[str, Any] = {},
+            pbar = None
         ) -> List[float]:
             """
             Get property reward
@@ -205,6 +208,9 @@ class RewardScorer:
                 self.oracles[prop] = oracle_fn
             property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
+            if pbar is not None:
+                pbar.update.remote(len(property_reward))
+                
             return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
@@ -212,21 +218,24 @@ class RewardScorer:
             p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
             for p in all_properties
         }
-
+        
+        pbar = self.remote_tqdm.remote(total=df_properties[["property", "smiles"]].drop_duplicates().shape[0], desc="[Properties]")
         values_job = []
         for p in all_properties:
             smiles = prop_smiles[p]
             values_job.append(
                 _get_property.remote(
-                    smiles,
-                    p,
-                    rescale=self.rescale,
-                    kwargs=self.oracle_kwargs,
-                )
+                      smiles,
+                      p,
+                      rescale=self.rescale,
+                      kwargs=self.oracle_kwargs,
+                      pbar = pbar
+                  )
             )
 
         all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
+            jobs = values_job[idx_p]
             values = all_values[idx_p]
             smiles = prop_smiles[p]
             for s, v in zip(smiles, values):
@@ -234,6 +243,8 @@ class RewardScorer:
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
                     "value",
                 ] = v
+        
+        pbar.close.remote()
 
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
@@ -313,12 +324,20 @@ class RewardScorer:
             filters = MolFilter(
                 filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
             )
-            return [
-                len(filters(valid_smiles_c)) / len(valid_smiles_c)
-                if len(valid_smiles_c) > 0
-                else 0
-                for valid_smiles_c in smiles_list_per_completion
-            ]
+            all_smiles = {}
+            for i,valid_smiles_c in enumerate(smiles_list_per_completion):
+                for s in valid_smiles_c:
+                    if not s in all_smiles:
+                        all_smiles[s] = [i]
+                    else:
+                        all_smiles[s].append(i)
+            filter_flags = filters(list(all_smiles.keys()))
+            outputs = [0 for _ in range(len(smiles_list_per_completion))]
+            
+            for s in filter_flags:
+                for idx in all_smiles[s]:
+                    outputs[idx] += 1/len(smiles_list_per_completion[idx])
+            return outputs
 
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(
