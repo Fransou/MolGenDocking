@@ -31,19 +31,20 @@ python -m mol_gen_docking.fast_api_reward_server --data-path $SLURM_TMPDIR/$DATA
 sleep 15
 
 wandb offline
+export GPUS_PER_NODES=1
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json='{"setup_commands": ["wandb offline"]}' \
    -- python3 -m openrlhf.cli.train_ppo_ray \
    --ref_num_nodes 1 \
-   --ref_num_gpus_per_node 1 \
+   --ref_num_gpus_per_node $GPUS_PER_NODES \
    --reward_num_nodes 1 \
-   --reward_num_gpus_per_node 1 \
+   --reward_num_gpus_per_node $GPUS_PER_NODES \
    --critic_num_nodes 1 \
-   --critic_num_gpus_per_node 1 \
+   --critic_num_gpus_per_node $GPUS_PER_NODES \
    --actor_num_nodes 1 \
-   --actor_num_gpus_per_node 1 \
-   --vllm_num_engines 1 \
+   --actor_num_gpus_per_node $GPUS_PER_NODES \
+   --vllm_num_engines $GPUS_PER_NODES \
    --vllm_tensor_parallel_size 1 \
    --vllm_enable_sleep \
    --deepspeed_enable_sleep \
@@ -52,11 +53,11 @@ ray job submit --address="http://127.0.0.1:8265" \
    --pretrain $SCRATCH/Qwen/Qwen3-4B \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
-   --micro_train_batch_size 4 \
-   --train_batch_size 16 \
-   --micro_rollout_batch_size 1 \
-   --rollout_batch_size 16 \
-   --n_samples_per_prompt 64 \
+   --micro_train_batch_size 8 \
+   --train_batch_size 32 \
+   --micro_rollout_batch_size 2 \
+   --rollout_batch_size 32 \
+   --n_samples_per_prompt 128 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
@@ -68,7 +69,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --init_kl_coef 0.0 \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
-   --input_key prompt \
+   --input_key prompt_pocket_descriptors \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \
