@@ -5,7 +5,7 @@ from typing import Any, List
 
 import pyscreener as ps
 from pyscreener.docking.vina.utils import Software
-from pyscreener.screen import DockingVirtualScreen
+from pyscreener.docking.screen import DockingVirtualScreen
 from pyscreener.runner import DockingRunner
 from pyscreener.docking import get_runner
 from tdc.metadata import docking_target_info
