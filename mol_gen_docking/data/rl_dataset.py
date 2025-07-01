@@ -396,7 +396,7 @@ class MolGenerationInstructionsDataset:
                         "path": os.path.join(
                             self.config.data_path,
                             "pockets_embeddings",
-                            self.prop_name_mapping[prop] + "_embeddings.pt",
+                            self.prop_name_mapping.get(prop, prop) + "_embeddings.pt",
                         )
                     }
                 )

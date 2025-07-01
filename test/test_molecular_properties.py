@@ -3,11 +3,8 @@ from typing import List
 
 import numpy as np
 import pytest
-from rdkit.Chem import rdMolDescriptors
-from tdc import single_pred
 
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
-from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
 from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE, propeties_csv
 
@@ -50,7 +47,7 @@ def test_oracles(oracle, smiles_data):
     oracle_name = oracle.name.split("/")[-1]
 
     assert isinstance(props, list) or isinstance(props, np.ndarray)
-    assert len(props) == len(smiles_data)
+    assert len(props) == len(smiles)
     assert isinstance(props[0], float)
     assert (np.array(props) == df[oracle_name].values).all()
 
@@ -72,4 +69,4 @@ def test_vina(smiles_data):
         exhaustiveness=1,
     )
     props = oracle(smiles)
-    assert len(props) == len(smiles_data)
+    assert len(props) == len(smiles)
