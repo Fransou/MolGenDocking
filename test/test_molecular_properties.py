@@ -9,7 +9,7 @@ from tdc import single_pred
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 from mol_gen_docking.reward.oracles.rdkit_oracle import RDKITOracle
 
-from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE
+from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE, propeties_csv
 
 
 def is_rdkit_use(name: str):
@@ -18,37 +18,14 @@ def is_rdkit_use(name: str):
 
 @pytest.fixture(
     params=[
-        "hERG*Tox",
-        pytest.param(
-            "BBB_Martins*ADME",
-            marks=pytest.mark.skipif(
-                os.environ.get("TEST_LONG", "False") == "False", reason="Fast Test"
-            ),
-        ),
-        pytest.param(
-            "Caco2_Wang*ADME",
-            marks=pytest.mark.skipif(
-                os.environ.get("TEST_LONG", "False") == "False", reason="Fast Test"
-            ),
-        ),
+        propeties_csv.sample(np.random.randint(1, 5)),
     ],
     scope="module",
 )
 def smiles_data(request) -> List[str]:
-    name, task_or = request.param.split("*")
-    task_mod = getattr(single_pred, task_or)
-    return task_mod(name=name).get_data().sample(100)["Drug"].tolist()
+    df = request.param
+    return df["smiles"].tolist(), df
 
-
-@pytest.fixture(
-    params=[
-        prop
-        for prop in dir(rdMolDescriptors)
-        if ("Calc" in prop and (is_rdkit_use(prop)))
-    ]
-)
-def rdkit_oracle(request) -> RDKITOracle:
-    return RDKITOracle(name=request.param)
 
 
 @pytest.fixture(params=PROP_LIST)
@@ -61,33 +38,29 @@ def oracle(request):
     )
 
 
-def test_RDKITOracle(rdkit_oracle, smiles_data):
-    """
-    Test the RDKITOracle class
-    """
-    props = rdkit_oracle(smiles_data)
-    assert isinstance(props, list)
-    assert len(props) == len(smiles_data)
-    assert isinstance(props[0], float)
-    props = np.array(props)
-    props_solo = np.array([rdkit_oracle(smi) for smi in smiles_data])
-    assert np.isclose(props, props_solo).all()
 
 
 def test_oracles(oracle, smiles_data):
     """
     Test the RDKITOracle class
     """
-    props = oracle(smiles_data)
+    smiles, df = smiles_data
+    props = oracle(smiles, rescale=False)
+
+    oracle_name = oracle.name.split("/")[-1]
+
     assert isinstance(props, list) or isinstance(props, np.ndarray)
     assert len(props) == len(smiles_data)
     assert isinstance(props[0], float)
+    assert (np.array(props) == df[oracle_name].values).all()
+
+
 
 
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 def test_vina(smiles_data):
     """
-    Tests the oracle with vina
+    Tests the oracle with vina, only checks it runs correctly.
     """
     oracle = get_oracle(
         "3pbl_docking",

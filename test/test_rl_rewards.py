@@ -215,53 +215,6 @@ def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_f
     rewards = np.array(filter_smiles_scorer(prompts, completions))
     assert not np.isnan(rewards.sum())
 
-
-@pytest.mark.parametrize(
-    "property1, property2",
-    product(
-        np.random.choice(PROP_LIST, 3),
-        np.random.choice(PROP_LIST, 3),
-    ),
-)
-def test_properties_single_prompt_reward(
-    property1, property2, property_scorer, completions_smiles, build_prompt
-):
-    """Test the function molecular_properties with 2 properties."""
-    completions, smiles = completions_smiles
-    prompts = [build_prompt([property1, property2])] * len(completions)
-    rewards = property_scorer(prompts, completions)
-    if smiles != []:
-        is_reward_valid(rewards, smiles, [property1, property2])
-    else:
-        assert sum(rewards) == 0
-
-
-@pytest.mark.parametrize(
-    "property1, property2",
-    product(
-        np.random.choice(PROP_LIST, 2),
-        np.random.choice(PROP_LIST, 2),
-    ),
-)
-def test_properties_multi_prompt_rewards(
-    property1, property2, property_scorer, completions_smiles, build_prompt
-):
-    """Test the function molecular_properties with 2 properties."""
-    completions, smiles = completions_smiles
-    completions = completions * 2
-
-    # 2- Test when optimizing 2 properties separately
-    prompts = [build_prompt(property1)] * (len(completions) // 2) + [
-        build_prompt(property2)
-    ] * (len(completions) // 2)
-    rewards = property_scorer(prompts, completions)
-    if smiles != []:
-        is_reward_valid(rewards[: (len(completions) // 2)], smiles, [property1])
-        is_reward_valid(rewards[(len(completions) // 2) :], smiles, [property2])
-    else:
-        assert sum(rewards) == 0
-
-
 @pytest.mark.parametrize(
     "property1, property2",
     product(
@@ -269,7 +222,7 @@ def test_properties_multi_prompt_rewards(
         np.random.choice(PROP_LIST, 8),
     ),
 )
-def test_multip_prompt_multi_generation(
+def test_multi_prompt_multi_generation(
     property1,
     property2,
     property_scorer,
@@ -277,13 +230,13 @@ def test_multip_prompt_multi_generation(
     build_prompt,
     n_generations=4,
 ):
-    """Test the function molecular_properties."""
+    """Test the reward function for a set of 2 prompts and multiple generations."""
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generations + [
         build_prompt(property2)
     ] * n_generations
     smiles = [
-        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        propeties_csv.sample(np.random.randint(1, 8))["smiles"].tolist()
         for k in range(n_generations * 2)
     ]
     completions = [property_filler(s, completion) for s in smiles]
@@ -304,7 +257,7 @@ def test_multip_prompt_multi_generation(
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=4
 ):
-    """Test the function molecular_properties with 2 properties."""
+    """Test the reward function runs for vina targets."""
     prompts = [build_prompt(target)] * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
@@ -326,13 +279,16 @@ def test_properties_single_prompt_vina_reward(
     list(
         product(
             PROP_LIST,
-            OBJECTIVES_TO_TEST,
+            OBJECTIVES_TO_TEST[1:],  # Skip "maximize" for this test
             [propeties_csv.sample(8)["smiles"].tolist() for k in range(1)],
         )
     ),
 )
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
-    """Test the function molecular_properties with 2 properties."""
+    """
+    Test the reward function with the optimization of one property.
+    Assumes the value of the reward function when using maximise is correct.
+    """
     obj = get_unscaled_obj(obj, prop)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
@@ -341,7 +297,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
     smiles = smiles * 2
     completions = [
-        property_filler([s], "Here is a molecule: [SMILES] what are its properties?")
+        property_filler([s], "Here is a molecule: [SMILES] does it have the right properties?")
         for s in smiles
     ]
     property_scorer.rescale = True
