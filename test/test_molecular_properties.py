@@ -62,6 +62,7 @@ def test_vina(smiles_data):
     """
     Tests the oracle with vina, only checks it runs correctly.
     """
+    smiles, _ = smiles_data
     oracle = get_oracle(
         "3pbl_docking",
         path_to_data=DATA_PATH,
@@ -70,5 +71,5 @@ def test_vina(smiles_data):
         ncpu=1,
         exhaustiveness=1,
     )
-    props = oracle(smiles_data)
+    props = oracle(smiles)
     assert len(props) == len(smiles_data)

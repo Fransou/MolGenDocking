@@ -341,7 +341,7 @@ def test_timeout(
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"], {})[0]
+        return dataset_cls.fill_prompt([property1], ["maximize"])[0]
 
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generation
