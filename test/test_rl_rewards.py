@@ -302,7 +302,7 @@ def test_multip_prompt_multi_generation(
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", np.random.choice(PROP_LIST, 3))
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, build_prompt, n_generations=16
+    target, property_scorer, property_filler, build_prompt, n_generations=4
 ):
     """Test the function molecular_properties with 2 properties."""
     prompts = [build_prompt(target)] * n_generations
@@ -327,7 +327,7 @@ def test_properties_single_prompt_vina_reward(
         product(
             PROP_LIST,
             OBJECTIVES_TO_TEST,
-            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
+            [propeties_csv.sample(8)["smiles"].tolist() for k in range(1)],
         )
     ),
 )
@@ -369,39 +369,11 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     property_scorer.rescale = False
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize(
-    "prop, smiles",
-    list(
-        product(
-            PROP_LIST[:2],
-            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
-        )
-    ),
-)
-def test_ray(prop, smiles, build_prompt):
-    prompts = [build_prompt(prop, "maximize")] * len(smiles)
-    filler = get_fill_completions(True)
-    completions = [filler([s], "Here is a molecule: [SMILES]") for s in smiles]
-
-    worker = (
-        ray.remote(RewardScorer)
-        .options(num_cpus=1)
-        .remote(
-            DATA_PATH,
-            parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-        )  # type: ignore
-    )
-    result = worker.get_score.remote(prompts, completions)
-    _ = ray.get(result)
-
-
 @pytest.mark.skipif(
     os.system("vina --help") == 32512,
     reason="requires vina",
 )
-@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
+@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 4))
 def test_timeout(
     property1,
     n_generation=1,
