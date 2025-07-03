@@ -17,7 +17,9 @@ export DATASET=mol_orz
 cp $SCRATCH/MolGenData/$DATASET.zip $SLURM_TMPDIR
 cd $SLURM_TMPDIR
 unzip -q $DATASET.zip
+
 cd $WORKING_DIR
+cp data/properties.csv $SLURM_TMPDIR
 
 module load cuda
 
