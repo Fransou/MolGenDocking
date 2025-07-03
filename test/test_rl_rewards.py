@@ -5,16 +5,17 @@ from typing import Callable, List
 
 import numpy as np
 import pytest
+import ray
 import torch
 
-import ray
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )
-from mol_gen_docking.reward.rl_rewards import RewardScorer
 from mol_gen_docking.reward.property_utils import rescale_property_values
+from mol_gen_docking.reward.rl_rewards import RewardScorer
+
 from .utils import (
     COMPLETIONS,
     DATA_PATH,
@@ -215,6 +216,7 @@ def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_f
     rewards = np.array(filter_smiles_scorer(prompts, completions))
     assert not np.isnan(rewards.sum())
 
+
 @pytest.mark.parametrize(
     "property1, property2",
     product(
@@ -297,7 +299,9 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
     smiles = smiles * 2
     completions = [
-        property_filler([s], "Here is a molecule: [SMILES] does it have the right properties?")
+        property_filler(
+            [s], "Here is a molecule: [SMILES] does it have the right properties?"
+        )
         for s in smiles
     ]
     property_scorer.rescale = True
@@ -357,7 +361,7 @@ def test_timeout(
 
     result = scorer(prompts, completions)
     t1 = time.time()
-    assert (torch.tensor(result) == 0).all() or (t1-t0)<60, (
+    assert (torch.tensor(result) == 0).all() or (t1 - t0) < 60, (
         "Some rewards are not positive, check the oracle."
     )
 

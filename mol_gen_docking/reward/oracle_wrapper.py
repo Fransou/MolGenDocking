@@ -96,7 +96,9 @@ class OracleWrapper:
 
         if rescale:
             score_list = [
-                rescale_property_values(self.name.split("/")[-1], score, self.is_docking)
+                rescale_property_values(
+                    self.name.split("/")[-1], score, self.is_docking
+                )
                 for score in score_list
             ]
 
@@ -118,7 +120,7 @@ def get_oracle(
     :param docking_target_list: List of docking targets
     :return: OracleWrapper object
     """
-    
+
     oracle_name = oracle_name.replace(".", "")
     oracle_name = property_name_mapping.get(oracle_name, oracle_name)
     if oracle_name in docking_target_list:

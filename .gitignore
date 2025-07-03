@@ -179,6 +179,7 @@ SFT*
 
 /data/*.zip
 /data/*.tab
+data/mol_orz/pdb_files
 external_libraries
 oracle
 *.idea

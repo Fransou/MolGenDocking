@@ -5,12 +5,11 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import ray
+from ray import ObjectRef
+from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 from tdc.chem_utils.oracle.filter import MolFilter
-
-import ray
-from ray.experimental import tqdm_ray
-from ray.exceptions import GetTimeoutError
 
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.property_utils import rescale_property_values
@@ -189,7 +188,7 @@ class RewardScorer:
             prop: str,
             rescale: bool = True,
             kwargs: Dict[str, Any] = {},
-            pbar = None
+            pbar: Optional[ObjectRef[tqdm_ray.tqdm]] = None,
         ) -> List[float]:
             """
             Get property reward
@@ -209,8 +208,8 @@ class RewardScorer:
             property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
             if pbar is not None:
-                pbar.update.remote(len(property_reward))
-                
+                pbar.update.remote(len(property_reward))  # type: ignore
+
             return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
@@ -218,24 +217,26 @@ class RewardScorer:
             p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
             for p in all_properties
         }
-        
-        pbar = self.remote_tqdm.remote(total=df_properties[["property", "smiles"]].drop_duplicates().shape[0], desc="[Properties]")
+
+        pbar = self.remote_tqdm.remote(  # type: ignore
+            total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
+            desc="[Properties]",
+        )
         values_job = []
         for p in all_properties:
             smiles = prop_smiles[p]
             values_job.append(
                 _get_property.remote(
-                      smiles,
-                      p,
-                      rescale=self.rescale,
-                      kwargs=self.oracle_kwargs,
-                      pbar = pbar
-                  )
+                    smiles,
+                    p,
+                    rescale=self.rescale,
+                    kwargs=self.oracle_kwargs,
+                    pbar=pbar,
+                )
             )
 
         all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
-            jobs = values_job[idx_p]
             values = all_values[idx_p]
             smiles = prop_smiles[p]
             for s, v in zip(smiles, values):
@@ -243,8 +244,8 @@ class RewardScorer:
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
                     "value",
                 ] = v
-        
-        pbar.close.remote()
+
+        pbar.close.remote()  # type: ignore
 
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
@@ -325,18 +326,18 @@ class RewardScorer:
                 filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
             )
             all_smiles = {}
-            for i,valid_smiles_c in enumerate(smiles_list_per_completion):
+            for i, valid_smiles_c in enumerate(smiles_list_per_completion):
                 for s in valid_smiles_c:
-                    if not s in all_smiles:
+                    if s not in all_smiles:
                         all_smiles[s] = [i]
                     else:
                         all_smiles[s].append(i)
             filter_flags = filters(list(all_smiles.keys()))
-            outputs = [0 for _ in range(len(smiles_list_per_completion))]
-            
+            outputs: List[float] = [0.0 for _ in range(len(smiles_list_per_completion))]
+
             for s in filter_flags:
                 for idx in all_smiles[s]:
-                    outputs[idx] += 1/len(smiles_list_per_completion[idx])
+                    outputs[idx] += 1 / len(smiles_list_per_completion[idx])
             return outputs
 
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)

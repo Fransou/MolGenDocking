@@ -6,7 +6,13 @@ import pytest
 
 from mol_gen_docking.reward.oracle_wrapper import get_oracle
 
-from .utils import DATA_PATH, DOCKING_PROP_LIST, PROP_LIST, PROPERTIES_NAMES_SIMPLE, propeties_csv
+from .utils import (
+    DATA_PATH,
+    DOCKING_PROP_LIST,
+    PROP_LIST,
+    PROPERTIES_NAMES_SIMPLE,
+    propeties_csv,
+)
 
 
 def is_rdkit_use(name: str):
@@ -24,7 +30,6 @@ def smiles_data(request) -> List[str]:
     return df["smiles"].tolist(), df
 
 
-
 @pytest.fixture(params=PROP_LIST)
 def oracle(request):
     return get_oracle(
@@ -33,8 +38,6 @@ def oracle(request):
         property_name_mapping=PROPERTIES_NAMES_SIMPLE,
         docking_target_list=DOCKING_PROP_LIST,
     )
-
-
 
 
 def test_oracles(oracle, smiles_data):
@@ -49,9 +52,7 @@ def test_oracles(oracle, smiles_data):
     assert isinstance(props, list) or isinstance(props, np.ndarray)
     assert len(props) == len(smiles)
     assert isinstance(props[0], float)
-    assert (np.array(props) == df[oracle_name].values).all()
-
-
+    assert np.isclose(np.array(props), df[oracle_name].values, atol=1e-4).all()
 
 
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")

@@ -1,11 +1,10 @@
 import argparse
 
+import ray
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
-
-import ray
 
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -47,7 +46,7 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = get_args()
     RemoteRewardScorer = ray.remote(RewardScorer)
-    reward_model = RemoteRewardScorer.remote(
+    reward_model = RemoteRewardScorer.remote(  # type: ignore
         path_to_mappings=args.data_path,
         parse_whole_completion=False,
         oracle_kwargs=dict(
@@ -55,7 +54,7 @@ if __name__ == "__main__":
             ncpu=args.scorer_ncpus,
         ),
     )
-    reward_valid_smiles = RemoteRewardScorer.remote(
+    reward_valid_smiles = RemoteRewardScorer.remote(  # type: ignore
         path_to_mappings=args.data_path,
         reward="valid_smiles",
         parse_whole_completion=False,
@@ -73,15 +72,19 @@ if __name__ == "__main__":
         data = await request.json()
         queries = data.get("query")
         prompts = data.get("prompts")
-        
-        rewards_job = reward_model.get_score.remote(prompts=prompts, completions=queries)
-        valid_reward_job = reward_valid_smiles.get_score.remote(prompts=prompts, completions=queries)
+
+        rewards_job = reward_model.get_score.remote(  # type: ignore
+            prompts=prompts, completions=queries
+        )
+        valid_reward_job = reward_valid_smiles.get_score.remote(  # type: ignore
+            prompts=prompts, completions=queries
+        )
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
-        
+
         rewards = ray.get(rewards_job)
         valid_reward = ray.get(valid_reward_job)
         # filter_reward = ray.get(filter_reward_job)
-        
+
         final_reward = rewards
 
         result = {
@@ -93,7 +96,7 @@ if __name__ == "__main__":
                 # "mol_filters": filter_reward,
             },
         }
-        
+
         return JSONResponse(result)
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

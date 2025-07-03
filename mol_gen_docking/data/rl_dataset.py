@@ -356,7 +356,9 @@ class MolGenerationInstructionsDataset:
             self.docking_properties_split[idx] = self.docking_properties[i0:i1]
             i0 = i1
 
-    def fill_prompt(self, props: List[str], objs: List[str]) -> Tuple[str, List[Dict[str, str]]]:
+    def fill_prompt(
+        self, props: List[str], objs: List[str]
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """
         Takes a list of properties and corresponding objectives
         and returns a diverse natural language prompt for multi-objective optimization.
@@ -389,15 +391,14 @@ class MolGenerationInstructionsDataset:
             phrases.append(phrase)
             # Check if it is a docking target
             if self.prop_name_mapping.get(prop, prop) in self.docking_targets:
-                phrases_mm.append("<|prot|>" + phrase)
+                phrases_mm.append("<|image_pad|> " + phrase)
                 path_to_mm_object.append(
                     {
-                        "type": "image", # HACK
+                        "type": "image",  # HACK
                         "path": os.path.join(
-                            self.config.data_path,
                             "pockets_embeddings",
                             self.prop_name_mapping.get(prop, prop) + "_embeddings.pt",
-                        )
+                        ),
                     }
                 )
             else:
@@ -406,10 +407,10 @@ class MolGenerationInstructionsDataset:
         # Top-level prompt templates
         prompt: str = random.choice(self.templates).split("|")[int(len(props) > 1)]
         full_prompt = prompt.format(objectives="; ".join(phrases))
-        full_prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
+        prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
 
-        full_prompt_mm = [
-            {"type": "text", "content": full_prompt_mm}
+        full_prompt_mm: List[Dict[str, str]] = [
+            {"type": "text", "content": prompt_mm}
         ] + path_to_mm_object
 
         return full_prompt, full_prompt_mm
@@ -553,11 +554,8 @@ class MolGenerationInstructionsDataset:
         return system_prompt
 
     def generate_text_prompts(
-            self,
-            properties: List[str],
-            objectives: List[str],
-            pocket_datas: Dict[str, Any]
-        ) -> Dict[str, List[Dict[str, Any]]]:
+        self, properties: List[str], objectives: List[str], pocket_datas: Dict[str, Any]
+    ) -> Dict[str, List[Dict[str, Any]]]:
         prompt_text, prompt_multimodal = self.fill_prompt(properties, objectives)
         prompt_text_with_pocket = self.add_pocket_info_to_prompt(
             prompt_text, pocket_datas
@@ -567,7 +565,10 @@ class MolGenerationInstructionsDataset:
 
         prompt: Dict[str, List[Dict[str, Any]]] = {
             "standard": [
-                {self.chat_temp["user"]: "system", self.chat_temp["content"]: sys_prompt},
+                {
+                    self.chat_temp["user"]: "system",
+                    self.chat_temp["content"]: sys_prompt,
+                },
                 {
                     self.chat_temp["user"]: "user",
                     self.chat_temp["content"]: prompt_text,
@@ -581,7 +582,12 @@ class MolGenerationInstructionsDataset:
                 },
             ],
             "multimodal": [
-                {self.chat_temp["user"]: "system", self.chat_temp["content"]: sys_prompt},
+                {
+                    self.chat_temp["user"]: "system",
+                    self.chat_temp["content"]: [
+                        {"type": "text", "content": sys_prompt}
+                    ],
+                },
                 {
                     self.chat_temp["user"]: "user",
                     self.chat_temp["content"]: prompt_multimodal,
@@ -594,9 +600,7 @@ class MolGenerationInstructionsDataset:
         self,
         n: int,
         docking_properties_list: List[str],
-    ) -> Iterator[
-        Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Any]]
-    ]:
+    ) -> Iterator[Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -630,9 +634,7 @@ class MolGenerationInstructionsDataset:
             )
 
             pocket_datas = self._generate_pocket_additional_data(properties)
-            prompt = self.generate_text_prompts(
-                properties, objectives, pocket_datas
-            )
+            prompt = self.generate_text_prompts(properties, objectives, pocket_datas)
 
             metadata = self._get_prompt_metadata(
                 properties, objectives, identifier, n_props
@@ -671,7 +673,7 @@ class MolGenerationInstructionsDataset:
         data_dict: Dict[str, Any] = {
             "prompt": [],
             "prompt_pocket_descriptors": [],
-            # "completion": [],
+            "prompt_multimodal": [],
             "properties": [],
             "objectives": [],
             "target": [],
@@ -680,23 +682,18 @@ class MolGenerationInstructionsDataset:
             "docking_metadata": [],
         }
         p_bar = tqdm(total=n)
-        for prompt, metadata in self.generate_with_rule(
-            n, docking_split=docking_split
-        ):
+        for prompt, metadata in self.generate_with_rule(n, docking_split=docking_split):
             jsonize_dict(metadata)
             data_dict["prompt"].append(prompt["standard"])
             data_dict["prompt_pocket_descriptors"].append(
                 prompt["with_pocket_descriptors"]
             )
             data_dict["prompt_multimodal"].append(prompt["multimodal"])
-            # data_dict["completion"].append(completion)
             for k in metadata:
                 if k in data_dict:
                     data_dict[k].append(metadata[k])
-            # if "docking_metadata" not in metadata:
-            # data_dict["docking_metadata"].append({})
             tqdm.update(p_bar)
-
+        print(data_dict["prompt_multimodal"])
         self.rule_set.partial_reset()
         return Dataset.from_dict(data_dict)
 

@@ -1,17 +1,17 @@
 import argparse
 import json
+import logging
 import os
 
+from tqdm import tqdm
+
 from mol_gen_docking.data.docking_target_extract import PocketExtractor
+from mol_gen_docking.data.featurize_pockets import ProteinStructureEmbeddingExtractor
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )
-from tqdm import tqdm
-
 from mol_gen_docking.data.target_naming import get_names_mapping
-from mol_gen_docking.data.featurize_pockets import ProteinStructureEmbeddingExtractor
-import logging
 
 logger = logging.getLogger(__name__)
 # Set up logging to INFO level
@@ -145,7 +145,7 @@ if __name__ == "__main__":
             ) as f:
                 json.dump(docking_targets, f, indent=4)
 
-        # Generate names mapping
+        # Generate names mapping and get sequences
         if not os.path.exists(os.path.join(args.data_path, "names_mapping.json")):
             print("Generating names mapping for docking targets...")
             docking_targets = json.load(
@@ -171,18 +171,23 @@ if __name__ == "__main__":
                 json.dump(additional_names_mapping, f, indent=4)
 
         # Featurize all pockets
-        embedding_extractor = ProteinStructureEmbeddingExtractor(model= args.embedding_model)
-        with open(os.path.join(args.data_path, "docking_targets.json"), "r") as f:
+        embedding_extractor = ProteinStructureEmbeddingExtractor(
+            data_dir=args.data_path
+        )
+        with open(os.path.join(args.data_path, "docking_targets.json")) as f:
             docking_targets = json.load(f)
         os.makedirs(os.path.join(args.data_path, "pockets_embeddings"), exist_ok=True)
-        for pdb_id in tqdm(docking_targets, desc = "Extracting embeddings"):
-            pdb_path = os.path.join(args.data_path, f"{pdb_id}_processed.pdb")
-            output_path = os.path.join(args.data_path, "pockets_embeddings", f"{pdb_id}_embeddings.pt")
+        for pdb_id in tqdm(docking_targets, desc="Extracting embeddings"):
+            pdb_path = os.path.join(
+                args.data_path, "pdb_files", f"{pdb_id}_processed.pdb"
+            )
+            output_path = os.path.join(
+                args.data_path, "pockets_embeddings", f"{pdb_id}_embeddings.pt"
+            )
             if not os.path.exists(output_path):
                 embedding_extractor.extract_embeddings(pdb_path, output_path)
             else:
                 print(f"Embeddings for {pdb_id} already exist, skipping...")
-
 
         # Finally generates prompt
         print("Generating prompts...")

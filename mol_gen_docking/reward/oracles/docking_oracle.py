@@ -1,32 +1,36 @@
 import json
 import os
 import warnings
+from itertools import chain
 from typing import Any, List
 
 import pyscreener as ps
+import ray
+from pyscreener.docking import DockingVirtualScreen, get_runner
 from pyscreener.docking.vina.utils import Software
-from pyscreener.docking import get_runner, DockingVirtualScreen, DockingRunner
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
-
-import ray
 from tqdm import tqdm
-from itertools import chain
+
 
 class DockingVirtualScreenWithTimeout(DockingVirtualScreen):
-    def __init__(self, timeout : int = 60, *args, **kwargs):
+    def __init__(self, timeout: int = 60, *args: Any, **kwargs: Any) -> None:
         self.timeout = timeout
         super().__init__(*args, **kwargs)
 
     def run(self, simulationss: List[List[Any]]) -> List[List[Any]]:
-        refss = [[self.prepare_and_run.remote(s) for s in sims] for sims in simulationss]
+        refss = [
+            [self.prepare_and_run.remote(s) for s in sims] for sims in simulationss
+        ]
         resultss = []
         for refs in tqdm(refss, desc="Docking", unit="ligand", smoothing=0.0):
             # Wait for all docking simulations to complete with a timeout
             try:
                 resultss.append(ray.get(refs, timeout=self.timeout))
             except ray.exceptions.GetTimeoutError:
-                warnings.warn("Docking simulations timed out. Returning None for results.")
+                warnings.warn(
+                    "Docking simulations timed out. Returning None for results."
+                )
                 resultss.append([None] * len(refs))
                 continue
 
@@ -36,7 +40,6 @@ class DockingVirtualScreenWithTimeout(DockingVirtualScreen):
         self.num_simulations += len(list(chain(*resultss)))
 
         return resultss
-
 
 
 class PyscreenerOracle:
@@ -113,7 +116,9 @@ class PyscreenerOracle:
                 "Pyscreener version is not compatible. Please update to the latest version."
             )
 
-    def __call__(self, test_smiles: str | List[str], error_value: float | None = None) -> Any:
+    def __call__(
+        self, test_smiles: str | List[str], error_value: float | None = None
+    ) -> Any:
         final_score = self.scorer(test_smiles)
 
         if isinstance(test_smiles, str):
