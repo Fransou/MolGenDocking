@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import numpy as np
 import pandas as pd
 import ray
-from ray import ObjectRef
 from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 from tdc.chem_utils.oracle.filter import MolFilter
@@ -188,7 +187,7 @@ class RewardScorer:
             prop: str,
             rescale: bool = True,
             kwargs: Dict[str, Any] = {},
-            pbar: Optional[ObjectRef[tqdm_ray.tqdm]] = None,
+            pbar: Optional[Any] = None,
         ) -> List[float]:
             """
             Get property reward
@@ -208,7 +207,7 @@ class RewardScorer:
             property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
             if pbar is not None:
-                pbar.update.remote(len(property_reward))  # type: ignore
+                pbar.update.remote(len(property_reward))
 
             return [float(p) for p in property_reward]
 

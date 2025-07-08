@@ -38,7 +38,7 @@ class DockGenConfig(Qwen3Config):
         initializer_range: float = 0.02,
         rms_norm_eps: float = 1e-6,
         use_cache: bool = True,
-        tie_word_embeddings: bool = False,
+        tie_word_embeddings: bool = True,
         rope_theta: float = 10000.0,
         rope_scaling: Optional[float] = None,
         attention_bias: bool = False,

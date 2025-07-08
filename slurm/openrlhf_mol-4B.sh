@@ -34,6 +34,8 @@ sleep 15
 
 wandb offline
 export GPUS_PER_NODES=1
+export PRETRAIN=$SCRATCH/Qwen/Qwen3-4B \
+
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
    --runtime-env-json='{"setup_commands": ["wandb offline"]}' \
@@ -52,7 +54,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --deepspeed_enable_sleep \
    --colocate_all_models \
    --vllm_gpu_memory_utilization 0.8 \
-   --pretrain $SCRATCH/Qwen/Qwen3-4B \
+   --pretrain $PRETRAIN \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
    --micro_train_batch_size 8 \
