@@ -182,7 +182,7 @@ class DockGenProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: List[torch.Tensor] | None,
+        images: Optional[List[torch.Tensor]] = None,
         text: Union[
             TextInput, PreTokenizedInput, list[TextInput], list[PreTokenizedInput]
         ] = None,

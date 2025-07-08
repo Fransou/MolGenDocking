@@ -8,7 +8,6 @@ from transformers.modeling_outputs import (
 from vllm.compilation.decorators import support_torch_compile
 from vllm.config import VllmConfig
 from vllm.distributed import get_pp_group
-from vllm.model_executor.layers.linear import RowParallelLinear
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
 from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.models.interfaces import (
@@ -17,16 +16,15 @@ from vllm.model_executor.models.interfaces import (
     SupportsPP,
 )
 from vllm.model_executor.models.qwen3 import (
-    Qwen3DecoderLayer,
     Qwen3Model,
 )
 from vllm.model_executor.models.utils import (
     AutoWeightsLoader,
     PPMissingLayer,
     maybe_prefix,
+    merge_multimodal_embeddings,
 )
 from vllm.model_executor.sampling_metadata import SamplingMetadata
-from vllm.model_executor.utils import merge_multimodal_embeddings
 from vllm.multimodal import MULTIMODAL_REGISTRY
 
 from .dummy_inputs import DockGenDummyInputsBuilder
@@ -46,7 +44,8 @@ from .processing_vllm_dockgen import DockGenProcessingInfo, VllmMultiModalProces
 class VllmDockGenModelBase(Qwen3Model):
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__(
-            vllm_config=vllm_config, prefix=prefix, decoder_layer_type=Qwen3DecoderLayer
+            vllm_config=vllm_config,
+            prefix=prefix,
         )
 
 
@@ -78,13 +77,13 @@ class DockGenModel(nn.Module, SupportsPP, SupportsLoRA, SupportsMultiModal):
         self.lora_config = lora_config
 
         self.quant_config = quant_config
-        self.language_model = VllmDockGenModelBase(
+        self.model = VllmDockGenModelBase(
             vllm_config=vllm_config, prefix=maybe_prefix(prefix, "model")
         )
 
         if get_pp_group().is_last_rank:
             if config.tie_word_embeddings:
-                self.lm_head = self.language_model.embed_tokens
+                self.lm_head = self.model.embed_tokens
             else:
                 self.lm_head = ParallelLMHead(
                     config.vocab_size,
@@ -97,12 +96,14 @@ class DockGenModel(nn.Module, SupportsPP, SupportsLoRA, SupportsMultiModal):
 
         self.logits_processor = LogitsProcessor(config.vocab_size)
 
-        self.aligner = RowParallelLinear(
-            config.prot_embedding_dim, config.hidden_size, bias=True
+        self.aligner = nn.Linear(
+            config.prot_embedding_dim,
+            config.hidden_size,
+            bias=True,
         )
 
         self.make_empty_intermediate_tensors = (
-            self.language_model.make_empty_intermediate_tensors
+            self.model.make_empty_intermediate_tensors
         )
 
     def get_multimodal_embeddings(
@@ -111,18 +112,17 @@ class DockGenModel(nn.Module, SupportsPP, SupportsLoRA, SupportsMultiModal):
         if pixel_values is None:
             return None
         # Run multimodal inputs through encoder and projector
+        if pixel_values is None or pixel_values.numel() == 0:
+            return torch.tensor([])
         embeddings = self.aligner(pixel_values)
         return embeddings
 
     def get_input_embeddings(
         self,
-        input_ids: torch.Tensor,
+        input_ids: Optional[torch.Tensor],
         multimodal_embeddings: Optional[Any] = None,
     ) -> torch.Tensor:
-        # `get_input_embeddings` should already be implemented for the language
-        # model as one of the requirements of basic vLLM model implementation.
-        inputs_embeds = self.language_model.get_input_embeddings(input_ids)
-
+        inputs_embeds = self.model.get_input_embeddings(input_ids)
         if multimodal_embeddings is not None:
             inputs_embeds = merge_multimodal_embeddings(
                 input_ids=input_ids,
@@ -134,8 +134,8 @@ class DockGenModel(nn.Module, SupportsPP, SupportsLoRA, SupportsMultiModal):
         return inputs_embeds
 
     def get_language_model(self) -> torch.nn.Module:
-        # Change `language_model` according to your implementation.
-        return self.language_model
+        # Change `model` according to your implementation.
+        return self.model
 
     def forward(
         self,
@@ -146,20 +146,21 @@ class DockGenModel(nn.Module, SupportsPP, SupportsLoRA, SupportsMultiModal):
         pixel_values: Optional[torch.FloatTensor] = None,
         special_image_mask: Optional[torch.Tensor] = None,
     ) -> CausalLMOutputWithPast:
-        if inputs_embeds is None:
+        if intermediate_tensors is not None:
+            inputs_embeds = None
+        elif inputs_embeds is None:
             multimodal_embeddings = self.get_multimodal_embeddings(pixel_values)
             inputs_embeds = self.get_input_embeddings(
                 input_ids=input_ids,
                 multimodal_embeddings=multimodal_embeddings,
             )
+            input_ids = None
 
-        hidden_states = self.language_model(
-            input_ids,
-            positions,
-            intermediate_tensors,
-            inputs_embeds,
-            pixel_values,
-            special_image_mask,
+        hidden_states = self.model(
+            input_ids=input_ids,
+            positions=positions,
+            intermediate_tensors=intermediate_tensors,
+            inputs_embeds=inputs_embeds,
         )
         return hidden_states
 
