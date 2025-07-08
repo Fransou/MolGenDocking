@@ -11,7 +11,7 @@ def get_data_from_pdb_id(pdb_id: str) -> Dict[str, List[Dict[str, Any]]]:
     if response.status_code != 200:
         raise ValueError(f"Failed to query UniProt for PDB ID {pdb_id}")
 
-    data = response.json()
+    data: Dict[str, List[Dict[str, Any]]] = response.json()
     return data
 
 

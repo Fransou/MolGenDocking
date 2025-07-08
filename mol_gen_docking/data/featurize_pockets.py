@@ -22,7 +22,7 @@ class ProteinStructureEmbeddingExtractor:
 
     def generate_sequence(self, pdb_id: str) -> str:
         data = get_data_from_pdb_id(pdb_id)
-        sequence = data["results"][0]["sequence"]["value"]
+        sequence: str = data["results"][0]["sequence"]["value"]
         if not sequence:
             raise ValueError(f"No sequence found for PDB ID {pdb_id}")
         return sequence

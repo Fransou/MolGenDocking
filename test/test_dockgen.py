@@ -3,9 +3,8 @@ from typing import Any, Dict, List, cast
 
 import pytest
 import torch
+from models import DockGenModel, DockGenProcessor
 from transformers import AutoProcessor, AutoTokenizer
-
-from mol_gen_docking.models import DockGenModel, DockGenProcessor
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

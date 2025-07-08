@@ -236,12 +236,8 @@ class DockGenProcessor(ProcessorMixin):
 
         self._check_special_mm_tokens(prompt_strings, text_inputs, modalities=["image"])
 
-        input_ids = torch.tensor(text_inputs["input_ids"])
-        special_image_mask = (input_ids == self.image_token_id).unsqueeze(-1)
-
         return BatchFeature(
             data={
-                "special_image_mask": special_image_mask,
                 **text_inputs,
                 **image_inputs,
             },
@@ -254,7 +250,7 @@ class DockGenProcessor(ProcessorMixin):
         conversation: List[List[Dict[str, Any]]] | List[Dict[str, Any]],
         chat_template: Optional[str] = None,
         **kwargs: Unpack[AllKwargsForChatTemplate],
-    ) -> str:
+    ) -> Any:
         if chat_template is None:
             if isinstance(self.chat_template, dict) and "default" in self.chat_template:
                 chat_template = self.chat_template["default"]

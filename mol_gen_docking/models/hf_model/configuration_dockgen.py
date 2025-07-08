@@ -26,6 +26,7 @@ class DockGenConfig(Qwen3Config):
     def __init__(
         self,
         prot_embedding_dim: int = 1024,
+        mm_token_id: int = 151655,
         vocab_size: int = 151936,
         hidden_size: int = 4096,
         intermediate_size: int = 22016,
@@ -50,6 +51,7 @@ class DockGenConfig(Qwen3Config):
         **kwargs: Any,
     ):
         self.prot_embedding_dim = prot_embedding_dim
+        self.mm_token_id = mm_token_id
         super().__init__(
             vocab_size=vocab_size,
             hidden_size=hidden_size,
@@ -80,11 +82,13 @@ class DockGenConfig(Qwen3Config):
         cls,
         qwen3_config: Qwen3Config,
         prot_embedding_dim: int = 1024,
+        mm_token_id: int = 151655,
         **kwargs: Any,
     ) -> "DockGenConfig":
         """Create a DockGenConfig from a Qwen3Config."""
         return cls(
             prot_embedding_dim=prot_embedding_dim,
+            mm_token_id=mm_token_id,
             vocab_size=qwen3_config.vocab_size,
             hidden_size=qwen3_config.hidden_size,
             intermediate_size=qwen3_config.intermediate_size,
