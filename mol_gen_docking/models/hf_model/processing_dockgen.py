@@ -137,7 +137,7 @@ class DockGenProcessorKwargs(ProcessingKwargs):
     images_kwargs: ProtKwargs = ProtKwargs()
     _defaults = {
         "text_kwargs": {
-            "padding": "max_length",
+            "padding": "longest",
             "return_tensors": "pt",
         },
         "images_kwargs": {},

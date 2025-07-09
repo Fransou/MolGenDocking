@@ -180,7 +180,8 @@ SFT*
 /data/*.zip
 /data/*.tab
 data/mol_orz/pdb_files
-external_libraries
+data/mol_orz/pockets_embeddings
+external_libraries/*
 oracle
 *.idea
 *.sqsh

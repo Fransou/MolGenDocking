@@ -11,7 +11,6 @@ from transformers.models.qwen3.modeling_qwen3 import (
     Qwen3Model,
 )
 from transformers.processing_utils import Unpack
-from vllm.model_executor.models.utils import merge_multimodal_embeddings
 
 from .configuration_dockgen import DockGenConfig
 
@@ -70,11 +69,25 @@ class DockGenModel(Qwen3ForCausalLM):
         inputs_embeds = self.model.get_input_embeddings()(input_ids)
 
         if multimodal_embeddings is not None:
-            inputs_embeds = merge_multimodal_embeddings(
-                input_ids=input_ids,
-                inputs_embeds=inputs_embeds,
-                multimodal_embeddings=multimodal_embeddings,
-                placeholder_token_id=self.config.mm_token_id,
+            if input_ids is None:
+                special_mm_mask = inputs_embeds == self.get_input_embeddings()(
+                    torch.tensor(
+                        self.config.mm_token_id,
+                        dtype=torch.long,
+                        device=inputs_embeds.device,
+                    )
+                )
+                special_mm_mask = special_mm_mask.all(-1)
+            else:
+                special_mm_mask = input_ids == self.config.mm_token_id
+
+            special_mm_mask = (
+                special_mm_mask.unsqueeze(-1)
+                .expand_as(inputs_embeds)
+                .to(inputs_embeds.device)
+            )
+            inputs_embeds = inputs_embeds.masked_scatter(
+                special_mm_mask, multimodal_embeddings
             )
 
         return inputs_embeds
