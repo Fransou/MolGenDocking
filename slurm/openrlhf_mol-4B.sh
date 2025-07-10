@@ -34,7 +34,7 @@ sleep 15
 
 wandb offline
 export GPUS_PER_NODES=1
-export PRETRAIN=$SCRATCH/Qwen/Qwen3-4B \
+export PRETRAIN=$SCRATCH/Qwen/Qwen3-0.6B \
 
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \

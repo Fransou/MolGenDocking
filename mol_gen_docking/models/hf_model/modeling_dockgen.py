@@ -86,6 +86,10 @@ class DockGenModel(Qwen3ForCausalLM):
                 .expand_as(inputs_embeds)
                 .to(inputs_embeds.device)
             )
+            assert special_mm_mask.all(-1).sum() == multimodal_embeddings.shape[0], (
+                "The number of multimodal embeddings should match the number of "
+                "special multimodal tokens in the input_ids."
+            )
             inputs_embeds = inputs_embeds.masked_scatter(
                 special_mm_mask, multimodal_embeddings
             )
