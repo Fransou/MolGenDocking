@@ -95,6 +95,8 @@ class DockGenModel(Qwen3ForCausalLM):
             inputs_embeds = inputs_embeds.masked_scatter(
                 special_mm_mask, multimodal_embeddings
             )
+        else:
+            assert (input_ids == self.config.mm_token_id).sum() == 0
 
         return inputs_embeds
 
