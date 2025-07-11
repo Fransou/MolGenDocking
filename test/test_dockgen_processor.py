@@ -60,7 +60,7 @@ def get_outs_tok_processor(
         ]
 
     chat_tok = tokenizer.apply_chat_template(
-        messages_tok, tokenize=True, return_tensors="pt", padding="max_length"
+        messages_tok, tokenize=True, return_tensors="pt", padding="longest"
     )
     chat_tok_text = tokenizer.apply_chat_template(
         messages_tok, tokenize=False, return_tensors="pt", padding="max_length"
@@ -100,7 +100,7 @@ def test_processor_mm(tokenizer_processor, message: List[Dict[str, Any]]):
     for m in message:
         if m["role"] == "user":
             mm_info = [
-                {"type": "image", "path": "test/data/test_embed_0.pt"},
+                {"type": "image", "path": "test/data/test_embed_0.pt", "text": None},
                 {"type": "text", "text": "This is a test object."},
             ]
             m["content"] = m["content"] + mm_info

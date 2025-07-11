@@ -410,7 +410,7 @@ class MolGenerationInstructionsDataset:
         prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
 
         full_prompt_mm: List[Dict[str, str]] = [
-            {"type": "text", "content": prompt_mm}
+            {"type": "text", "text": prompt_mm}
         ] + path_to_mm_object
 
         return full_prompt, full_prompt_mm
@@ -584,9 +584,7 @@ class MolGenerationInstructionsDataset:
             "multimodal": [
                 {
                     self.chat_temp["user"]: "system",
-                    self.chat_temp["content"]: [
-                        {"type": "text", "content": sys_prompt}
-                    ],
+                    self.chat_temp["content"]: [{"type": "text", "text": sys_prompt}],
                 },
                 {
                     self.chat_temp["user"]: "user",

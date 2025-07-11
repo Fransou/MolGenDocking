@@ -58,10 +58,10 @@ ray job submit --address="http://127.0.0.1:8265" \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint \
    --micro_train_batch_size 8 \
-   --train_batch_size 32 \
+   --train_batch_size 16 \
    --micro_rollout_batch_size 2 \
-   --rollout_batch_size 32 \
-   --n_samples_per_prompt 128 \
+   --rollout_batch_size 16 \
+   --n_samples_per_prompt 2 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
@@ -73,7 +73,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --init_kl_coef 0.0 \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
-   --input_key prompt_pocket_descriptors \
+   --input_key prompt_multimodal \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \

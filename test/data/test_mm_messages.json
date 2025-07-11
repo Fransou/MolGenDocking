@@ -299,5 +299,9 @@
         }
       ]
     }
-  ]
+  ],
+  [
+    {
+      'content': [{'content': 'A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\nThe reasoning process is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> CCN(CC)C(=O)N[C@H](C)CCCC(C)C </answer>.', 'path': None, 'type': 'text'}], 'role': 'system'}, {'content': [{'content': 'Design a molecule optimized for: <|image_pad|> target a Docking score against escherichia biotin carboxylase (2w6n) of -10.60.', 'path': None, 'type': 'text'}, {'content': None, 'path': 'pockets_embeddings/2w6n_embeddings.pt', 'type': 'image'}], 'role': 'user'}]
+
 ]

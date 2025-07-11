@@ -61,7 +61,7 @@ JINJA_TEMPLATE = """
         {%- set content_ns.content = message.content %}\
     {%- elif 'type' in message.content[0] %}\
         {%- for m in message.content %}\
-            {%- if 'text' in m %}\
+            {%- if m.type == "text" %}\
                 {%- set content_ns.content = content_ns.content ~ m.text %}\
                 {%- endif %}\
             {%- endfor %}\
@@ -180,44 +180,62 @@ class DockGenProcessor(ProcessorMixin):
             kwargs["chat_template"] if "chat_template" in kwargs else JINJA_TEMPLATE
         )
 
+        self.pad_token = self.tokenizer.pad_token
+        self.pad_token_id = self.tokenizer.pad_token_id
+        self.eos_token = self.tokenizer.eos_token
+        self.eos_token_id = self.tokenizer.eos_token_id
+
     def __call__(
         self,
-        images: Optional[List[torch.Tensor]] = None,
         text: Union[
             TextInput, PreTokenizedInput, list[TextInput], list[PreTokenizedInput]
         ] = None,
+        images: Optional[List[torch.Tensor] | List[str] | str] = None,
         **kwargs: Unpack[DockGenProcessorKwargs],
     ) -> BatchFeature:
+        if isinstance(images, list) and len(images) == 1 and isinstance(images[0], str):
+            # If images is a list with a single string, convert it to a string
+            images = images[0]
+        if isinstance(images, list) and (len(images) == 0 or images[0] is None):
+            # If images is an empty list, set it to None
+            images = None
+        if isinstance(images, str):
+            # If images are provided as a single path, split it on |
+            images = images.split("|")
+        if images == []:
+            images = None
+
         output_kwargs = self._merge_kwargs(
             DockGenProcessorKwargs,
             tokenizer_init_kwargs=self.tokenizer.init_kwargs,
             **kwargs,
         )
         return_tensors = output_kwargs["common_kwargs"]["return_tensors"]
-
         if images is not None:
+            if isinstance(images[0], str):
+                cast(List[str], images)
+                # If images are provided as paths, load them
+                images = [torch.load(img) for img in images]
+
             if len(images) == 1:
                 image_inputs = {
-                    "pixel_values": images[0].unsqueeze(0)
+                    "pixel_values": images[0].unsqueeze(0)  # type: ignore
                 }  # SHAPE: [BATCH_SIZE, MAX_N_MM, EMB_SIZE]
             else:
-                max_n_mm = max([val.shape[0] for val in images])
-                image_inputs = {
-                    "pixel_values": torch.stack(
-                        [
-                            torch.cat(
-                                [
-                                    val,
-                                    torch.zeros(
-                                        max_n_mm - val.shape[0], *val.shape[1:]
-                                    ),
-                                ]
-                            )
-                            for val in images
-                        ],
-                        dim=0,
-                    )
-                }
+                # If images are two dimensional tensors, concatenate them
+                if images[0].ndim == 2:  # type: ignore
+                    image_inputs = {
+                        "pixel_values": torch.concatenate(
+                            [im for im in images if im is not None], dim=0
+                        )
+                    }
+                else:
+                    assert images[0].ndim == 1  # type: ignore
+                    image_inputs = {
+                        "pixel_values": torch.stack(
+                            [im for im in images if im is not None], dim=0
+                        )
+                    }
         else:
             image_inputs = {}
 
@@ -322,29 +340,32 @@ class DockGenProcessor(ProcessorMixin):
         return_dict = processed_kwargs["template_kwargs"].pop("return_dict", False)
         # mm_load_kwargs = processed_kwargs["mm_load_kwargs"]
 
-        if tokenize:
-            batch_images: List[torch.Tensor] = []
-            for conv in conversations:
-                images: List[torch.Tensor] = []
-                for message in conv:
-                    visuals: List[Dict[str, Any]] = [
-                        content
-                        for content in message["content"]
-                        if content["type"] in ["image"]
-                    ]
-                    image_fnames: List[str] = [
-                        vision_info["path"]
-                        for vision_info in visuals
-                        if vision_info["type"] == "image"
-                    ]
+        batch_images_path: List[List[str]] = []
+        batch_images: List[torch.Tensor] = []
+        for conv in conversations:
+            images: List[torch.Tensor] = []
+            images_path: List[str] = []
+            for message in conv:
+                visuals: List[Dict[str, Any]] = [
+                    content
+                    for content in message["content"]
+                    if content["type"] in ["image"]
+                ]
+                image_fnames: List[str] = [
+                    vision_info["path"]
+                    for vision_info in visuals
+                    if vision_info["type"] == "image"
+                ]
 
-                    for fname in image_fnames:
-                        # TODO: Get embeddings
-                        data_path = os.environ.get("DATA_PATH", "")
+                for fname in image_fnames:
+                    data_path = os.environ.get("DATA_PATH", "")
 
-                        images.append(torch.load(os.path.join(data_path, fname)))
-                if images:
-                    batch_images.append(torch.stack(images, dim=0))
+                    images.append(torch.load(os.path.join(data_path, fname)))
+                    images_path.append(os.path.join(data_path, fname))
+
+            if images:
+                batch_images.append(torch.stack(images, dim=0))
+                batch_images_path.append(images_path)
 
         prompt, generation_indices = render_jinja_template(
             conversations=conversations,
@@ -357,6 +378,7 @@ class DockGenProcessor(ProcessorMixin):
 
         if not is_batched:
             prompt = prompt[0]
+            batch_images_path = batch_images_path[0] if batch_images_path else []  # type: ignore
 
         if tokenize:
             # Tokenizer's `apply_chat_template` never adds special tokens when tokenizing
@@ -406,6 +428,12 @@ class DockGenProcessor(ProcessorMixin):
                 return out
             else:
                 return out["input_ids"]
+
+        if return_dict:
+            return {
+                "text": prompt,
+                "mm_data": batch_images_path,
+            }
         return prompt
 
     def batch_decode(self, *args: Any, **kwargs: Any) -> Any:
