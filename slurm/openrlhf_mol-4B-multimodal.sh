@@ -34,7 +34,7 @@ sleep 15
 
 wandb offline
 export GPUS_PER_NODES=1
-export PRETRAIN=$SCRATCH/Qwen/Qwen3-4B
+export PRETRAIN=$SCRATCH/Franso/Dockgen-Qwen3-0.6B
 
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
@@ -73,7 +73,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --init_kl_coef 0.0 \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
-   --input_key prompt \
+   --input_key prompt_multimodal \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \
@@ -81,4 +81,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    --flash_attn \
    --gradient_checkpointing \
    --enforce_eager \
-   --use_wandb 95190474fa39dc888a012cd12b18ab9b094697ad
+   --use_wandb 95190474fa39dc888a012cd12b18ab9b094697ad \
+   --multimodal
