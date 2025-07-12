@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=def-ibenayed
-#SBATCH --time=12:00:00
+#SBATCH --time=03:00:00
 #SBATCH --gpus=h100:1
-#SBATCH --mem=100G
+#SBATCH --mem=200G
 #SBATCH --cpus-per-task=16
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
