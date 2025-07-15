@@ -79,20 +79,51 @@ if __name__ == "__main__":
         valid_reward_job = reward_valid_smiles.get_score.remote(  # type: ignore
             prompts=prompts, completions=queries
         )
+        smiles_job = reward_valid_smiles._get_smiles_list.remote(completions=queries)
+
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
 
         rewards = ray.get(rewards_job)
         valid_reward = ray.get(valid_reward_job)
         # filter_reward = ray.get(filter_reward_job)
 
-        final_reward = rewards
+        # Get the prompts level metrics
+        final_smiles = ray.get(smiles_job)
+        unique_prompts = list(set(prompts))
+        group_prompt_smiles = {
+            p:[s[-1] for s, p_ in zip(final_smiles, prompts) if (p_ == p) and not s == []] for p in unique_prompts
+        }
+
+        from tdc import Evaluator
+        diversity_evaluator = Evaluator(name='Diversity')
+        diversity_scores = {
+            p: diversity_evaluator(group_prompt_smiles[p]) for p in unique_prompts
+        }
+
+        validity_evaluator = Evaluator(name='Validity')
+        validity_scores = {
+            p: validity_evaluator(group_prompt_smiles[p]) for p in unique_prompts
+        }
+
+        uniqueness_evaluator = Evaluator(name='Uniqueness')
+        uniqueness_scores = {
+            p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
+        }
+
+
+
+
+
 
         result = {
-            "rewards": final_reward,
-            "scores": final_reward,
+            "rewards": rewards,
+            "scores": rewards,
             "extra_logs": {
                 "property_scores": rewards,
                 "valid_smiles_scores": valid_reward,
+                "validity": [validity_scores[p] for p in unique_prompts],
+                "uniqueness": [uniqueness_scores[p] for p in unique_prompts],
+                "diversity": [diversity_scores[p] for p in unique_prompts],
                 # "mol_filters": filter_reward,
             },
         }
