@@ -116,6 +116,9 @@ if __name__ == "__main__":
             float(uniqueness_scores_dict[p]) if uniqueness_scores_dict[p] is not None else 0.0
             for p in prompts
         ]
+        for u in uniqueness_score:
+            print(u)
+            print(type(u))
 
         # rewards = ray.get(rewards_job)
         rewards = valid_reward
