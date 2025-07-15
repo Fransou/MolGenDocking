@@ -75,9 +75,9 @@ if __name__ == "__main__":
         queries = data.get("query")
         prompts = data.get("prompts")
 
-        # rewards_job = reward_model.get_score.remote(  # type: ignore
-        #     prompts=prompts, completions=queries
-        # )
+        rewards_job = reward_model.get_score.remote(  # type: ignore
+            prompts=prompts, completions=queries
+        )
         valid_reward = reward_valid_smiles.get_score(
             prompts=prompts, completions=queries
         )
@@ -119,10 +119,8 @@ if __name__ == "__main__":
             for p in prompts
         ]
 
-        # rewards = ray.get(rewards_job)
-        rewards = valid_reward
+        rewards = ray.get(rewards_job)
 
-        print(validity_score, uniqueness_score, diversity_score)
         result = {
             "rewards": rewards,
             "scores": rewards,
