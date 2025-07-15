@@ -54,11 +54,12 @@ if __name__ == "__main__":
             ncpu=args.scorer_ncpus,
         ),
     )
-    reward_valid_smiles = RemoteRewardScorer.remote(  # type: ignore
+    reward_valid_smiles = RemoteRewardScorer(  # type: ignore
         path_to_mappings=args.data_path,
         reward="valid_smiles",
         parse_whole_completion=False,
     )
+
     # reward_filters = RemoteRewardScorer.remote(
     #     path_to_mappings=args.data_path,
     #     reward="MolFilters",
@@ -76,10 +77,10 @@ if __name__ == "__main__":
         rewards_job = reward_model.get_score.remote(  # type: ignore
             prompts=prompts, completions=queries
         )
-        valid_reward_job = reward_valid_smiles.get_score.remote(  # type: ignore
+        valid_reward_job = reward_valid_smiles.get_score(
             prompts=prompts, completions=queries
         )
-        smiles_job = reward_valid_smiles._get_smiles_list.remote(completions=queries)
+        smiles_job = reward_valid_smiles._get_smiles_list(completions=queries)
 
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
 
