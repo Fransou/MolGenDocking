@@ -74,23 +74,19 @@ if __name__ == "__main__":
         queries = data.get("query")
         prompts = data.get("prompts")
 
-        rewards_job = reward_model.get_score.remote(  # type: ignore
+        # rewards_job = reward_model.get_score.remote(  # type: ignore
+        #     prompts=prompts, completions=queries
+        # )
+        valid_reward = reward_valid_smiles.get_score(
             prompts=prompts, completions=queries
         )
-        valid_reward_job = reward_valid_smiles.get_score(
-            prompts=prompts, completions=queries
-        )
-        smiles_job = reward_valid_smiles._get_smiles_list(completions=queries)
+        final_smiles = reward_valid_smiles._get_smiles_list(completions=queries)
 
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
 
-        # rewards = ray.get(rewards_job)
-        valid_reward = ray.get(valid_reward_job)
-        rewards = valid_reward
         # filter_reward = ray.get(filter_reward_job)
 
         # Get the prompts level metrics
-        final_smiles = ray.get(smiles_job)
         unique_prompts = list(set(prompts))
         group_prompt_smiles = {
             p:[s[-1] for s, p_ in zip(final_smiles, prompts) if (p_ == p) and not s == []] for p in unique_prompts
@@ -112,6 +108,10 @@ if __name__ == "__main__":
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
         print(validity_scores)
+
+
+        # rewards = ray.get(rewards_job)
+        rewards = valid_reward
 
         result = {
             "rewards": rewards,
