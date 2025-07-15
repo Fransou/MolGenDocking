@@ -5,6 +5,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
+import numpy as np
 
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -110,7 +111,9 @@ if __name__ == "__main__":
         uniqueness_scores_dict = {
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
-        uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
+        uniqueness_score = [
+            float(uniqueness_scores_dict[p]) if not np.isnan(uniqueness_scores_dict[p]) else 0 for p in prompts
+        ]
 
 
         # rewards = ray.get(rewards_job)
