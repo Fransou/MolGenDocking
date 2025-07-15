@@ -111,12 +111,11 @@ if __name__ == "__main__":
         uniqueness_scores_dict = {
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
+        uniqueness_score = [uniqueness_scores_dict[p] for p in prompts]
         uniqueness_score = [
-            float(uniqueness_scores_dict[p]) if not (
-                    np.isnan(uniqueness_scores_dict[p]) or uniqueness_scores_dict[p] is None
-            ) else 0 for p in prompts
+            float(uniqueness_scores_dict[p]) if uniqueness_scores_dict[p] is not None else 0.0
+            for p in prompts
         ]
-
 
         # rewards = ray.get(rewards_job)
         rewards = valid_reward
