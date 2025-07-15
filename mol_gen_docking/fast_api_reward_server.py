@@ -54,7 +54,7 @@ if __name__ == "__main__":
             ncpu=args.scorer_ncpus,
         ),
     )
-    reward_valid_smiles = RemoteRewardScorer(  # type: ignore
+    reward_valid_smiles = RewardScorer(  # type: ignore
         path_to_mappings=args.data_path,
         reward="valid_smiles",
         parse_whole_completion=False,
