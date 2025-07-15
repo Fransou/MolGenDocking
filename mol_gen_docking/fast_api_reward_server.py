@@ -109,11 +109,7 @@ if __name__ == "__main__":
         uniqueness_scores = {
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
-
-
-
-
-
+        print(validity_scores)
 
         result = {
             "rewards": rewards,
