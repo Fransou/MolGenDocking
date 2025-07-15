@@ -112,7 +112,9 @@ if __name__ == "__main__":
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
         uniqueness_score = [
-            float(uniqueness_scores_dict[p]) if not np.isnan(uniqueness_scores_dict[p]) else 0 for p in prompts
+            float(uniqueness_scores_dict[p]) if not (
+                    np.isnan(uniqueness_scores_dict[p]) or uniqueness_scores_dict[p] is None
+            ) else 0 for p in prompts
         ]
 
 
