@@ -83,8 +83,9 @@ if __name__ == "__main__":
 
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
 
-        rewards = ray.get(rewards_job)
+        # rewards = ray.get(rewards_job)
         valid_reward = ray.get(valid_reward_job)
+        rewards = valid_reward
         # filter_reward = ray.get(filter_reward_job)
 
         # Get the prompts level metrics
