@@ -117,9 +117,9 @@ if __name__ == "__main__":
             "extra_logs": {
                 "property_scores": rewards,
                 "valid_smiles_scores": valid_reward,
-                "validity": [validity_scores[p] for p in unique_prompts],
-                "uniqueness": [uniqueness_scores[p] for p in unique_prompts],
-                "diversity": [diversity_scores[p] for p in unique_prompts],
+                "validity": [float(validity_scores[p]) for p in unique_prompts],
+                "uniqueness": [float(uniqueness_scores[p]) for p in unique_prompts],
+                "diversity": [float(diversity_scores[p]) for p in unique_prompts],
                 # "mol_filters": filter_reward,
             },
         }
