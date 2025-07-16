@@ -111,7 +111,9 @@ if __name__ == "__main__":
             p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
         }
         uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
-
+        print(f"Uniqueness scores: {uniqueness_scores_dict}")
+        print(f"Validity scores: {validity_scores_dict}")
+        print(f"Diversity scores: {diversity_scores_dict}")
         rewards = ray.get(rewards_job)
 
         result = {
