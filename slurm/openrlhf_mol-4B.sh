@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=def-ibenayed
-#SBATCH --time=03:00:00
+#SBATCH --time=12:00:00
 #SBATCH --gpus=h100:1
 #SBATCH --mem=200G
 #SBATCH --cpus-per-task=16
@@ -58,10 +58,10 @@ ray job submit --address="http://127.0.0.1:8265" \
    --remote_rm_url http://localhost:5000/get_reward \
    --save_path $SCRATCH/checkpoint-4B \
    --micro_train_batch_size 8 \
-   --train_batch_size 16 \
+   --train_batch_size 8 \
    --micro_rollout_batch_size 4 \
-   --rollout_batch_size 16 \
-   --n_samples_per_prompt 32 \
+   --rollout_batch_size 8 \
+   --n_samples_per_prompt 64 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
