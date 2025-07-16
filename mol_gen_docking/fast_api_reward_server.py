@@ -96,7 +96,7 @@ if __name__ == "__main__":
         from tdc import Evaluator
         diversity_evaluator = Evaluator(name='Diversity')
         diversity_scores_dict = {
-            p: diversity_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 0 else 0 for p in unique_prompts
+            p: diversity_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 1 else 0 for p in unique_prompts
         }
         diversity_score = [float(diversity_scores_dict[p]) for p in prompts]
 
