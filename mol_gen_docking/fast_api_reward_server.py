@@ -126,7 +126,6 @@ if __name__ == "__main__":
                 "validity": validity_score,
                 "uniqueness": uniqueness_score,
                 "diversity": diversity_score,
-                "smiles": [" ".join(smi_list) for smi_list in final_smiles],
                 # "mol_filters": filter_reward,
             },
         }
