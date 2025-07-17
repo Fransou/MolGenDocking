@@ -136,7 +136,7 @@ class MolGenerationInstructionsDataset:
             "The reasoning process is enclosed within <think> </think>"
             " and answer is enclosed within <answer> </answer> tags, "
             "respectively, i.e., <think> reasoning process here </think> "
-            "<answer> {{smiles}} </answer>."
+            "<answer> SMILES here </answer>."
         )
         properties_csv = pd.read_csv(
             os.path.join(os.path.dirname(config.data_path), "properties.csv")
@@ -550,7 +550,7 @@ class MolGenerationInstructionsDataset:
     def fill_system_prompt(self, system_prompt: str) -> str:
         if "{{smiles}}" in system_prompt:
             smiles = self.possible_smiles.sample(1).values[0]
-            system_prompt = system_prompt.replace("{{smiles}}", smiles)
+            # system_prompt = system_prompt.replace("{{smiles}}", smiles)
         return system_prompt
 
     def generate_text_prompts(
