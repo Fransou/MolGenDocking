@@ -116,6 +116,10 @@ if __name__ == "__main__":
         uniqueness_score = [u if not np.isnan(u) else 0 for u in uniqueness_score]
 
         rewards = ray.get(rewards_job)
+        max_per_prompt_dict = {
+            p: max([float(r) for r, p_ in zip(rewards, prompts) if p_ == p]) for p in unique_prompts
+        }
+        max_per_prompt = [max_per_prompt_dict[p] for p in prompts]
 
         result = {
             "rewards": rewards,
@@ -126,6 +130,7 @@ if __name__ == "__main__":
                 "validity": validity_score,
                 "uniqueness": uniqueness_score,
                 "diversity": diversity_score,
+                "pass_at_n": max_per_prompt,
                 # "mol_filters": filter_reward,
             },
         }
