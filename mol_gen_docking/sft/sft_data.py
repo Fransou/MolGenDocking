@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Tuple
 
 from datasets import Dataset, concatenate_datasets, load_dataset
 from rdkit.Chem.rdmolfiles import MolFromSmiles
+from rdkit.RDLogger import RDLogger
+
+RDLogger.DisableLog("rdApp.*")
 
 SMolInstruct_tasks = [
     "forward_synthesis",
