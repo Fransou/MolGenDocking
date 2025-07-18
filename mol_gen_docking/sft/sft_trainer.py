@@ -109,8 +109,8 @@ class SFTMolTrainer:
         )
         return model, tokenizer
 
-    def get_peft_config(self, train_tokens: bool = False) -> LoraConfig:
-        assert self.model is not None or self.tokenizer is not None, (
+    def get_peft_config(self) -> LoraConfig:
+        assert self.model is not None and self.tokenizer is not None, (
             "Model and tokenizer must be initialized before calling get_peft_config"
         )
         return LoraConfig(
@@ -118,11 +118,12 @@ class SFTMolTrainer:
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
+            target_modules="*",
         )
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        peft_config = self.get_peft_config(True)
+        peft_config = self.get_peft_config(False)
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
