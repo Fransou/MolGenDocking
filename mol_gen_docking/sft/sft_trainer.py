@@ -123,7 +123,7 @@ class SFTMolTrainer:
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        peft_config = self.get_peft_config(False)
+        peft_config = self.get_peft_config()
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
@@ -178,7 +178,7 @@ class SFTMolTrainer:
 
         if self.dataset is None:
             self.dataset, self.eval_dataset = self.get_dataset()
-
+        print(self.dataset[0])
         trainer = self.get_trainer()
 
         print(
