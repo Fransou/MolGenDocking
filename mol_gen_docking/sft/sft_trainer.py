@@ -118,7 +118,7 @@ class SFTMolTrainer:
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
-            target_modules="*",
+            target_modules="*_proj",
         )
 
     def get_trainer(self) -> SFTTrainer:
