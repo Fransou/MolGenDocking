@@ -70,7 +70,7 @@ class MolTrainerParser:
             "--output_dir", type=str, default="test", help="The output directory to use"
         )
         self.add_argument(
-            "--num-train-epochs",
+            "--num_train_epochs",
             type=int,
             default=5,
             help="The number of epochs to use",
