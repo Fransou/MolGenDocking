@@ -123,6 +123,7 @@ class SFTMolTrainer:
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
+        print(self.model)
         peft_config = self.get_peft_config()
         self.model = get_peft_model(self.model, peft_config)
         try:
