@@ -36,8 +36,8 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--scorer-ncpus",
-        type=int,
-        default=4,
+        type=float,
+        default=0.5,
         help="Number of CPUs to use for the scoring computations.",
     )
     args = parser.parse_args()
