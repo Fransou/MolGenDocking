@@ -103,14 +103,14 @@ if __name__ == "__main__":
 
         validity_evaluator = Evaluator(name='Validity')
         validity_scores_dict = {
-            p: validity_evaluator(group_prompt_smiles[p]) for p in unique_prompts
+            p: validity_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 0 else 0 for p in unique_prompts
         }
         validity_score = [float(validity_scores_dict[p]) for p in prompts]
         validity_score = [v if not np.isnan(v) else 0 for v in validity_score]
 
         uniqueness_evaluator = Evaluator(name='Uniqueness')
         uniqueness_scores_dict = {
-            p: uniqueness_evaluator(group_prompt_smiles[p]) for p in unique_prompts
+            p: uniqueness_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 1 else 0 for p in unique_prompts
         }
         uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
         uniqueness_score = [u if not np.isnan(u) else 0 for u in uniqueness_score]

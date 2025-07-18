@@ -59,9 +59,9 @@ ray job submit --address="http://127.0.0.1:8265" \
    --save_path $SCRATCH/checkpoint-4B-multimodal \
    --micro_train_batch_size 8 \
    --train_batch_size 8 \
-   --micro_rollout_batch_size 4 \
+   --micro_rollout_batch_size 8 \
    --rollout_batch_size 8 \
-   --n_samples_per_prompt 64 \
+   --n_samples_per_prompt 128 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
