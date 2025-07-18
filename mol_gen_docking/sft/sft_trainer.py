@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 import torch
 from datasets import Dataset, concatenate_datasets
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
-from tokenizers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer, setup_chat_format
 
 from mol_gen_docking.sft.sft_data import InstructionDatasetProcessor
