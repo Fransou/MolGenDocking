@@ -26,7 +26,7 @@ export HF_HUB_OFFLINE=1
 accelerate launch mol_gen_docking/sft/sft.py \
     --output_dir $SCRATCH/Qwen/sft_Qwen-4B \
     --batch_size 6 \
-    --gradient_accumulation_steps 4 \
+    --gradient_accumulation_steps 8 \
     --learning_rate 1e-5 \
     --num_train_epochs 1 \
     --model_name $PRETRAIN \
