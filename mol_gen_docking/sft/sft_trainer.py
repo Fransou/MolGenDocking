@@ -179,7 +179,8 @@ class SFTMolTrainer:
 
         if self.dataset is None:
             self.dataset, self.eval_dataset = self.get_dataset()
-        print(self.dataset[0])
+        print(f"Loaded Dataset of size: {len(self.dataset)}\n,"
+              f"Example: self.dataset[0]")
         trainer = self.get_trainer()
 
         print(
