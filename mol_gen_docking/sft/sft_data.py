@@ -58,6 +58,11 @@ class InstructionDatasetProcessor:
         :return: An instruction and a completion
         """
 
+        def process_smiles(smiles: str) -> str:
+            """Process SMILES strings to ensure they are valid."""
+            new_smiles = "; ".join(smiles.split("."))
+            return new_smiles.replace("@@H", "").replace("@H", "").replace("[C]", "C")
+
         instruction = line.get("instruction", "")
         inp = line.get("input", "")
         out = line["output"]
@@ -65,12 +70,12 @@ class InstructionDatasetProcessor:
         raw_input = line.get("raw_input", "")
         if ("C" in raw_input or "c" in raw_input) and not "e" in raw_input: # Can be a smiles
             if MolFromSmiles(raw_input) is not None:
-                new_raw_input = "; ".join(raw_input.split("."))
+                new_raw_input = process_smiles(raw_input)
                 inp = inp.replace(raw_input, new_raw_input)
         raw_output = line.get("raw_output", "")
         if ("C" in raw_output or "c" in raw_output) and not "e" in raw_output: # Can be a smiles
             if MolFromSmiles(raw_output) is not None:
-                new_raw_output = "; ".join(raw_output.split("."))
+                new_raw_output = process_smiles(raw_output)
                 out = out.replace(raw_output, new_raw_output)
 
         prompt = [
