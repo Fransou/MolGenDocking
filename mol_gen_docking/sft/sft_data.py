@@ -35,6 +35,7 @@ class InstructionDatasetProcessor:
             self.dataset = load_dataset(
                 "osunlp/SMolInstruct",
                 tasks=SMolInstruct_tasks,
+                insert_core_tags=False
             )
         elif name == "Mol-Instructions":
             self.dataset = load_dataset(
