@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 from typing import Optional, Tuple
-
+import wandb
 import torch
 from datasets import Dataset, concatenate_datasets
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
@@ -188,7 +188,7 @@ class SFTMolTrainer:
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
         self.tokenizer.padding_side = "left"
-
+        wandb.require("legacy-service")
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path
