@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Tuple
 
 from datasets import Dataset, concatenate_datasets, load_dataset
 from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.RDLogger import RDLogger
+from rdkit import RDLogger
 
 RDLogger.DisableLog("rdApp.*")
 
