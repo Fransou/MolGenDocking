@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=def-ibenayed
-#SBATCH --time=12:00:00
+#SBATCH --time=72:00:00
 #SBATCH --gpus=h100:1
 #SBATCH --mem=200G
 #SBATCH --cpus-per-task=16
@@ -34,7 +34,7 @@ sleep 15
 
 wandb offline
 export GPUS_PER_NODES=1
-export PRETRAIN=$SCRATCH/Qwen/sft_3000
+export PRETRAIN=$SCRATCH/Qwen/sft_Qwen-4B/model
 
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
