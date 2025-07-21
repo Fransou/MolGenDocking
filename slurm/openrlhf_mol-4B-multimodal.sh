@@ -56,7 +56,10 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_gpu_memory_utilization 0.8 \
    --pretrain $PRETRAIN \
    --remote_rm_url http://localhost:5000/get_reward \
-   --save_path $SCRATCH/checkpoint-4B-multimodal \
+   --save_path $SCRATCH/DockGen-4B-multimodal \
+   --ckpt_path $SCRATCH/checkpoint/DockGen-4B-multimodal \
+   --max_ckpt_num 5 \
+   --save_steps 3 \
    --micro_train_batch_size 8 \
    --train_batch_size 8 \
    --micro_rollout_batch_size 4 \
