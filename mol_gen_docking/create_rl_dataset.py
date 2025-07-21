@@ -1,13 +1,21 @@
 import argparse
 import json
+import logging
 import os
 
+from tqdm import tqdm
+
 from mol_gen_docking.data.docking_target_extract import PocketExtractor
+from mol_gen_docking.data.featurize_pockets import ProteinStructureEmbeddingExtractor
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )
 from mol_gen_docking.data.target_naming import get_names_mapping
+
+logger = logging.getLogger(__name__)
+# Set up logging to INFO level
+logging.basicConfig(level=logging.INFO)
 
 
 def get_rl_data_parser() -> argparse.Namespace:
@@ -55,7 +63,7 @@ def get_rl_data_parser() -> argparse.Namespace:
         help="Threshold for drug score to consider a pocket.",
     )
     parser.add_argument("--download", action="store_true")
-
+    parser.add_argument("--fill-missing-targets", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(args.data_path, exist_ok=True)
@@ -82,6 +90,8 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
             docking_split=docking_split,
         )
         data.save_to_disk(os.path.join(args.data_path, name))
+        for i in range(10):
+            print(data[i]["prompt"][1]["content"])
 
         # dataset.save_sim_matrices()
 
@@ -135,7 +145,7 @@ if __name__ == "__main__":
             ) as f:
                 json.dump(docking_targets, f, indent=4)
 
-        # Generate names mapping
+        # Generate names mapping and get sequences
         if not os.path.exists(os.path.join(args.data_path, "names_mapping.json")):
             print("Generating names mapping for docking targets...")
             docking_targets = json.load(
@@ -144,6 +154,40 @@ if __name__ == "__main__":
             names_mapping = get_names_mapping(docking_targets, n_proc=8)
             with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
                 json.dump(names_mapping, f, indent=4)
+        elif args.fill_missing_targets:
+            print("Filling missing targets...")
+            docking_targets = json.load(
+                open(os.path.join(args.data_path, "docking_targets.json"))
+            )
+            with open(os.path.join(args.data_path, "names_mapping.json")) as f:
+                names_mapping = json.load(f)
+            to_requery = []
+            for target in docking_targets:
+                if target not in names_mapping.values():
+                    to_requery.append(target)
+            additional_names_mapping = get_names_mapping(to_requery, n_proc=8)
+            additional_names_mapping.update(names_mapping)
+            with open(os.path.join(args.data_path, "names_mapping.json"), "w") as f:
+                json.dump(additional_names_mapping, f, indent=4)
+
+        # Featurize all pockets
+        embedding_extractor = ProteinStructureEmbeddingExtractor(
+            data_dir=args.data_path
+        )
+        with open(os.path.join(args.data_path, "docking_targets.json")) as f:
+            docking_targets = json.load(f)
+        os.makedirs(os.path.join(args.data_path, "pockets_embeddings"), exist_ok=True)
+        for pdb_id in tqdm(docking_targets, desc="Extracting embeddings"):
+            pdb_path = os.path.join(
+                args.data_path, "pdb_files", f"{pdb_id}_processed.pdb"
+            )
+            output_path = os.path.join(
+                args.data_path, "pockets_embeddings", f"{pdb_id}_embeddings.pt"
+            )
+            if not os.path.exists(output_path):
+                embedding_extractor.extract_embeddings(pdb_path, output_path)
+            else:
+                print(f"Embeddings for {pdb_id} already exist, skipping...")
 
         # Finally generates prompt
         print("Generating prompts...")

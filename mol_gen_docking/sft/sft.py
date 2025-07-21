@@ -61,7 +61,7 @@ class MolTrainerParser:
             "--batch_size", type=int, default=8, help="The batch size to use"
         )
         self.add_argument(
-            "--learning_rate", type=float, default=5e-4, help="The learning rate to use"
+            "--learning_rate", type=float, default=1e-4, help="The learning rate to use"
         )
         self.add_argument(
             "--weight_decay", type=float, default=0.01, help="The weight decay to use"
@@ -70,7 +70,7 @@ class MolTrainerParser:
             "--output_dir", type=str, default="test", help="The output directory to use"
         )
         self.add_argument(
-            "--num-train-epochs",
+            "--num_train_epochs",
             type=int,
             default=5,
             help="The number of epochs to use",
@@ -103,7 +103,7 @@ class MolTrainerParser:
         self.add_argument(
             "--lora-config",
             type=json.loads,
-            default={"r": 16, "lora_alpha": 32, "lora_dropout": 0.0},
+            default={"r": 4, "lora_alpha": 8, "lora_dropout": 0.0},
             help="The LoRA configuration to use",
         )
         self.add_argument(

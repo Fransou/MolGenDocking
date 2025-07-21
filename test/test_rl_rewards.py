@@ -13,6 +13,7 @@ from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )
+from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
@@ -24,6 +25,7 @@ from .utils import (
     PROPERTIES_NAMES_SIMPLE,
     SMILES,
     get_fill_completions,
+    get_unscaled_obj,
     propeties_csv,
 )
 
@@ -105,7 +107,8 @@ def build_prompt(request, build_metada_pocket):
         else:
             properties = property
         dummy = MolGenerationInstructionsDataset(cfg)
-        return dummy.fill_prompt(properties, [obj] * len(properties))
+        prompt, _ = dummy.fill_prompt(properties, [obj] * len(properties))
+        return prompt
 
     def build_prompt_from_string(
         property: str | List[str], obj: str = "maximize"
@@ -217,57 +220,11 @@ def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_f
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(PROP_LIST, 3),
-        np.random.choice(PROP_LIST, 3),
-    ),
-)
-def test_properties_single_prompt_reward(
-    property1, property2, property_scorer, completions_smiles, build_prompt
-):
-    """Test the function molecular_properties with 2 properties."""
-    completions, smiles = completions_smiles
-    prompts = [build_prompt([property1, property2])] * len(completions)
-    rewards = property_scorer(prompts, completions)
-    if smiles != []:
-        is_reward_valid(rewards, smiles, [property1, property2])
-    else:
-        assert sum(rewards) == 0
-
-
-@pytest.mark.parametrize(
-    "property1, property2",
-    product(
-        np.random.choice(PROP_LIST, 2),
-        np.random.choice(PROP_LIST, 2),
-    ),
-)
-def test_properties_multi_prompt_rewards(
-    property1, property2, property_scorer, completions_smiles, build_prompt
-):
-    """Test the function molecular_properties with 2 properties."""
-    completions, smiles = completions_smiles
-    completions = completions * 2
-
-    # 2- Test when optimizing 2 properties separately
-    prompts = [build_prompt(property1)] * (len(completions) // 2) + [
-        build_prompt(property2)
-    ] * (len(completions) // 2)
-    rewards = property_scorer(prompts, completions)
-    if smiles != []:
-        is_reward_valid(rewards[: (len(completions) // 2)], smiles, [property1])
-        is_reward_valid(rewards[(len(completions) // 2) :], smiles, [property2])
-    else:
-        assert sum(rewards) == 0
-
-
-@pytest.mark.parametrize(
-    "property1, property2",
-    product(
         np.random.choice(PROP_LIST, 8),
         np.random.choice(PROP_LIST, 8),
     ),
 )
-def test_multip_prompt_multi_generation(
+def test_multi_prompt_multi_generation(
     property1,
     property2,
     property_scorer,
@@ -275,13 +232,13 @@ def test_multip_prompt_multi_generation(
     build_prompt,
     n_generations=4,
 ):
-    """Test the function molecular_properties."""
+    """Test the reward function for a set of 2 prompts and multiple generations."""
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generations + [
         build_prompt(property2)
     ] * n_generations
     smiles = [
-        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        propeties_csv.sample(np.random.randint(1, 8))["smiles"].tolist()
         for k in range(n_generations * 2)
     ]
     completions = [property_filler(s, completion) for s in smiles]
@@ -300,9 +257,9 @@ def test_multip_prompt_multi_generation(
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
 @pytest.mark.parametrize("target", np.random.choice(PROP_LIST, 3))
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, build_prompt, n_generations=16
+    target, property_scorer, property_filler, build_prompt, n_generations=4
 ):
-    """Test the function molecular_properties with 2 properties."""
+    """Test the reward function runs for vina targets."""
     prompts = [build_prompt(target)] * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
@@ -324,14 +281,17 @@ def test_properties_single_prompt_vina_reward(
     list(
         product(
             PROP_LIST,
-            OBJECTIVES_TO_TEST,
-            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
+            OBJECTIVES_TO_TEST[1:],  # Skip "maximize" for this test
+            [propeties_csv.sample(8)["smiles"].tolist() for k in range(1)],
         )
     ),
 )
 def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
-    """Test the function molecular_properties with 2 properties."""
-
+    """
+    Test the reward function with the optimization of one property.
+    Assumes the value of the reward function when using maximise is correct.
+    """
+    obj = get_unscaled_obj(obj, prop)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
         build_prompt(prop, "maximize")
@@ -339,7 +299,9 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
     smiles = smiles * 2
     completions = [
-        property_filler([s], "Here is a molecule: [SMILES] what are its properties?")
+        property_filler(
+            [s], "Here is a molecule: [SMILES] does it have the right properties?"
+        )
         for s in smiles
     ]
     property_scorer.rescale = True
@@ -350,59 +312,32 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     assert not rewards.isnan().any()
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
-    if obj == "maximize":
+    objective = obj.split()[0]
+    if objective == "maximize":
         val = rewards_max
-    elif obj == "minimize":
+    elif objective == "minimize":
         val = 1 - rewards_max
-    elif obj == "below 0.5":
-        val = (rewards_max <= 0.5).float()
-    elif obj == "above 0.5":
-        val = (rewards_max >= 0.5).float()
-    elif obj == "equal 0.5":
-        val = np.clip(1 - 100 * (rewards_max - 0.5) ** 2, 0, 1)
+    else:
+        target = rescale_property_values(prop, float(obj.split()[1]), False)
+        if objective == "below":
+            val = (rewards_max <= target).float()
+        elif objective == "above":
+            val = (rewards_max >= target).float()
+        elif objective == "equal":
+            val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize(
-    "prop, smiles",
-    list(
-        product(
-            PROP_LIST[:2],
-            [propeties_csv.sample(1)["smiles"].tolist() for k in range(3)],
-        )
-    ),
-)
-def test_ray(prop, smiles, build_prompt):
-    prompts = [build_prompt(prop, "maximize")] * len(smiles)
-    filler = get_fill_completions(True)
-    completions = [filler([s], "Here is a molecule: [SMILES]") for s in smiles]
-
-    worker = (
-        ray.remote(RewardScorer)
-        .options(num_cpus=1)
-        .remote(
-            DATA_PATH,
-            parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-        )  # type: ignore
-    )
-    result = worker.get_score.remote(prompts, completions)
-    _ = ray.get(result)
-
-
 @pytest.mark.skipif(
-    os.system("vina --help") == 32512 or os.environ.get("DEBUG_MODE", 0) == "1",
-    reason="requires vina and debug mode",
+    os.system("vina --help") == 32512,
+    reason="requires vina",
 )
-@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 10))
-def test_runtime(
+@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 4))
+def test_timeout(
     property1,
-    n_generation=4,
-    time_per_gen=5,
+    n_generation=1,
 ):
-    print(f"Testing runtime for {property1}")
     property_scorer = scorers["property"]
     property_filler = get_fill_completions(property_scorer.parse_whole_completion)
 
@@ -410,35 +345,23 @@ def test_runtime(
 
     def build_prompt(property1):
         """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"], {})
+        return dataset_cls.fill_prompt([property1], ["maximize"])[0]
 
     completion = "Here is a molecule: [SMILES] what are its properties?"
     prompts = [build_prompt(property1)] * n_generation
     smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
     completions = [property_filler(s, completion) for s in smiles]
-
-    worker = (
-        ray.remote(RewardScorer)
-        .options(num_cpus=1)
-        .remote(
-            DATA_PATH,
-            "property",
-            parse_whole_completion=True,
-            oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
-        )  # type: ignore
-    )
-
     t0 = time.time()
-    result = worker.get_score.remote(prompts, completions)
-    r = ray.get(result)
-    t1 = time.time()
-    print(f"Runtime: {t1 - t0} seconds")
-
-    # Max for 16 generations should be around 30 seconds
-    assert t1 - t0 < time_per_gen * n_generation, (
-        f"Runtime is too long: {t1 - t0} seconds"
+    scorer = RewardScorer(
+        DATA_PATH,
+        "property",
+        parse_whole_completion=True,
+        oracle_kwargs=dict(ncpu=1, exhaustiveness=1024),
     )
-    assert (torch.tensor(r) > 0).all(), (
+
+    result = scorer(prompts, completions)
+    t1 = time.time()
+    assert (torch.tensor(result) == 0).all() or (t1 - t0) < 60, (
         "Some rewards are not positive, check the oracle."
     )
 

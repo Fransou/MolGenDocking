@@ -34,7 +34,7 @@ sleep 15
 
 wandb offline
 export GPUS_PER_NODES=1
-export PRETRAIN=$SCRATCH/Qwen/sft_Qwen-4B/model
+export PRETRAIN=$SCRATCH/Franso/DockGen-Qwen3-4B-sft
 
 #export DEBUG_MODE=1
 ray job submit --address="http://127.0.0.1:8265" \
@@ -56,8 +56,8 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_gpu_memory_utilization 0.8 \
    --pretrain $PRETRAIN \
    --remote_rm_url http://localhost:5000/get_reward \
-   --save_path $SCRATCH/DockGen-4B \
-   --ckpt_path $SCRATCH/checkpoint/DockGen-4B \
+   --save_path $SCRATCH/DockGen-4B-multimodal \
+   --ckpt_path $SCRATCH/checkpoint/DockGen-4B-multimodal \
    --max_ckpt_num 5 \
    --save_steps 3 \
    --micro_train_batch_size 8 \
@@ -76,7 +76,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --init_kl_coef 0.0 \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
-   --input_key prompt \
+   --input_key prompt_multimodal \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \
@@ -84,4 +84,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    --flash_attn \
    --gradient_checkpointing \
    --enforce_eager \
-   --use_wandb 95190474fa39dc888a012cd12b18ab9b094697ad
+   --use_wandb 95190474fa39dc888a012cd12b18ab9b094697ad \
+   --multimodal

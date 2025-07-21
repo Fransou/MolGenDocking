@@ -76,7 +76,7 @@ class BaselineConfig:
         os.makedirs(self.output_dir, exist_ok=True)
 
 
-class BatchedOracle(Oracle):  # type: ignore
+class BatchedOracle(Oracle):
     def __init__(
         self,
         max_oracle_calls: int = 10000,

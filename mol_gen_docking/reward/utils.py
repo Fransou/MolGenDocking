@@ -1,60 +1,50 @@
 from itertools import product
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
-PROMPT_TEMPLATE: List[str] = [
-    b + e[0] + "|" + b + e[1]
-    for b, e in product(
-        [
-            "Design a molecule ",
-            "Create a compound ",
-            "Suggest a molecule ",
-            "Propose a structure that ",
-            "Generate a candidate molecule ",
-        ],
-        [
-            (
-                "that satisfies the following objective: {objectives}.",
-                "that satisfies the following objectives: {objectives}.",
-            ),
-            (
-                "that meets this goal: {objectives}.",
-                "that meets these goals: {objectives}.",
-            ),
-            (
-                "with the following optimization target: {objectives}.",
-                "with the following optimization targets: {objectives}.",
-            ),
-            (
-                "that fulfills this requirement: {objectives}.",
-                "that fulfills these requirements: {objectives}.",
-            ),
-            ("optimized for: {objectives}.", "optimized for: {objectives}."),
-        ],
-    )
+PROMPT_INTR : List[Tuple[str, str]] = [
+    (
+        "I am working on designing a drug-like compound meeting a specific objective to be a possible drug. Given the objective to optimize, propose a candidate molecule as a SMILES string. In your reasoning process, you can consider multiple candidate molecules and choose the best one. Here is the objective to optimize: \n{objectives}.",
+        "I am working on designing a drug-like compound meeting specific objectives to be a possible drug. Given the objectives to optimize, propose a candidate molecule as a SMILES string. In your reasoning process, you can consider multiple candidate molecules and choose the best one. Here are the objectives to optimize: \n{objectives}.",
+    ),
+    (
+        "You are tasked with designing a drug-like molecule that satisfies a specific optimization criterion. Based on the objective provided, propose a candidate compound as a SMILES string. Feel free to consider and compare multiple candidates before selecting the most suitable one. Optimization target: \n{objectives}.",
+        "You are tasked with designing a drug-like molecule that satisfies specific optimization criteria. Based on the objectives provided, propose a candidate compound as a SMILES string. Feel free to consider and compare multiple candidates before selecting the most suitable one. Optimization targets: \n{objectives}.",
+    ),
+    (
+        "Design a molecule suitable for drug development, optimizing for the following criterion: \n{objectives}.\n Provide the structure as a SMILES string. As part of your reasoning, you may explore different candidates before settling on the most optimal molecule.",
+        "Design a molecule suitable for drug development, optimizing for the following criteria: \n{objectives}.\n Provide the structure as a SMILES string. As part of your reasoning, you may explore different candidates before settling on the most optimal molecule.",
+    ),
+    (
+        "Act as a molecular design assistant. Your task is to propose a drug-like compound, optimizing for this objective: \n{objectives}.\n Provide your answer as a SMILES string. You are encouraged to evaluate multiple candidates before choosing the best one.",
+        "Act as a molecular design assistant. Your task is to propose a drug-like compound, optimizing for these objectives: \n{objectives}.\n Provide your answer as a SMILES string. You are encouraged to evaluate multiple candidates before choosing the best one.",
+    ),
 ]
+
+
+PROMPT_TEMPLATE: List[str] = [e[0] + "|" + e[1] for e in PROMPT_INTR]
 
 
 OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
     "maximize": [
-        "maximize {prop}",
+        "Maximize {prop}",
     ],
     "minimize": [
-        "minimize {prop}",
+        "Minimize {prop}",
     ],
     "above": [
-        "ensure {prop} is above {val}",
-        "keep {prop} greater than {val}",
-        "target {prop} values higher than {val}",
+        "Ensure {prop} is above {val}",
+        "Keep {prop} over {val}",
+        "Target {prop} values higher than {val}",
     ],
     "below": [
-        "ensure {prop} is below {val}",
-        "keep {prop} less than {val}",
-        "target {prop} values lower than {val}",
+        "Ensure {prop} is below {val}",
+        "Keep {prop} under {val}",
+        "Target {prop} values lower than {val}",
     ],
     "equal": [
-        "ensure {prop} is equal to {val}",
-        "set {prop} to exactly {val}",
-        "target a {prop} of {val}",
+        "Ensure {prop} is equal to {val}",
+        "Set {prop} to exactly {val}",
+        "Target a {prop} of {val}",
     ],
 }
 

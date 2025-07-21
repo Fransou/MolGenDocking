@@ -4,11 +4,11 @@ import argparse
 import json
 import os
 from typing import Optional, Tuple
-
+import wandb
 import torch
 from datasets import Dataset, concatenate_datasets
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
-from tokenizers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer, setup_chat_format
 
 from mol_gen_docking.sft.sft_data import InstructionDatasetProcessor
@@ -109,8 +109,8 @@ class SFTMolTrainer:
         )
         return model, tokenizer
 
-    def get_peft_config(self, train_tokens: bool = False) -> LoraConfig:
-        assert self.model is not None or self.tokenizer is not None, (
+    def get_peft_config(self) -> LoraConfig:
+        assert self.model is not None and self.tokenizer is not None, (
             "Model and tokenizer must be initialized before calling get_peft_config"
         )
         return LoraConfig(
@@ -118,11 +118,13 @@ class SFTMolTrainer:
             r=self.args.lora_config.get("r", 8),
             lora_alpha=self.args.lora_config.get("lora_alpha", 32),
             lora_dropout=self.args.lora_config.get("lora_dropout", 0.1),
+            target_modules=".*_proj",
         )
 
     def get_trainer(self) -> SFTTrainer:
         """:return: Trainer for SFT."""
-        peft_config = self.get_peft_config(True)
+        print(self.model)
+        peft_config = self.get_peft_config()
         self.model = get_peft_model(self.model, peft_config)
         try:
             self.model, self.tokenizer = setup_chat_format(self.model, self.tokenizer)
@@ -177,7 +179,8 @@ class SFTMolTrainer:
 
         if self.dataset is None:
             self.dataset, self.eval_dataset = self.get_dataset()
-
+        print(f"Loaded Dataset of size: {len(self.dataset)}\n,"
+              f"Example: self.dataset[0]")
         trainer = self.get_trainer()
 
         print(
@@ -185,7 +188,7 @@ class SFTMolTrainer:
             self.checkpoint_path if self.checkpoint_path != "" else "None",
         )
         self.tokenizer.padding_side = "left"
-
+        wandb.require("legacy-service")
         trainer.train(
             resume_from_checkpoint=(
                 False if self.checkpoint_path == "" else self.checkpoint_path

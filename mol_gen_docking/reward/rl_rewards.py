@@ -6,10 +6,12 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import numpy as np
 import pandas as pd
 import ray
+from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 from tdc.chem_utils.oracle.filter import MolFilter
 
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
+from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 RDLogger.DisableLog("rdApp.*")
@@ -67,6 +69,7 @@ class RewardScorer:
         self.oracle_kwargs = oracle_kwargs
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
+        self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
         self.oracles: Dict[str, OracleWrapper] = {}
 
@@ -108,7 +111,7 @@ class RewardScorer:
                     raise ValueError("Prompt not found correctly.")
             assert isinstance(prompt, str), "Prompt not found correctly."
 
-            prompt = prompt.split("User: ")[-1].split("Assistant: ")[0]
+            prompt = prompt.split("user: ")[-1].split("assistant: ")[0]
             if prompt.endswith(".") or prompt.endswith("?"):
                 prompt = prompt[:-1]
 
@@ -126,7 +129,7 @@ class RewardScorer:
                         prop = match.group("prop").strip()
                         if obj_type in ["above", "below", "equal"]:
                             val = match.group("val").strip()
-                            assert str(float(val)) == val, "Value is not a number"
+                            assert f"{float(val):.2f}" == val, "Value is not a number"
                             val = float(val)
                         else:
                             val = 0
@@ -143,10 +146,9 @@ class RewardScorer:
         if not self.parse_whole_completion:
             matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
             if len(matches) > 0:
-                comp = matches[0]
+                comp = " ".join(matches)
             else:
                 comp = ""
-
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
         re.split("\n| |.|\t|:", comp)
@@ -163,7 +165,6 @@ class RewardScorer:
         s_poss = [x for x in comp.split() if filter_smiles(x)]
         # Finally we remove any string that is not a valid SMILES
         s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
-
         return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
@@ -180,12 +181,13 @@ class RewardScorer:
         return smiles
 
     def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
-        @ray.remote(num_cpus=0.3)  # type: ignore
+        @ray.remote(num_cpus=0.3)
         def _get_property(
             smiles: List[str],
             prop: str,
             rescale: bool = True,
             kwargs: Dict[str, Any] = {},
+            pbar: Optional[Any] = None,
         ) -> List[float]:
             """
             Get property reward
@@ -204,6 +206,9 @@ class RewardScorer:
                 self.oracles[prop] = oracle_fn
             property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
+            if pbar is not None:
+                pbar.update.remote(len(property_reward))
+
             return [float(p) for p in property_reward]
 
         all_properties = df_properties["property"].unique().tolist()
@@ -212,6 +217,10 @@ class RewardScorer:
             for p in all_properties
         }
 
+        pbar = self.remote_tqdm.remote(  # type: ignore
+            total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
+            desc="[Properties]",
+        )
         values_job = []
         for p in all_properties:
             smiles = prop_smiles[p]
@@ -221,6 +230,7 @@ class RewardScorer:
                     p,
                     rescale=self.rescale,
                     kwargs=self.oracle_kwargs,
+                    pbar=pbar,
                 )
             )
 
@@ -234,11 +244,18 @@ class RewardScorer:
                     "value",
                 ] = v
 
+        pbar.close.remote()  # type: ignore
+
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
         obj = row["obj"]
         mol_prop = row["value"]
         target_value = row["target_value"]
+        prop = row["property"]
+        if self.rescale:
+            target_value = rescale_property_values(
+                prop, target_value, docking=mol_prop in self.docking_target_list
+            )
         if obj == "below":
             reward += float(mol_prop <= target_value)
         elif obj == "above":
@@ -307,12 +324,20 @@ class RewardScorer:
             filters = MolFilter(
                 filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
             )
-            return [
-                len(filters(valid_smiles_c)) / len(valid_smiles_c)
-                if len(valid_smiles_c) > 0
-                else 0
-                for valid_smiles_c in smiles_list_per_completion
-            ]
+            all_smiles = {}
+            for i, valid_smiles_c in enumerate(smiles_list_per_completion):
+                for s in valid_smiles_c:
+                    if s not in all_smiles:
+                        all_smiles[s] = [i]
+                    else:
+                        all_smiles[s].append(i)
+            filter_flags = filters(list(all_smiles.keys()))
+            outputs: List[float] = [0.0 for _ in range(len(smiles_list_per_completion))]
+
+            for s in filter_flags:
+                for idx in all_smiles[s]:
+                    outputs[idx] += 1 / len(smiles_list_per_completion[idx])
+            return outputs
 
         objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
         df_properties = self._get_prop_to_smiles_dataframe(

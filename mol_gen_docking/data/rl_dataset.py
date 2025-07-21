@@ -8,12 +8,14 @@ from multiprocessing import Pool
 from typing import Any, Dict, Iterator, List, Tuple
 
 import numpy as np
+import pandas as pd
 from datasets import Dataset
 from numpy import random
 from tqdm import tqdm
 
-from mol_gen_docking.reward.property_utils.classical_properties import (
+from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
+    inverse_rescale_property_values,
 )
 from mol_gen_docking.reward.utils import (
     OBJECTIVES_TEMPLATES,
@@ -26,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
 DOCKING_SOLO_OBJECTIVES = ["minimize", "below", "equal"]
+DOCKING_OBJECTIVES = ["minimize", "below", "equal", "above"]
 TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 
@@ -127,8 +130,20 @@ class MolGenerationInstructionsDataset:
         :param max_n_props: Maximal number of properties to optimize
         """
         self.config = config
-        self.system_prompt = "A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\nThe reasoning process is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here </answer>."
-
+        self.system_prompt = (
+            "A conversation between User and Assistant. "
+            "The User asks a question, and the Assistant solves it.\n"
+            "The reasoning process is enclosed within <think> </think>"
+            " and answer is enclosed within <answer> </answer> tags, "
+            "respectively, i.e., <think> reasoning process here </think> "
+            "<answer> SMILES here </answer>."
+        )
+        properties_csv = pd.read_csv(
+            os.path.join(os.path.dirname(config.data_path), "properties.csv")
+        )
+        self.possible_smiles = properties_csv[
+            properties_csv.smiles.apply(len) < 32
+        ].smiles
         self.chat_temp = config.chat_template
 
         self.docking_targets: List[str] = []
@@ -341,7 +356,9 @@ class MolGenerationInstructionsDataset:
             self.docking_properties_split[idx] = self.docking_properties[i0:i1]
             i0 = i1
 
-    def fill_prompt(self, props: List[str], objs: List[str]) -> str:
+    def fill_prompt(
+        self, props: List[str], objs: List[str]
+    ) -> Tuple[str, List[Dict[str, str]]]:
         """
         Takes a list of properties and corresponding objectives
         and returns a diverse natural language prompt for multi-objective optimization.
@@ -352,6 +369,8 @@ class MolGenerationInstructionsDataset:
         # Phrase templates for each type of objective
 
         phrases = []
+        phrases_mm = []
+        path_to_mm_object = []
         for prop, obj in zip(props, objs):
             obj_l = obj.lower()
             phrase: str = random.choice(self.obj_templates[obj_l.split()[0]])
@@ -370,12 +389,31 @@ class MolGenerationInstructionsDataset:
                 raise ValueError("Unknown objective.")
 
             phrases.append(phrase)
+            # Check if it is a docking target
+            if self.prop_name_mapping.get(prop, prop) in self.docking_targets:
+                phrases_mm.append("<|image_pad|> " + phrase)
+                path_to_mm_object.append(
+                    {
+                        "type": "image",  # HACK
+                        "path": os.path.join(
+                            "pockets_embeddings",
+                            self.prop_name_mapping.get(prop, prop) + "_embeddings.pt",
+                        ),
+                    }
+                )
+            else:
+                phrases_mm.append(phrase)
 
         # Top-level prompt templates
         prompt: str = random.choice(self.templates).split("|")[int(len(props) > 1)]
         full_prompt = prompt.format(objectives="; ".join(phrases))
+        prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
 
-        return full_prompt
+        full_prompt_mm: List[Dict[str, str]] = [
+            {"type": "text", "text": prompt_mm}
+        ] + path_to_mm_object
+
+        return full_prompt, full_prompt_mm
 
     def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
         pocket_datas: Dict[str, Any] = {}
@@ -486,13 +524,81 @@ class MolGenerationInstructionsDataset:
             full_prompt += new_sentence
         return full_prompt
 
+    def get_obj_from_prop(self, properties: List[str]) -> List[str]:
+        objectives: List[str] = []
+        for prop in properties:
+            short_prop = self.prop_name_mapping[prop]
+            if len(properties) == 1 and short_prop in self.docking_targets:
+                obj = random.choice(DOCKING_SOLO_OBJECTIVES)
+            elif short_prop in self.docking_targets:
+                obj = random.choice(DOCKING_OBJECTIVES)
+            else:
+                obj = random.choice(OBJECTIVES)
+
+            if obj in TARGET_VALUE_OBJECTIVES:
+                # Find the value to target
+                if short_prop in self.docking_targets:
+                    v = random.random() * 0.4 + 0.1
+                    # Only docking scores between -10 and -7
+                else:
+                    v = random.random() * 0.6 + 0.2
+
+                obj += f" {inverse_rescale_property_values(short_prop, v / 10, short_prop in self.docking_targets):.2f}"
+            objectives.append(obj)
+        return objectives
+
+    def fill_system_prompt(self, system_prompt: str) -> str:
+        if "{{smiles}}" in system_prompt:
+            smiles = self.possible_smiles.sample(1).values[0]
+            # system_prompt = system_prompt.replace("{{smiles}}", smiles)
+        return system_prompt
+
+    def generate_text_prompts(
+        self, properties: List[str], objectives: List[str], pocket_datas: Dict[str, Any]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        prompt_text, prompt_multimodal = self.fill_prompt(properties, objectives)
+        prompt_text_with_pocket = self.add_pocket_info_to_prompt(
+            prompt_text, pocket_datas
+        )
+
+        sys_prompt = self.fill_system_prompt(self.system_prompt)
+
+        prompt: Dict[str, List[Dict[str, Any]]] = {
+            "standard": [
+                {
+                    self.chat_temp["user"]: "system",
+                    self.chat_temp["content"]: sys_prompt,
+                },
+                {
+                    self.chat_temp["user"]: "user",
+                    self.chat_temp["content"]: prompt_text,
+                },
+            ],
+            "with_pocket_descriptors": [
+                {self.chat_temp["user"]: "system", "content": sys_prompt},
+                {
+                    self.chat_temp["user"]: "user",
+                    self.chat_temp["content"]: prompt_text_with_pocket,
+                },
+            ],
+            "multimodal": [
+                {
+                    self.chat_temp["user"]: "system",
+                    self.chat_temp["content"]: [{"type": "text", "text": sys_prompt}],
+                },
+                {
+                    self.chat_temp["user"]: "user",
+                    self.chat_temp["content"]: prompt_multimodal,
+                },
+            ],
+        }
+        return prompt
+
     def generate(
         self,
         n: int,
         docking_properties_list: List[str],
-    ) -> Iterator[
-        Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], Dict[str, Any]]
-    ]:
+    ) -> Iterator[Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, Any]]]:
         """
         Generates n prompts randomly to generate molecules
         :param n: number of prompts to generate
@@ -508,25 +614,7 @@ class MolGenerationInstructionsDataset:
             ]
             n_props: int = int(np.random.choice(possible_n))
             properties = self._sample_properties(n_props, docking_properties_list)
-
-            objectives = []
-            for prop in properties:
-                if (
-                    len(prop) == 1
-                    and self.prop_name_mapping[prop] in self.docking_targets
-                ):
-                    obj = random.choice(DOCKING_SOLO_OBJECTIVES)
-                else:
-                    obj = random.choice(OBJECTIVES)
-                if obj in TARGET_VALUE_OBJECTIVES:
-                    if self.prop_name_mapping[prop] in self.docking_targets:
-                        v = random.randint(
-                            1, 5
-                        )  # Only docking scores between -10 and -7
-                    else:
-                        v = random.randint(1, 9)
-                    obj += f" {v / 10}"
-                objectives.append(obj)
+            objectives = self.get_obj_from_prop(properties)
 
             identifier = "".join(
                 sorted(
@@ -544,43 +632,18 @@ class MolGenerationInstructionsDataset:
             )
 
             pocket_datas = self._generate_pocket_additional_data(properties)
-
-            prompt_text = self.fill_prompt(properties, objectives)
-            prompt_text_with_pocket = self.add_pocket_info_to_prompt(
-                prompt_text, pocket_datas
-            )
+            prompt = self.generate_text_prompts(properties, objectives, pocket_datas)
 
             metadata = self._get_prompt_metadata(
                 properties, objectives, identifier, n_props
             )
-
-            completion: List[Dict[str, Any]] = [{}]
-            prompt: Dict[str, List[Dict[str, Any]]] = {
-                "standard": [
-                    {"role": "system", "content": self.system_prompt},
-                    {
-                        self.chat_temp["user"]: "user",
-                        self.chat_temp["content"]: prompt_text[:-1] + ".",
-                    },
-                    {"role": "assistant", "content": "<think>"},
-                ],
-                "with_pocket_descriptors": [
-                    {"role": "system", "content": self.system_prompt},
-                    {
-                        self.chat_temp["user"]: "user",
-                        self.chat_temp["content"]: prompt_text_with_pocket[:-1] + ".",
-                    },
-                    {"role": "assistant", "content": "<think>"},
-                ],
-            }
-            yield prompt, completion, metadata
+            yield prompt, metadata
 
     def generate_with_rule(
         self, n: int, docking_split: int = 0
     ) -> Iterator[
         Tuple[
             Dict[str, List[Dict[str, Any]]],
-            List[Dict[str, Any]],
             Dict[str, Any],
         ]
     ]:
@@ -590,7 +653,7 @@ class MolGenerationInstructionsDataset:
         docking_prop_list: List[str] = self.docking_properties_split[docking_split]
         for _ in range(n):
             found = False
-            for prompt, completions, metadata in self.generate(
+            for prompt, metadata in self.generate(
                 4 * n, docking_properties_list=docking_prop_list
             ):
                 allowed = self.rule_set.verify_and_update(metadata)
@@ -599,7 +662,7 @@ class MolGenerationInstructionsDataset:
                     break
             if not found:
                 break
-            yield prompt, completions, metadata
+            yield prompt, metadata
 
     def generate_hf_dataset(self, n: int, docking_split: int) -> Dataset:
         assert docking_split < len(self.docking_properties_split), (
@@ -608,7 +671,7 @@ class MolGenerationInstructionsDataset:
         data_dict: Dict[str, Any] = {
             "prompt": [],
             "prompt_pocket_descriptors": [],
-            # "completion": [],
+            "prompt_multimodal": [],
             "properties": [],
             "objectives": [],
             "target": [],
@@ -617,22 +680,18 @@ class MolGenerationInstructionsDataset:
             "docking_metadata": [],
         }
         p_bar = tqdm(total=n)
-        for prompt, completion, metadata in self.generate_with_rule(
-            n, docking_split=docking_split
-        ):
+        for prompt, metadata in self.generate_with_rule(n, docking_split=docking_split):
             jsonize_dict(metadata)
             data_dict["prompt"].append(prompt["standard"])
             data_dict["prompt_pocket_descriptors"].append(
                 prompt["with_pocket_descriptors"]
             )
-            # data_dict["completion"].append(completion)
+            data_dict["prompt_multimodal"].append(prompt["multimodal"])
             for k in metadata:
                 if k in data_dict:
                     data_dict[k].append(metadata[k])
-            # if "docking_metadata" not in metadata:
-            # data_dict["docking_metadata"].append({})
             tqdm.update(p_bar)
-
+        print(data_dict["prompt_multimodal"])
         self.rule_set.partial_reset()
         return Dataset.from_dict(data_dict)
 

@@ -10,7 +10,7 @@ from mol_gen_docking.data.rl_dataset import (
 )
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
-from .utils import DATA_PATH, OBJECTIVES_TO_TEST, PROP_LIST
+from .utils import DATA_PATH, OBJECTIVES_TO_TEST, PROP_LIST, get_unscaled_obj
 
 cfg = DatasetConfig(data_path=DATA_PATH, vina=True, split_docking=[0.3, 0.3, 0.4])
 templates = dict(
@@ -60,8 +60,10 @@ def build_metada_pocket(request):
 @pytest.mark.parametrize("props, obj", list(product(PROP_LIST, OBJECTIVES_TO_TEST)))
 def test_fill_prompt(props, obj, build_metada_pocket):
     """Tests if the prompt is generated correctly, i.e it can correctly be parsed."""
+    obj = get_unscaled_obj(obj, props)
     dataset = MolGenerationInstructionsDataset(cfg)
-    prompt = dataset.fill_prompt([props], [obj])
+    props = dataset.prop_name_mapping.get(props, props)
+    prompt = dataset.fill_prompt([props], [obj])[0]
     assert isinstance(prompt, str)
     assert len(prompt) > 0
     scorer = RewardScorer(DATA_PATH, "property")
