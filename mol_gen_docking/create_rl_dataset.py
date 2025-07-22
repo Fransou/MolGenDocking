@@ -33,6 +33,12 @@ def get_rl_data_parser() -> argparse.Namespace:
     parser.add_argument("--no-vina", action="store_false", dest="vina")
 
     parser.add_argument("--min-n-pocket-infos", type=int, default=-1)
+    parser.add_argument(
+        "--max-dock-prop-per-prompt",
+        type=int,
+        default=1,
+        help="The maximum number of docking properties per prompt",
+    )
 
     parser.add_argument(
         "--max-n-props",
@@ -100,9 +106,10 @@ if __name__ == "__main__":
     args = get_rl_data_parser()
     config = DatasetConfig(
         data_path=args.data_path,
-        vina=args.vina,
         max_n_props=args.max_n_props,
+        vina=args.vina,
         split_docking=args.split_docking,
+        max_docking_per_prompt=args.max_dock_prop_per_prompt,
         min_n_pocket_infos=args.min_n_pocket_infos,
         chat_template={"user": "role", "content": "content"},
     )

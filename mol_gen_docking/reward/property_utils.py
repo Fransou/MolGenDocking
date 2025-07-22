@@ -14,9 +14,9 @@ CLASSICAL_PROPERTIES_NAMES: Dict[str, str] = {
     "Fraction of C atoms Sp3 hybridised": "CalcFractionCSP3",
     "Topological Polar Surface Area": "CalcTPSA",
     "Hall-Kier alpha": "CalcHallKierAlpha",
-    "Hall-Kier kappa 1": "CalcKappa1",
-    "Hall-Kier kappa 2": "CalcKappa2",
-    "Hall-Kier kappa 3": "CalcKappa3",
+    # "Hall-Kier kappa 1": "CalcKappa1",
+    # "Hall-Kier kappa 2": "CalcKappa2",
+    # "Hall-Kier kappa 3": "CalcKappa3",
     "Kier Phi": "CalcPhi",
     "logP": "logP",
 }
@@ -45,6 +45,26 @@ INTEGER_PROPS = [
     "CalcNumHBD",
     "CalcNumRotatableBonds",
 ]
+
+PROPERTY_ALLOWED_OBJECTIVES = {
+    "GSK3B": ["maximize"],
+    "JNK3": ["maximize"],
+    "DRD2": ["maximize"],
+    "SA": ["maximize"],
+    "QED": ["maximize", "above"],
+    "CalcExactMolWt": ["above", "below"],
+    "CalcNumAromaticRings": ["above", "below"],
+    "CalcNumHBA": ["above", "below"],
+    "CalcNumHBD": ["above", "below"],
+    "CalcNumRotatableBonds": ["above", "below"],
+    "CalcFractionCSP3": ["above", "below"],
+    "CalcTPSA": ["above", "below"],
+    "CalcHallKierAlpha": ["above", "below"],
+    "CalcPhi": ["maximize", "above", "below", "minimize"],
+    "logP": ["maximize", "above", "below", "minimize"],
+}
+
+
 
 
 def rescale_property_values(

@@ -164,7 +164,17 @@ class RewardScorer:
 
         s_poss = [x for x in comp.split() if filter_smiles(x)]
         # Finally we remove any string that is not a valid SMILES
-        s_spl = [x for x in s_poss if Chem.MolFromSmiles(x) is not None]
+        def test_is_valid(smi:str) -> bool:
+            mol = Chem.MolFromSmiles(smi)
+            if mol is None:
+                return False
+            try:
+                threed = Chem.MolToMolBlock(mol)
+                return True
+            except Exception as e:
+                return False
+
+        s_spl = [x for x in s_poss if test_is_valid(x)]
         return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:

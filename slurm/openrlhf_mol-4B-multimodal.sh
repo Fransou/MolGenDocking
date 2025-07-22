@@ -60,20 +60,20 @@ ray job submit --address="http://127.0.0.1:8265" \
    --ckpt_path $SCRATCH/checkpoint/DockGen-4B-multimodal \
    --max_ckpt_num 5 \
    --save_steps 3 \
-   --micro_train_batch_size 8 \
+   --micro_train_batch_size 2 \
    --train_batch_size 8 \
-   --micro_rollout_batch_size 4 \
+   --micro_rollout_batch_size 2 \
    --rollout_batch_size 8 \
    --n_samples_per_prompt 64 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 512 \
-   --generate_max_len 2048 \
+   --generate_max_len 4096 \
    --zero_stage 3 \
    --bf16 \
    --actor_learning_rate 5e-7 \
    --critic_learning_rate 9e-6 \
-   --init_kl_coef 0.0 \
+   --init_kl_coef 0.1 \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
    --input_key prompt_multimodal \
