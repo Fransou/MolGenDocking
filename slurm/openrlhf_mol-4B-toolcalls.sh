@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol-toolcalls
 #SBATCH --account=def-ibenayed
-#SBATCH --time=24:00:00
+#SBATCH --time=01:00:00
 #SBATCH --gpus=h100:2
 #SBATCH --mem=200G
 #SBATCH --cpus-per-task=48
@@ -60,15 +60,15 @@ ray job submit --address="http://127.0.0.1:8265" \
    --ckpt_path $SCRATCH/checkpoint/DockGen-4B-toolcalls \
    --max_ckpt_num 5 \
    --save_steps 3 \
-   --micro_train_batch_size 6 \
-   --train_batch_size 12 \
-   --micro_rollout_batch_size 6 \
-   --rollout_batch_size 12 \
+   --micro_train_batch_size 4 \
+   --train_batch_size 8 \
+   --micro_rollout_batch_size 4 \
+   --rollout_batch_size 8 \
    --n_samples_per_prompt 128 \
    --max_samples 100000 \
    --max_epochs 1 \
-   --prompt_max_len 512 \
-   --generate_max_len 4096 \
+   --prompt_max_len 2560 \
+   --generate_max_len 2048 \
    --zero_stage 3 \
    --bf16 \
    --actor_learning_rate 5e-7 \
