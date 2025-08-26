@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol-toolcalls
 #SBATCH --account=def-ibenayed
-#SBATCH --time=01:00:00
+#SBATCH --time=24:00:00
 #SBATCH --gpus=h100:2
 #SBATCH --mem=200G
 #SBATCH --cpus-per-task=48

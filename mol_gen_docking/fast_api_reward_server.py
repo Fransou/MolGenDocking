@@ -31,13 +31,13 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--scorer-exhaustivness",
         type=int,
-        default=4,
+        default=2,
         help="Exhaustiveness for the docking computations.",
     )
     parser.add_argument(
         "--scorer-ncpus",
         type=float,
-        default=0.5,
+        default=1,
         help="Number of CPUs to use for the scoring computations.",
     )
     args = parser.parse_args()
@@ -101,13 +101,6 @@ if __name__ == "__main__":
         diversity_score = [float(diversity_scores_dict[p]) for p in prompts]
         diversity_score = [d if not np.isnan(d) else 0 for d in diversity_score]
 
-        validity_evaluator = Evaluator(name='Validity')
-        validity_scores_dict = {
-            p: validity_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 0 else 0 for p in unique_prompts
-        }
-        validity_score = [float(validity_scores_dict[p]) for p in prompts]
-        validity_score = [v if not np.isnan(v) else 0 for v in validity_score]
-
         uniqueness_evaluator = Evaluator(name='Uniqueness')
         uniqueness_scores_dict = {
             p: uniqueness_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 1 else 0 for p in unique_prompts
@@ -126,8 +119,7 @@ if __name__ == "__main__":
             "scores": rewards,
             "extra_logs": {
                 "property_scores": rewards,
-                "valid_smiles_scores": valid_reward,
-                "validity": validity_score,
+                "validity": valid_reward,
                 "uniqueness": uniqueness_score,
                 "diversity": diversity_score,
                 "pass_at_n": max_per_prompt,

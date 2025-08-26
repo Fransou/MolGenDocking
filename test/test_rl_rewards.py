@@ -255,7 +255,7 @@ def test_multi_prompt_multi_generation(
 
 
 @pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize("target", np.random.choice(PROP_LIST, 3))
+@pytest.mark.parametrize("target", np.random.choice(DOCKING_PROP_LIST, 3))
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=4
 ):
