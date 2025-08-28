@@ -131,5 +131,4 @@ class PyscreenerOracle:
                     warnings.warn(f"Docking failed for {smiles}.")
                     score = error_value
                 score_lst.append(score)
-            print(score_lst, test_smiles)
             return score_lst
