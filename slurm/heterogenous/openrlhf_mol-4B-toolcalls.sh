@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol-toolcalls
 #SBATCH --account=def-ibenayed
-#SBATCH --time=24:00:00
+#SBATCH --time=3:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
