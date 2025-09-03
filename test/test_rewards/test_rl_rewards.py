@@ -34,7 +34,7 @@ try:
 except Exception:
     ray.init()
 
-SKIP_VINA = os.system("vina --help") == 32512 or os.environ.get("SKIP_VINA", "0") == "1"
+SKIP_VINA = os.system("vina --help") == 32512 or str(os.environ.get("SKIP_VINA", "0")) == "1"
 
 cfg = DatasetConfig(data_path=DATA_PATH)
 
