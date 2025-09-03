@@ -16,11 +16,7 @@ dependencies = [
     "coverage-badge",
     "loguru",
     "omegaconf",
-    "hydra-core",
-    "peft",
-    "transformers",
-    "tokenizers",
-    "datasets",
+    "hydra-core"
 ]
 
 requires-python = ">=3.10"

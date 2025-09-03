@@ -1,15 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=orz_mol
-#SBATCH --account=def-ibenayed
-#SBATCH --time=72:00:00
-#SBATCH --gpus=h100:1
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=16
-#SBATCH --tasks-per-node=1
-#SBATCH --nodes=1
-#SBATCH --output=logs/%x-%j.out
-#SBATCH --error=logs/%x-%j.err
 
+echo "Starting training model server"
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 export DATASET=mol_orz
@@ -29,11 +20,12 @@ source $HOME/OpenRLHF/bin/activate
 
 ray start --head --node-ip-address 0.0.0.0
 
-python -m mol_gen_docking.fast_api_reward_server --data-path $SLURM_TMPDIR/$DATASET &
-sleep 15
 
 wandb offline
-export GPUS_PER_NODES=1
+export GPUS_PER_NODES=2
+export N_SAMPLES_PER_PROMPT=$2
+export BATCH_SIZE=$3
+
 export PRETRAIN=$SCRATCH/Qwen/sft_Qwen-4B/model
 
 #export DEBUG_MODE=1
@@ -53,22 +45,22 @@ ray job submit --address="http://127.0.0.1:8265" \
    --vllm_enable_sleep \
    --deepspeed_enable_sleep \
    --colocate_all_models \
-   --vllm_gpu_memory_utilization 0.8 \
+   --vllm_gpu_memory_utilization 0.7 \
    --pretrain $PRETRAIN \
-   --remote_rm_url http://localhost:5000/get_reward \
-   --save_path $SCRATCH/DockGen-4B \
-   --ckpt_path $SCRATCH/checkpoint/DockGen-4B \
+   --remote_rm_url http://$1:5000/get_reward \
+   --save_path $SCRATCH/DockGen-4B-toolcalls-nsamples-$N_SAMPLES_PER_PROMPT-batchsize-$BATCH_SIZE \
+   --ckpt_path $SCRATCH/checkpoint/DockGen-4B-toolcalls-nsamples-$N_SAMPLES_PER_PROMPT-batchsize-$BATCH_SIZE \
    --max_ckpt_num 5 \
    --save_steps 3 \
-   --micro_train_batch_size 2 \
-   --train_batch_size 8 \
-   --micro_rollout_batch_size 2 \
-   --rollout_batch_size 8 \
-   --n_samples_per_prompt 64 \
+   --micro_train_batch_size $BATCH_SIZE \
+   --train_batch_size $(($BATCH_SIZE * $GPUS_PER_NODES)) \
+   --micro_rollout_batch_size $BATCH_SIZE \
+   --rollout_batch_size $(($BATCH_SIZE * $GPUS_PER_NODES)) \
+   --n_samples_per_prompt $N_SAMPLES_PER_PROMPT \
    --max_samples 100000 \
    --max_epochs 1 \
-   --prompt_max_len 512 \
-   --generate_max_len 4096 \
+   --prompt_max_len 2560 \
+   --generate_max_len 2048 \
    --zero_stage 3 \
    --bf16 \
    --actor_learning_rate 5e-7 \
@@ -84,4 +76,5 @@ ray job submit --address="http://127.0.0.1:8265" \
    --flash_attn \
    --gradient_checkpointing \
    --enforce_eager \
+   --use_tool_calls \
    --use_wandb 95190474fa39dc888a012cd12b18ab9b094697ad

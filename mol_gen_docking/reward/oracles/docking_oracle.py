@@ -103,7 +103,7 @@ class PyscreenerOracle:
 
         if hasattr(ps, "virtual_screen"):
             self.scorer = DockingVirtualScreenWithTimeout(
-                60,  # Set a timeout of 60 seconds for each docking simulation
+                120,  # Set a timeout of 2m for each docking simulation
                 get_runner(software_class),
                 [receptor_pdb_file],
                 box_center,

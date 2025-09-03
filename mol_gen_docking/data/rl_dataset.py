@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
+    PROPERTY_ALLOWED_OBJECTIVES,
     inverse_rescale_property_values,
 )
 from mol_gen_docking.reward.utils import (
@@ -25,10 +26,9 @@ from mol_gen_docking.reward.utils import (
 
 logger = logging.getLogger(__name__)
 
-
-OBJECTIVES = ["maximize", "minimize", "below", "above", "equal"]
-DOCKING_SOLO_OBJECTIVES = ["minimize", "below", "equal"]
-DOCKING_OBJECTIVES = ["minimize", "below", "equal", "above"]
+OBJECTIVES = ["maximize", "minimize", "above", "below", "equal"]
+DOCKING_SOLO_OBJECTIVES = ["minimize", "below"]
+DOCKING_OBJECTIVES = ["minimize", "below", "above"]
 TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 
@@ -158,7 +158,7 @@ class MolGenerationInstructionsDataset:
         self.std_properties: List[str] = [
             k
             for k in self.prop_name_mapping
-            if self.prop_name_mapping[k] not in self.docking_targets
+            if self.prop_name_mapping[k] not in self.docking_targets and k in CLASSICAL_PROPERTIES_NAMES
         ]
         self.docking_properties: List[str] = []
         self.docking_properties_split: List[List[str]] = [[]] * len(
@@ -526,14 +526,15 @@ class MolGenerationInstructionsDataset:
 
     def get_obj_from_prop(self, properties: List[str]) -> List[str]:
         objectives: List[str] = []
+        n_dock_props = len([p for p in properties if self.prop_name_mapping[p] in self.docking_targets])
         for prop in properties:
             short_prop = self.prop_name_mapping[prop]
-            if len(properties) == 1 and short_prop in self.docking_targets:
+            if n_dock_props == 1 and short_prop in self.docking_targets:
                 obj = random.choice(DOCKING_SOLO_OBJECTIVES)
             elif short_prop in self.docking_targets:
                 obj = random.choice(DOCKING_OBJECTIVES)
             else:
-                obj = random.choice(OBJECTIVES)
+                obj = random.choice(PROPERTY_ALLOWED_OBJECTIVES[short_prop])
 
             if obj in TARGET_VALUE_OBJECTIVES:
                 # Find the value to target

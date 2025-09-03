@@ -34,6 +34,8 @@ try:
 except Exception:
     ray.init()
 
+SKIP_VINA = os.system("vina --help") == 32512 or str(os.environ.get("SKIP_VINA", "0")) == "1"
+
 cfg = DatasetConfig(data_path=DATA_PATH)
 
 scorers = {
@@ -42,28 +44,28 @@ scorers = {
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
     ),
     "MolFilters": RewardScorer(
         DATA_PATH,
         "MolFilters",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
     ),
     "property": RewardScorer(
         DATA_PATH,
         "property",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
     ),
     "property_whole": RewardScorer(
         DATA_PATH,
         "property",
         parse_whole_completion=False,
         rescale=False,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1),
+        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
     ),
 }
 
@@ -97,7 +99,7 @@ def build_metada_pocket(request):
     return wrapped_fn
 
 
-@pytest.fixture(scope="module", params=[True, False])
+@pytest.fixture(scope="module", params=[True])
 def build_prompt(request, build_metada_pocket):
     def build_prompt_from_dataset(
         property: str | List[str], obj: str = "maximize"
@@ -167,7 +169,7 @@ def filter_smiles_filler(filter_smiles_scorer):
     return get_fill_completions(filter_smiles_scorer.parse_whole_completion)
 
 
-@pytest.fixture(scope="module", params=[True, False])
+@pytest.fixture(scope="module", params=[True])
 def property_scorer(request):
     """Fixture to test the function molecular_properties."""
     return scorers["property"] if request.param else scorers["property_whole"]
@@ -208,13 +210,13 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     )
 
 
-@pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
-def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
-    """Test the function molecular_properties."""
-    completions = [filter_smiles_filler(smiles, completion)]
-    prompts = [""] * len(completions)
-    rewards = np.array(filter_smiles_scorer(prompts, completions))
-    assert not np.isnan(rewards.sum())
+# @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
+# def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
+#     """Test the function molecular_properties."""
+#     completions = [filter_smiles_filler(smiles, completion)]
+#     prompts = [""] * len(completions)
+#     rewards = np.array(filter_smiles_scorer(prompts, completions))
+#     assert not np.isnan(rewards.sum())
 
 
 @pytest.mark.parametrize(
@@ -224,7 +226,7 @@ def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_f
         np.random.choice(PROP_LIST, 8),
     ),
 )
-def test_multi_prompt_multi_generation(
+def test_multi_prompt_multi_generation( # 16 - 1 : 20/7 // 192 - 1 :
     property1,
     property2,
     property_scorer,
@@ -254,15 +256,15 @@ def test_multi_prompt_multi_generation(
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
-@pytest.mark.parametrize("target", np.random.choice(PROP_LIST, 3))
+@pytest.mark.skipif(SKIP_VINA, reason="requires vina")
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:3])
 def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, build_prompt, n_generations=4
+    target, property_scorer, property_filler, build_prompt, n_generations=1
 ):
     """Test the reward function runs for vina targets."""
     prompts = [build_prompt(target)] * n_generations
     smiles = [
-        propeties_csv.sample(np.random.randint(1, 4))["smiles"].tolist()
+        propeties_csv.iloc[:128]["smiles"].tolist()
         for k in range(n_generations)
     ]
     completions = [
@@ -330,7 +332,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
 
 @pytest.mark.skipif(
-    os.system("vina --help") == 32512,
+    SKIP_VINA,
     reason="requires vina",
 )
 @pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 4))

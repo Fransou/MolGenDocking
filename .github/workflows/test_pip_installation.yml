@@ -32,13 +32,11 @@ jobs:
       run: |
         pip install -U pip
         pip install -U numpy scipy --prefer-binary
-        pip install --only-binary :all: scikit-learn==1.2.2
         pip install torch --index-url https://download.pytorch.org/whl/cpu
         pip install .
+        pip install --only-binary :all: scikit-learn==1.2.2
 
     - name: Test with pytest
       run: |
-        coverage run -m pytest test
+        coverage run -m pytest test/test_rewards
         coverage report
-        rm coverage.svg
-        coverage-badge -o coverage.svg

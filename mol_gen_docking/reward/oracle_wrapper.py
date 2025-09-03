@@ -1,11 +1,12 @@
 """Reward functions for molecular optimization."""
 
 import logging
+from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Union
 
 import numpy as np
 from rdkit.Chem.rdchem import Mol
-from rdkit.Chem.rdmolfiles import MolToSmiles
+from rdkit.Chem.rdmolfiles import MolToSmiles, MolFromSmiles
 from tdc.oracles import Oracle, oracle_names
 
 from mol_gen_docking.reward.property_utils import rescale_property_values
@@ -29,6 +30,7 @@ class OracleWrapper:
         self,
         is_docking: bool = False,
         debug: bool = False,
+        internal_memory:int = 1000000,
     ):
         self.logger = logging.getLogger(
             __name__ + "/" + self.__class__.__name__,
@@ -37,6 +39,8 @@ class OracleWrapper:
         self.name: str = ""
         self.evaluator: Callable[[Any], Any] = lambda x: None
         self.task_label = None
+        self.memory : OrderedDict = OrderedDict()
+        self.internal_memory = internal_memory
 
     def assign_evaluator(self, evaluator: Callable[[Any], Any], name: str) -> None:
         """Assign the evaluator to the OracleWrapper."""
@@ -59,7 +63,18 @@ class OracleWrapper:
             inp = MolToSmiles(inp)
         elif not isinstance(inp, str):
             raise ValueError(f"{inp} cannot be transformed into mol")
+
+        if inp in self.memory:
+            return self.memory[inp]
+
+        # Get the canonical smiles
+        inp = MolToSmiles(MolFromSmiles(inp), canonical=True)
         out: float | List[float] | None = self.evaluator(inp)
+
+        self.memory[inp] = out
+        if len(self.memory) > self.internal_memory:
+            self.memory.popitem(last=False)
+
         if isinstance(out, float):
             return out
         raise ValueError(f"{out} is a {type(out)}, not a float")
@@ -74,10 +89,30 @@ class OracleWrapper:
         Return:
             score_list: a list of floats represents the properties of the molecules.
         """
-        out = self.evaluator(inps)
-        if isinstance(out, list):
-            return out
-        raise ValueError(f"{out} is a {type(out)}, not a list")
+        # Get the list of smiles strings that are not in memory
+        inps = [MolToSmiles(MolFromSmiles(inp), canonical=True) for inp in inps]
+        inps_to_score = [inp for inp in inps if inp not in self.memory]
+        local_scores = {
+            inp: self.memory[inp] for inp in inps if inp in self.memory
+        }
+
+        if len(inps_to_score) > 0:
+            # Evaluate the new smiles
+            out = self.evaluator(inps_to_score)
+            # Store the results in memory
+            for inp, score in zip(inps_to_score, out):
+                self.memory[inp] = score
+                local_scores[inp] = score
+        out = [local_scores[inp] for inp in inps]
+        if len(out) != len(inps):
+            raise ValueError(
+                f"Output length {len(out)} does not match input length {len(inps)}"
+            )
+        if len(self.memory) > self.internal_memory:
+            # Remove the oldest entries if memory exceeds the limit
+            while len(self.memory) > self.internal_memory:
+                self.memory.popitem(last=False)
+        return out
 
     def __call__(
         self, smis: Union[str, List[str]], rescale: bool = False
