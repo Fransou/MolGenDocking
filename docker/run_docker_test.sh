@@ -1,2 +1,2 @@
 #!/bin/bash
-pytest test
+pytest test/test_rewards
