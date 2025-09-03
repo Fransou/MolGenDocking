@@ -25,6 +25,7 @@ jobs:
       with:
         push: false
         tags: fransou/reward:latest
+        target: vina
         file: docker/Dockerfile
 
     - name: Get branch name
