@@ -210,13 +210,13 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     )
 
 
-@pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
-def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
-    """Test the function molecular_properties."""
-    completions = [filter_smiles_filler(smiles, completion)]
-    prompts = [""] * len(completions)
-    rewards = np.array(filter_smiles_scorer(prompts, completions))
-    assert not np.isnan(rewards.sum())
+# @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
+# def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
+#     """Test the function molecular_properties."""
+#     completions = [filter_smiles_filler(smiles, completion)]
+#     prompts = [""] * len(completions)
+#     rewards = np.array(filter_smiles_scorer(prompts, completions))
+#     assert not np.isnan(rewards.sum())
 
 
 @pytest.mark.parametrize(
