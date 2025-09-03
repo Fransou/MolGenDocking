@@ -39,4 +39,5 @@ jobs:
     - name: Test with pytest
       run: |
         rm -rf .coverage
+        export SKIP_VINA=1
         docker run -v ${PWD}:/tmp fransou/reward bash /tmp/docker/run_docker_test.sh

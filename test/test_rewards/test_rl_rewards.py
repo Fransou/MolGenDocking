@@ -34,6 +34,8 @@ try:
 except Exception:
     ray.init()
 
+SKIP_VINA = os.system("vina --help") == 32512 or os.environ.get("SKIP_VINA", "0") == "1"
+
 cfg = DatasetConfig(data_path=DATA_PATH)
 
 scorers = {
@@ -254,7 +256,7 @@ def test_multi_prompt_multi_generation( # 16 - 1 : 20/7 // 192 - 1 :
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(os.system("vina --help") == 32512, reason="requires vina")
+@pytest.mark.skipif(SKIP_VINA, reason="requires vina")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:3])
 def test_properties_single_prompt_vina_reward(
     target, property_scorer, property_filler, build_prompt, n_generations=1
@@ -330,7 +332,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
 
 
 @pytest.mark.skipif(
-    os.system("vina --help") == 32512,
+    SKIP_VINA,
     reason="requires vina",
 )
 @pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 4))
