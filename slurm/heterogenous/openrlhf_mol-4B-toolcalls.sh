@@ -6,15 +6,15 @@
 #SBATCH --error=logs/%x-%j.err
 
 #SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=8
+#SBATCH --mem=248G
+#SBATCH --cpus-per-task=32
 #SBATCH --gpus=h100:2
 
 #SBATCH hetjob
 
 #SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=128
+#SBATCH --mem=750G
+#SBATCH --cpus-per-task=192
 set -x
 
 # Get IP address of the second node (reward server)

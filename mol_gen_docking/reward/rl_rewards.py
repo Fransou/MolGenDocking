@@ -175,7 +175,7 @@ class RewardScorer:
                 print(f"Error in MolToMolBlock for {smi}: {e}")
                 return False
 
-        s_spl = [x for x in s_poss if test_is_valid(x)]
+        s_spl = [x for x in s_poss if test_is_valid(x)] ### TODO: Maybe do not return the mean if mutliple molecules
         return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
