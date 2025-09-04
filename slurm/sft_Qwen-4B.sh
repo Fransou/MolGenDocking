@@ -2,7 +2,7 @@
 #SBATCH --job-name=sft-Qwen-4B
 #SBATCH --account=def-ibenayed
 #SBATCH --time=12:00:00
-#SBATCH --gpus=h100:1
+#SBATCH --gpus=h100:2
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=4
 #SBATCH --tasks-per-node=1
