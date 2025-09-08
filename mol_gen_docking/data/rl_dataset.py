@@ -158,7 +158,8 @@ class MolGenerationInstructionsDataset:
         self.std_properties: List[str] = [
             k
             for k in self.prop_name_mapping
-            if self.prop_name_mapping[k] not in self.docking_targets and k in CLASSICAL_PROPERTIES_NAMES
+            if self.prop_name_mapping[k] not in self.docking_targets
+            and k in CLASSICAL_PROPERTIES_NAMES
         ]
         self.docking_properties: List[str] = []
         self.docking_properties_split: List[List[str]] = [[]] * len(
@@ -526,7 +527,9 @@ class MolGenerationInstructionsDataset:
 
     def get_obj_from_prop(self, properties: List[str]) -> List[str]:
         objectives: List[str] = []
-        n_dock_props = len([p for p in properties if self.prop_name_mapping[p] in self.docking_targets])
+        n_dock_props = len(
+            [p for p in properties if self.prop_name_mapping[p] in self.docking_targets]
+        )
         for prop in properties:
             short_prop = self.prop_name_mapping[prop]
             if n_dock_props == 1 and short_prop in self.docking_targets:
@@ -548,12 +551,6 @@ class MolGenerationInstructionsDataset:
             objectives.append(obj)
         return objectives
 
-    def fill_system_prompt(self, system_prompt: str) -> str:
-        if "{{smiles}}" in system_prompt:
-            smiles = self.possible_smiles.sample(1).values[0]
-            # system_prompt = system_prompt.replace("{{smiles}}", smiles)
-        return system_prompt
-
     def generate_text_prompts(
         self, properties: List[str], objectives: List[str], pocket_datas: Dict[str, Any]
     ) -> Dict[str, List[Dict[str, Any]]]:
@@ -562,7 +559,7 @@ class MolGenerationInstructionsDataset:
             prompt_text, pocket_datas
         )
 
-        sys_prompt = self.fill_system_prompt(self.system_prompt)
+        sys_prompt = self.system_prompt
 
         prompt: Dict[str, List[Dict[str, Any]]] = {
             "standard": [

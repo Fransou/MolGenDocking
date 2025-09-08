@@ -1,11 +1,11 @@
 import argparse
 
+import numpy as np
 import ray
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
-import numpy as np
 
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -90,27 +90,40 @@ if __name__ == "__main__":
         # Get the prompts level metrics
         unique_prompts = list(set(prompts))
         group_prompt_smiles = {
-            p:[s[-1] for s, p_ in zip(final_smiles, prompts) if (p_ == p) and not s == []] for p in unique_prompts
+            p: [
+                s[-1]
+                for s, p_ in zip(final_smiles, prompts)
+                if (p_ == p) and not s == []
+            ]
+            for p in unique_prompts
         }
 
         from tdc import Evaluator
-        diversity_evaluator = Evaluator(name='Diversity')
+
+        diversity_evaluator = Evaluator(name="Diversity")
         diversity_scores_dict = {
-            p: diversity_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 1 else 0 for p in unique_prompts
+            p: diversity_evaluator(group_prompt_smiles[p])
+            if len(group_prompt_smiles[p]) > 1
+            else 0
+            for p in unique_prompts
         }
         diversity_score = [float(diversity_scores_dict[p]) for p in prompts]
         diversity_score = [d if not np.isnan(d) else 0 for d in diversity_score]
 
-        uniqueness_evaluator = Evaluator(name='Uniqueness')
+        uniqueness_evaluator = Evaluator(name="Uniqueness")
         uniqueness_scores_dict = {
-            p: uniqueness_evaluator(group_prompt_smiles[p]) if len(group_prompt_smiles[p]) > 1 else 0 for p in unique_prompts
+            p: uniqueness_evaluator(group_prompt_smiles[p])
+            if len(group_prompt_smiles[p]) > 1
+            else 0
+            for p in unique_prompts
         }
         uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
         uniqueness_score = [u if not np.isnan(u) else 0 for u in uniqueness_score]
 
         rewards = ray.get(rewards_job)
         max_per_prompt_dict = {
-            p: max([float(r) for r, p_ in zip(rewards, prompts) if p_ == p]) for p in unique_prompts
+            p: max([float(r) for r, p_ in zip(rewards, prompts) if p_ == p])
+            for p in unique_prompts
         }
         max_per_prompt = [max_per_prompt_dict[p] for p in prompts]
 

@@ -65,8 +65,6 @@ PROPERTY_ALLOWED_OBJECTIVES = {
 }
 
 
-
-
 def rescale_property_values(
     prop_name: str, value: float, docking: bool = False
 ) -> float:

@@ -163,19 +163,22 @@ class RewardScorer:
             return False
 
         s_poss = [x for x in comp.split() if filter_smiles(x)]
+
         # Finally we remove any string that is not a valid SMILES
-        def test_is_valid(smi:str) -> bool:
+        def test_is_valid(smi: str) -> bool:
             mol = Chem.MolFromSmiles(smi)
             if mol is None:
                 return False
             try:
-                threed = Chem.MolToMolBlock(mol)
+                _ = Chem.MolToMolBlock(mol)
                 return True
             except Exception as e:
                 print(f"Error in MolToMolBlock for {smi}: {e}")
                 return False
 
-        s_spl = [x for x in s_poss if test_is_valid(x)] ### TODO: Maybe do not return the mean if mutliple molecules
+        s_spl = [
+            x for x in s_poss if test_is_valid(x)
+        ]  ### TODO: Maybe do not return the mean if mutliple molecules
         return s_spl
 
     def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
@@ -322,7 +325,9 @@ class RewardScorer:
         """
 
         smiles_list_per_completion = self._get_smiles_list(completions)
-        if self.reward == "valid_smiles": # TODO: Always return 1 if at least one valid smiles
+        if (
+            self.reward == "valid_smiles"
+        ):  # TODO: Always return 1 if at least one valid smiles
             return [
                 float(len(valid_smiles_c) > 0)
                 for valid_smiles_c in smiles_list_per_completion
@@ -370,13 +375,15 @@ class RewardScorer:
 
             if np.isnan(reward) or reward is None:
                 sub_table = df_properties[
-                            (df_properties["id_completion"] == id_completion)
-                            & (df_properties["smiles"].isin(smiles))
-                        ]
-                log_table = ";".join(f"{col}: {sub_table[col].tolist()}\n" for col in sub_table.columns)
+                    (df_properties["id_completion"] == id_completion)
+                    & (df_properties["smiles"].isin(smiles))
+                ]
+                log_table = ";".join(
+                    f"{col}: {sub_table[col].tolist()}\n" for col in sub_table.columns
+                )
                 print(
                     f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n",
-                    f"Associated table :\n {log_table}"
+                    f"Associated table :\n {log_table}",
                 )
                 reward = 0
             rewards.append(float(reward))

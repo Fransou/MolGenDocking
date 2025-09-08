@@ -34,7 +34,9 @@ try:
 except Exception:
     ray.init()
 
-SKIP_VINA = os.system("vina --help") == 32512 or str(os.environ.get("SKIP_VINA", "0")) == "1"
+SKIP_VINA = (
+    os.system("vina --help") == 32512 or str(os.environ.get("SKIP_VINA", "0")) == "1"
+)
 
 cfg = DatasetConfig(data_path=DATA_PATH)
 
@@ -44,28 +46,36 @@ scorers = {
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
+        oracle_kwargs=dict(
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+        ),
     ),
     "MolFilters": RewardScorer(
         DATA_PATH,
         "MolFilters",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
+        oracle_kwargs=dict(
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+        ),
     ),
     "property": RewardScorer(
         DATA_PATH,
         "property",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
+        oracle_kwargs=dict(
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+        ),
     ),
     "property_whole": RewardScorer(
         DATA_PATH,
         "property",
         parse_whole_completion=False,
         rescale=False,
-        oracle_kwargs=dict(ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4),
+        oracle_kwargs=dict(
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+        ),
     ),
 }
 
@@ -226,7 +236,7 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
         np.random.choice(PROP_LIST, 8),
     ),
 )
-def test_multi_prompt_multi_generation( # 16 - 1 : 20/7 // 192 - 1 :
+def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     property1,
     property2,
     property_scorer,
@@ -263,10 +273,7 @@ def test_properties_single_prompt_vina_reward(
 ):
     """Test the reward function runs for vina targets."""
     prompts = [build_prompt(target)] * n_generations
-    smiles = [
-        propeties_csv.iloc[:128]["smiles"].tolist()
-        for k in range(n_generations)
-    ]
+    smiles = [propeties_csv.iloc[:128]["smiles"].tolist() for k in range(n_generations)]
     completions = [
         property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
