@@ -6,11 +6,13 @@ echo "Role: $2"
 
 source $HOME/.bashrc
 source $HOME/OpenRLHF/bin/activate
-port=5000
+port=6379
 
 if [ "$2" == "head" ]; then
     # Start Ray head node
-    ray start --head --node-ip-address=$1 --port=$port --include-dashboard false
+    ray start --head --node-ip-address=$1
+    sleep 30
+    ray status
     echo "Ray head node started."
 elif [ "$2" == "worker" ]; then
     # Start Ray worker node and connect to the head node
@@ -19,7 +21,7 @@ elif [ "$2" == "worker" ]; then
 fi
 
 # Run the reward server only on the head node
-if [ "$2" == "run" ]; then
+if [ "$2" == "head" ]; then
     export WORKING_DIR=$HOME/MolGenDocking
     export DATASET=mol_orz
 

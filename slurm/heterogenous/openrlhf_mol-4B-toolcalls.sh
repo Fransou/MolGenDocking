@@ -19,21 +19,21 @@
 set -x
 
 # Split nodes
-CPU_NODES=($(scontrol show hostnames $SLURM_JOB_NODELIST_HET_GROUP_1))
+CPU_NODES=($(scontrol show hostnames $SLURM_JOB_NODELIST))
 HEAD_NODE=${CPU_NODES[0]}
 WORKER_NODES=${CPU_NODES[@]:1}
 echo "Head node: $HEAD_NODE"
 echo "Worker nodes: $WORKER_NODES"
 
 # Get IP of head node
-HEAD_NODE_IP=$(srun --het-group=1 --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-address | head -n1)
+HEAD_NODE_IP=$(srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-address | head -n1)
 
 # Launch head server
-srun --het-group=1 --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP head &
+srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP head
 
 # Launch workers
 for node in $WORKER_NODES; do
-    srun --het-group=1 --nodes 1 --nodelist=$node --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP worker &
+    srun --nodes 1 --nodelist=$node --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP worker
 done
 
 srun --het-group=0 --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_training.sh $HEAD_NODE_IP $1 $2
