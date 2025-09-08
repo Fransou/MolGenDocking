@@ -22,3 +22,10 @@ python -m mol_gen_docking.fast_api_reward_server --data-path ...
 --scorer-exhaustivness: Number of runs for the docking scoring function (default: 2). Higher values yield more accurate results but take longer to compute.
 
 --scorer-ncpus: Number of CPUs to used for each docking simulation. Default should be equal to the exhaustivness value.
+
+---
+The server can then be requested, and will treat requests at the "get_reward" endpoint:
+- query : A completion (str) that will be parsed. In the completion, the scorer will parse all the content between the <answer> and </answer> tags. The parsed content will be interpreted as a SMILES string if possible and evaluated by the scoring function.
+- prompt: The prompt (str) that was used to generate the completion. The scorer will parse this prompt (hard coded) to extract the target protein name and the docking box coordinates or the property to compute.
+
+
