@@ -1,7 +1,6 @@
-from itertools import product
 from typing import Dict, List, Tuple
 
-PROMPT_INTR : List[Tuple[str, str]] = [
+PROMPT_INTR: List[Tuple[str, str]] = [
     (
         "I am working on designing a drug-like compound meeting a specific objective to be a possible drug. Given the objective to optimize, propose a candidate molecule as a SMILES string. In your reasoning process, you can consider multiple candidate molecules and choose the best one. Here is the objective to optimize: \n{objectives}.",
         "I am working on designing a drug-like compound meeting specific objectives to be a possible drug. Given the objectives to optimize, propose a candidate molecule as a SMILES string. In your reasoning process, you can consider multiple candidate molecules and choose the best one. Here are the objectives to optimize: \n{objectives}.",

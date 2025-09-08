@@ -1,34 +1,43 @@
 #!/bin/bash
 #SBATCH --job-name=orz_mol-toolcalls
 #SBATCH --account=def-ibenayed
-#SBATCH --time=24:00:00
+#SBATCH --time=0-00:10:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
 #SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=8
+#SBATCH --mem=248G
+#SBATCH --cpus-per-task=32
 #SBATCH --gpus=h100:2
 
 #SBATCH hetjob
 
-#SBATCH --nodes=1
-#SBATCH --mem=200G
-#SBATCH --cpus-per-task=128
+#SBATCH --nodes=2
+#SBATCH --mem=750G
+#SBATCH --cpus-per-task=192
+
 set -x
 
-# Get IP address of the second node (reward server)
-REWARD_NODE_IP=$(srun --het-group=1 --ntasks=1 hostname --ip-address | head -n1)
+# Split nodes
+CPU_NODES=($(scontrol show hostnames $SLURM_JOB_NODELIST))
+HEAD_NODE=${CPU_NODES[0]}
+WORKER_NODES=${CPU_NODES[@]:1}
+echo "Head node: $HEAD_NODE"
+echo "Worker nodes: $WORKER_NODES"
 
-srun --het-group=1 --ntasks=1 ls -l $HOME/MolGenDocking/slurm/heterogenous
+# Get IP of head node
+HEAD_NODE_IP=$(srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-address | head -n1)
 
+# Launch head server
+srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP head
 
-echo "Reward server will run on node with IP: $REWARD_NODE_IP"
-srun --het-group=1 --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $REWARD_NODE_IP &
+# Launch workers
+for node in $WORKER_NODES; do
+    srun --nodes 1 --nodelist=$node --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP worker
+done
 
-sleep 30  # Wait for the server to start
+srun --het-group=0 --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_training.sh $HEAD_NODE_IP $1 $2
 
-# Run training on the first node (SAMPLES PER PROMPT, BATCH SIZE)
-srun --het-group=0 --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_training.sh $REWARD_NODE_IP $1 $2
+wait
 
 echo "Training + reward server job finished."

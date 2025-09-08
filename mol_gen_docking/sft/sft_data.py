@@ -3,8 +3,8 @@
 from typing import Any, Dict, List, Tuple
 
 from datasets import Dataset, concatenate_datasets, load_dataset
-from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit import RDLogger
+from rdkit.Chem.rdmolfiles import MolFromSmiles
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -37,9 +37,7 @@ class InstructionDatasetProcessor:
 
         if name == "SMolInstruct":
             self.dataset = load_dataset(
-                "osunlp/SMolInstruct",
-                tasks=SMolInstruct_tasks,
-                insert_core_tags=False
+                "osunlp/SMolInstruct", tasks=SMolInstruct_tasks, insert_core_tags=False
             )
         elif name == "Mol-Instructions":
             self.dataset = load_dataset(
@@ -68,12 +66,16 @@ class InstructionDatasetProcessor:
         out = line["output"]
 
         raw_input = line.get("raw_input", "")
-        if ("C" in raw_input or "c" in raw_input) and not "e" in raw_input: # Can be a smiles
+        if (
+            "C" in raw_input or "c" in raw_input
+        ) and "e" not in raw_input:  # Can be a smiles
             if MolFromSmiles(raw_input) is not None:
                 new_raw_input = process_smiles(raw_input)
                 inp = inp.replace(raw_input, new_raw_input)
         raw_output = line.get("raw_output", "")
-        if ("C" in raw_output or "c" in raw_output) and not "e" in raw_output: # Can be a smiles
+        if (
+            "C" in raw_output or "c" in raw_output
+        ) and "e" not in raw_output:  # Can be a smiles
             if MolFromSmiles(raw_output) is not None:
                 new_raw_output = process_smiles(raw_output)
                 out = out.replace(raw_output, new_raw_output)

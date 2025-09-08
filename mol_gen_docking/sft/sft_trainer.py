@@ -4,8 +4,9 @@ import argparse
 import json
 import os
 from typing import Optional, Tuple
-import wandb
+
 import torch
+import wandb
 from datasets import Dataset, concatenate_datasets
 from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -179,8 +180,7 @@ class SFTMolTrainer:
 
         if self.dataset is None:
             self.dataset, self.eval_dataset = self.get_dataset()
-        print(f"Loaded Dataset of size: {len(self.dataset)}\n,"
-              f"Example: self.dataset[0]")
+        print(f"Loaded Dataset of size: {len(self.dataset)}\n,Example: self.dataset[0]")
         trainer = self.get_trainer()
 
         print(

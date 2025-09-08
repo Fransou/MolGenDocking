@@ -10,6 +10,3 @@ do
     echo "Running job for $i with range $istart to $iend"
     sbatch $HOME/MolGenDocking/slurm/compute_ZINC_df.sh $istart $iend
 done
-
-
-

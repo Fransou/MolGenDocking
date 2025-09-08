@@ -22,6 +22,8 @@ ray start --head --node-ip-address 0.0.0.0
 
 
 wandb offline
+export RAY_LOG_TO_STDERR=1
+
 export GPUS_PER_NODES=2
 export N_SAMPLES_PER_PROMPT=$2
 export BATCH_SIZE=$3
