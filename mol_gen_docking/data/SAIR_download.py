@@ -205,9 +205,7 @@ if __name__ == "__main__":
     # Define the specific files you want to download
     # Replace this with None to download *all* structures
     # (remember, this is >100 files of ~10GB each!)
-    subset_to_get = [
-        "sair_structures_1006049_to_1016517.tar.gz",
-    ]
+    subset_to_get = None
     download_and_extract_sair_structures(
         destination_dir=output_directory, file_subset=subset_to_get
     )
