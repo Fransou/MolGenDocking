@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from tqdm import tqdm
 
-from mol_gen_docking.data.api_requests import (
+from data.pdb_uniprot.api_requests import (
     fetch_uniprot_id_from_pdbid,
     fetch_uniprot_info,
 )

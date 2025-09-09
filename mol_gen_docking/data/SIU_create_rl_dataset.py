@@ -5,13 +5,13 @@ import os
 
 from tqdm import tqdm
 
-from mol_gen_docking.data.docking_target_extract import PocketExtractor
-from mol_gen_docking.data.featurize_pockets import ProteinStructureEmbeddingExtractor
+from data.featurization.featurize_pockets import ProteinStructureEmbeddingExtractor
+from data.pdb_uniprot.target_naming import get_names_mapping
+from mol_gen_docking.data.fpocket_utils import PocketExtractor
 from mol_gen_docking.data.rl_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )
-from mol_gen_docking.data.target_naming import get_names_mapping
 
 logger = logging.getLogger(__name__)
 # Set up logging to INFO level
