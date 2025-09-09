@@ -88,6 +88,7 @@ class BatchedOracle(Oracle):
         super().__init__(
             max_oracle_calls=10000, freq_log=100, output_dir="results", mol_buffer={}
         )
+        self.output_dir = output_dir
 
     def batch_score_smi(self, smi_lst: List[str]) -> List[float]:
         if len(self.mol_buffer) > self.max_oracle_calls:

@@ -29,7 +29,8 @@ def check_pdb_file(path: str) -> bool:
             timeout=60 * 5,
         )
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Error processing {path}: {e}")
         return False
 
 
@@ -37,7 +38,7 @@ def check_pdb_file(path: str) -> bool:
 def check_and_copy(
     structure: str, args: argparse.Namespace, pocket_info: dict, pbar: Any
 ) -> str | None:
-    pdb_path = os.path.join(args.sair_path, f"{structure}.pdb")
+    pdb_path = os.path.join(args.sair_path, "pdb_files", f"{structure}.pdb")
     if not check_pdb_file(pdb_path):
         print(f"[Warning] {structure} could not be processed by prepare_receptor.")
         return None
