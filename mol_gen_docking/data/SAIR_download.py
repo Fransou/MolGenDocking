@@ -122,6 +122,18 @@ def download_and_extract_sair_structures(
 
     # --- 3. Determine which files to download ---
     if file_subset:
+        if (
+            len(file_subset) == 2
+            and isinstance(file_subset[0], int)
+            and isinstance(file_subset[1], int)
+        ):
+            # Interpret as a range if two integers are provided
+            start, end = file_subset
+            file_subset = repo_tars[start:end]
+            print(
+                f"Interpreted subset as range: indices {start} to {end}, total {len(file_subset)} files."
+            )
+
         # Validate that all requested files actually exist in the repository
         invalid_files = set(file_subset) - set(repo_tars)
         if invalid_files:
