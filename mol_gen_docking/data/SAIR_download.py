@@ -4,14 +4,13 @@ Script to download and extract data from the SandboxAQ/SAIR dataset on Hugging F
 
 import argparse
 import os
-import tarfile
+import subprocess
 
-import pandas as pd
 from huggingface_hub import hf_hub_download, list_repo_files
 from tqdm import tqdm
 
 
-def load_sair_parquet(destination_dir: str) -> pd.DataFrame | None:
+def load_sair_parquet(destination_dir: str) -> None:
     """
     Downloads the sair.parquet file from the SandboxAQ/SAIR dataset and loads it
     into a pandas DataFrame.
@@ -53,16 +52,6 @@ def load_sair_parquet(destination_dir: str) -> pd.DataFrame | None:
         print(f"Successfully downloaded to '{download_path}'")
     except Exception as e:
         print(f"An error occurred while downloading '{parquet_filename}': {e}")
-        return None
-
-    # --- 3. Load the Parquet file into a pandas DataFrame ---
-    try:
-        print(f"Loading '{parquet_filename}' into a pandas DataFrame...")
-        df = pd.read_parquet(download_path)
-        print("Successfully loaded DataFrame.")
-        return df
-    except Exception as e:
-        print(f"Failed to load parquet file '{download_path}': {e}")
         return None
 
 
@@ -168,8 +157,16 @@ def download_and_extract_sair_structures(
 
             # Extract the downloaded .tar.gz file
             print(f"Extracting '{filename}'...")
-            with tarfile.open(download_path, "r:gz") as tar:
-                tar.extractall(path=destination_dir)
+            subprocess.check_call(
+                [
+                    "tar",
+                    "--use-compress-program=pigz",
+                    "-xf",
+                    download_path,
+                    "-C",
+                    destination_dir,
+                ]
+            )
             print(f"Successfully extracted contents to '{destination_dir}'")
 
         except Exception as e:
@@ -196,28 +193,32 @@ if __name__ == "__main__":
         default="data/sair_data",
         help="Directory to save downloaded data.",
     )
+    parser.add_argument(
+        "--start-subset",
+        type=int,
+        default=0,
+        help="Start index for subset of structure files to download (inclusive).",
+    )
+    parser.add_argument(
+        "--end-subset",
+        type=int,
+        default=2,
+        help="End index for subset of structure files to download (exclusive).",
+    )
+
     args = parser.parse_args()
 
     # Define a destination for the data
     output_directory = args.output_dir
 
     # Call the function to download and load the data
-    sair_df = load_sair_parquet(destination_dir=output_directory)
-
-    # Check if the DataFrame was loaded successfully
-    if sair_df is not None:
-        print("\n--- DataFrame Info ---")
-        sair_df.info()
-
-        print("\n--- DataFrame Head ---")
-        print(sair_df.head())
-
+    load_sair_parquet(destination_dir=output_directory)
     # --- Download a specific subset of structure tarballs ---
     print("--- Running Scenario 2: Download a specific subset ---")
     # Define the specific files you want to download
     # Replace this with None to download *all* structures
     # (remember, this is >100 files of ~10GB each!)
-    subset_to_get = None
+    subset_to_get = [args.start_subset, args.end_subset]
     download_and_extract_sair_structures(
         destination_dir=output_directory, file_subset=subset_to_get
     )

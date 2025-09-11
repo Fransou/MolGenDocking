@@ -5,8 +5,11 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import ray
-from Bio.PDB import PDBIO, MMCIFParser, PPBuilder
+from Bio.PDB import PDBIO, MMCIFParser, Superimposer
 from ray.experimental import tqdm_ray
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
+from tqdm import tqdm
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -17,23 +20,73 @@ if not ray.is_initialized():
 Pocket = Tuple[str, str, str]  # (chain_id, residue_number, residue_name)
 
 
-@ray.remote
-def get_pocket_sequence_cif(
-    cif_path: str, padding: float = 5.0, bar: Any = None
-) -> Tuple[List[Pocket], str]:
+def cif_file_to_entry_id(cif_file: str) -> int:
+    """Extracts the entry ID from a CIF file name.
+    Args:
+        cif_file: Path to the CIF file
+    Returns:
+        Entry ID as a string
+    """
+    return int(cif_file.split("/")[-1].split("_")[1])
+
+
+def filter_from_parquet(
+    df_parquet: pd.DataFrame, cif_files: List[str]
+) -> Tuple[List[str], List[str]]:
+    """
+    Filters the list of CIF files to only include those that are in the top 50% most potent ligands
+    for each sequence, and have a confidence score in the top 50%.
+    Args:
+        df_parquet: DataFrame containing the SAIR parquet data
+        cif_files: List of paths to CIF files
+    Returns:
+        Filtered list of CIF files
+        Kept entry IDs
+    """
+    entry_ids = [cif_file_to_entry_id(f) for f in cif_files]
+    df_filtered = df_parquet[df_parquet["entry_id"].isin(entry_ids)]
+
+    new_cif_files: List[str] = []
+    kept_entry_ids: List[str] = []
+
+    for protein in df_filtered["protein"].unique():
+        df_prot = df_filtered[df_filtered["protein"] == protein]
+        if len(df_prot) == 0:
+            continue
+        pIC50_threshold = df_prot["pIC50"].quantile(0.5)
+        df_prot_filtered = df_prot[(df_prot["pIC50"] >= pIC50_threshold)]
+        confidence_threshold = df_prot_filtered["confidence_score"].quantile(0.5)
+        df_prot_filtered = df_prot_filtered[
+            df_prot_filtered["confidence_score"] >= confidence_threshold
+        ]
+        entry_ids_prot = df_prot_filtered["entry_id"].unique().tolist()
+
+        for entry_id in entry_ids_prot:
+            matching_files = [
+                f for f in cif_files if cif_file_to_entry_id(f) == entry_id
+            ]
+            new_cif_files.extend(matching_files)
+            kept_entry_ids.append(entry_id)
+
+    return new_cif_files, kept_entry_ids
+
+
+@ray.remote(num_cpus=1)
+def get_pocket_cif(
+    cif_path: str, topk: int = 3, bar: Any = None
+) -> Tuple[List[Pocket], Any]:
     """
     Opens a CIF file annd identifies the position of the ligand.
-    Returns the list of residues in the pocket, defined as a box around the ligand and the sequence of the protein.
+    Returns the list of residues in the pocket, defined as the top-k closest residues to the ligand + a padding.
     Args:
         cif_path: Path to the cif file
-        padding: Padding around the ligand to define the pocket (in Å)
+        topk: Number of closest residues to the ligand to include in the pocket
 
     Returns:
-        List of residues in the pocket, each represented as a string in the format "CHAIN:RESIDUE_NUMBER:RESIDUE_NAME"
-        Sequence of the protein as a string of one-letter amino acid codes
+        List of residues in the pocket
+        Structure object from Biopython (can be None if not needed)
     """
     parser = MMCIFParser(QUIET=True)
-    ppb = PPBuilder()
     structure = parser.get_structure("structure", cif_path)
     model = structure[0]  # Get the first model
     ligand_residue = None
@@ -53,59 +106,84 @@ def get_pocket_sequence_cif(
     # Get the coordinates of the ligand atoms
     ligand_coords = [atom.coord for atom in ligand_residue]
 
-    # Define a box around the ligand (e.g., 5 Å padding)
-    min_coords = [min(coord[i] for coord in ligand_coords) - padding for i in range(3)]
-    max_coords = [max(coord[i] for coord in ligand_coords) + padding for i in range(3)]
-
-    pocket_residues = []
-
-    # Identify residues within the box
-    for chain in model:
-        for residue in chain:
-            if residue.id[0] == " ":  # Only consider standard residues
-                for atom in residue:
-                    if all(
-                        min_coords[i] <= atom.coord[i] <= max_coords[i]
-                        for i in range(3)
-                    ):
-                        pocket_residues.append(residue)
-                        break  # No need to check other atoms in this residue
-
-    # Remove duplicates by converting to a set and back to a list
-    pocket_residues = list(set(pocket_residues))
-
-    for pp in ppb.build_peptides(model):
-        sequences = pp.get_sequence()
+    # Find the closest residues to each ligand atom
+    pocket_residues_set = set()
+    for ligand_coord in ligand_coords:
+        distances = []
+        for chain in model:
+            for residue in chain:
+                if residue.id[0] == " ":
+                    for atom in residue:
+                        dist = np.linalg.norm(atom.coord - ligand_coord)
+                        distances.append((dist, residue))
+        distances.sort(key=lambda x: x[0])  # type: ignore
+        closest_residues = [distances[i][1] for i in range(min(topk, len(distances)))]
+        pocket_residues_set.update(closest_residues)
+    pocket_residues = list(set(pocket_residues_set))
 
     if bar is not None:
         bar.update.remote(1)
 
-    return pocket_residues, sequences
+    return pocket_residues, structure
 
 
 def get_seq_to_pocket_residues(
-    cif_files: List[str], padding: float = 5.0
+    cif_files: List[str], df_parquet: pd.DataFrame, topk: int = 3
 ) -> pd.DataFrame:
     """
     Converts a list of residues to a list of strings in the format "CHAIN:RESIDUE_NUMBER:RESIDUE_NAME"
     Args:
         pocket_residues: List of residues
-        padding: Padding around the ligand to define the pocket (in Å)
+        topk: Number of closest residues to the ligand to include in the pocket
         num_cpus: Number of CPUs to use for parallel processing. If 0, process sequentially.
     Returns:
         Dictionary mapping each CIF file path to a list of residue strings
     """
-    df = pd.DataFrame(columns=["cif_file", "pocket_residues", "sequence"])
+    df = pd.DataFrame(
+        columns=[
+            "id",
+            "pocket_residues",
+            "structure",
+            "prot_id",
+            "sequence",
+            "avg_pIC50",
+            "avg_confidence",
+        ]
+    )
     res = []
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
     bar = remote_tqdm.remote(total=len(cif_files))  # type: ignore
 
     for cif_file in cif_files:
-        res.append(get_pocket_sequence_cif.remote(cif_file, padding, bar))
+        res.append(get_pocket_cif.remote(cif_file, topk, bar))
     results = ray.get(res)
-    for idx, cif_file in enumerate(cif_files):
-        pocket_residues, sequence = results[idx]
-        df.loc[len(df)] = [cif_file, pocket_residues, sequence]
+    proteins = (
+        df_parquet[
+            df_parquet["entry_id"].isin([cif_file_to_entry_id(f) for f in cif_files])
+        ]["protein"]
+        .unique()
+        .tolist()
+    )
+    sub_df_parquet = df_parquet[df_parquet["protein"].isin(proteins)]
+    for idx, cif_file in enumerate(tqdm(cif_files)):
+        pocket_residues, structure = results[idx]
+        entry_id = cif_file_to_entry_id(cif_file)
+        df_entry = sub_df_parquet[sub_df_parquet["entry_id"] == entry_id]
+        prot_id = df_entry["protein"].values[0]
+        sequence = df_entry["sequence"].values[0]
+        df_prot = sub_df_parquet[sub_df_parquet["protein"] == prot_id]
+        avg_pIC50 = df_prot["pIC50"].mean()
+        avg_confidence = df_prot["confidence_score"].mean()
+
+        df.loc[len(df)] = [
+            cif_file.split("/")[-1].replace(".cif", ""),
+            pocket_residues,
+            structure,
+            prot_id,
+            sequence,
+            avg_pIC50,
+            avg_confidence,
+        ]
 
     bar.close.remote()  # type: ignore
     return df
@@ -136,7 +214,7 @@ def process_df_and_aggregate_pockets(
     """
     Processes the DataFrame to aggregate pocket residues by sequence, and give them a cluster ID based on IoU.
     Args:
-        df: DataFrame with columns "cif_file", "pocket_residues", and "sequence"
+        df: DataFrame with columns "id", "pocket_residues", and "sequence"
 
     Returns:
         DataFrame with an additional column "cluster" indicating the cluster ID for each pocket
@@ -161,8 +239,6 @@ def process_df_and_aggregate_pockets(
                 iou_matrix.iat[j, i] = iou
 
         # Cluster pockets based on IoU threshold
-        from scipy.cluster.hierarchy import fcluster, linkage
-        from scipy.spatial.distance import squareform
 
         distance_matrix = 1 - iou_matrix.fillna(0).values
         condensed_distance = squareform(distance_matrix)
@@ -183,7 +259,7 @@ def process_df_and_aggregate_pockets(
             for residues in cluster_df["pocket_residues"]:
                 all_residues.extend(residues)
             residue_counts = pd.Series(all_residues).value_counts()
-            threshold = len(cluster_df) * 8 / 10
+            threshold = len(cluster_df) * 7 / 10
             aggregated_residues = residue_counts[
                 residue_counts >= threshold
             ].index.tolist()
@@ -199,67 +275,69 @@ def find_best_conf_pocket(df: pd.DataFrame, seq: str, pocket: List[Pocket]) -> s
     """
     Finds the best conformation of a pocket based on the conformation with the lowest RMSD for the concerned residues.
     Args:
-        df: DataFrame with columns "cif_file", "pocket_residues", "sequence", and "cluster"
+        df: DataFrame with columns "id", "pocket_residues", "sequence", and "cluster"
         seq: Sequence to filter the DataFrame
         pocket: List of residues in the pocket to compare against
     Returns:
         CIF file path of the best conformation
     """
     # First open all concerned cif files
-    parser = MMCIFParser(QUIET=True)
+    import time
+
+    t0 = time.time()
+
     structures = {}
-    for cif_file in df["cif_file"]:
-        structure = parser.get_structure(cif_file, cif_file)
-        structures[cif_file] = structure
-    # Now compute the RMSD for each structure against all others for the given pocket residues
-    from Bio.PDB.Superimposer import Superimposer
+    for id in df["id"]:
+        structures[id] = df[df["id"] == id]["structure"].values[0]
 
-    rmsd_values = {}
+    def get_rmsd_list(
+        structA: Any, structBs: List[Any], pocket: List[Pocket]
+    ) -> List[float] | None:
+        sup = Superimposer()
 
-    for cif_fileA in df["cif_file"]:
-        structureA = structures[cif_fileA]
-        modelA = structureA[0]
-        atomsA = []
-        for chain in modelA:
-            for residue in chain:
-                if residue in pocket:
-                    atomsA.extend(residue.get_atoms())
-        if not atomsA:
-            continue
-        total_rmsd = 0.0
-        count = 0
-
-        for cif_fileB in df["cif_file"]:
-            if cif_fileA == cif_fileB:
-                continue
-            structureB = structures[cif_fileB]
-            modelB = structureB[0]
+        modelA = structA[0]
+        rmsd_vals = []
+        for structB in structBs:
+            modelB = structB[0]
+            atomsA = []
             atomsB = []
+            for chain in modelA:
+                for residue in chain:
+                    if residue in pocket:
+                        atomsA.extend(residue.get_atoms())
             for chain in modelB:
                 for residue in chain:
                     if residue in pocket:
                         atomsB.extend(residue.get_atoms())
-            if not atomsB or len(atomsA) != len(atomsB):
-                continue
-            # Superimpose atomsA onto atomsB
-            sup = Superimposer()
+            if not atomsA or not atomsB or len(atomsA) != len(atomsB):
+                return None
             sup.set_atoms(atomsA, atomsB)
-            total_rmsd += sup.rms
-            count += 1
-        if count > 0:
-            rmsd_values[cif_fileA] = total_rmsd / count
-    if not rmsd_values:
-        raise ValueError("No valid RMSD values computed.")
 
-    best_cif: str = min(rmsd_values, key=rmsd_values.get)  # type: ignore
+            rmsd_vals.append(float(sup.rms))
+        return rmsd_vals
 
-    logger.info(
-        f"Best conformation: {best_cif} with RMSD: {rmsd_values[best_cif]} (median of {np.median(list(rmsd_values.values()))})"
+    rmsd_values = []
+    all_ids = list(df["id"])
+
+    for i in range(len(all_ids)):
+        idA = all_ids[i]
+        structureA = structures[idA]
+        structureBs = [structures[all_ids[j]] for j in range(i + 1, len(all_ids))]
+        rmsd_values.append(get_rmsd_list(structureA, structureBs, pocket))
+
+    rmsd_matrix = squareform(sum(rmsd_values, []))  # type: ignore
+    rmsd_df = pd.DataFrame(rmsd_matrix, index=df["id"], columns=df["id"], dtype=float)
+    best_struc = rmsd_df.mean(axis=1).idxmin()
+    assert isinstance(best_struc, str)
+    t1 = time.time()
+    print(
+        f"Found best conformation in {t1 - t0:.2f} second (for {len(all_ids)} structures). Best structure: {best_struc}"
     )
-    return best_cif
+
+    return best_struc
 
 
-@ray.remote
+@ray.remote(num_cpus=1)
 def get_best_conf_pocket_center_width(
     df: pd.DataFrame,
     sequence: str,
@@ -272,7 +350,7 @@ def get_best_conf_pocket_center_width(
     """
     Finds the center and width of the pocket residues in the given CIF file.
     Args:
-        df: DataFrame with columns "cif_file", "pocket_residues", "sequence", and "cluster"
+        df: DataFrame with columns "id", "pocket_residues", "sequence", and "cluster"
         sequence: Sequence of the protein
         pocket: List of residues in the pocket
         output_dir: Directory to save the best conformation PDB file
@@ -284,9 +362,13 @@ def get_best_conf_pocket_center_width(
         Width of the pocket as a float (maximum distance from the center to any pocket residue)
     """
 
-    best_cif = find_best_conf_pocket(df, sequence, pocket)
-    parser = MMCIFParser(QUIET=True)
-    structure = parser.get_structure(best_cif, best_cif)
+    import time
+
+    t0 = time.time()
+
+    best_struc = find_best_conf_pocket(df, sequence, pocket)
+
+    structure = df[df["id"] == best_struc]["structure"].values[0]
     model = structure[0]
     pocket_coords: List[List[float]] = []
 
@@ -297,33 +379,45 @@ def get_best_conf_pocket_center_width(
                     pocket_coords.append(atom.coord)
     pocket_coords_array: np.ndarray = np.array(pocket_coords)
 
-    center = pocket_coords_array.mean(axis=0)
+    center = (pocket_coords_array.max(axis=0) + pocket_coords_array.min(axis=0)) / 2
     width = pocket_coords_array.max(axis=0) - pocket_coords_array.min(axis=0)
     width = np.clip(width, a_min=min_pocket_size, a_max=max_pocket_size)
 
-    # Save to PDB file in output_dir
-    file_path = os.path.join(output_dir, best_cif.replace(".cif", ".pdb"))
+    # Save to PDB file in output_dir without the ligand
+    file_path = os.path.join(output_dir, best_struc + ".pdb")
     io = PDBIO()
+
+    # Remove the ligand from the structure
+    for chain in model:
+        for residue in list(chain):
+            if residue.id[0] != " " and residue.id[0] != "W":
+                chain.detach_child(residue.id)
     io.set_structure(structure)
     io.save(file_path)
+
     if bar is not None:
         bar.update.remote(1)
-    return best_cif, center, width
+
+    t1 = time.time()
+    logger.info(f"Processed {best_struc} in {t1 - t0:.2f} seconds.")
+    return best_struc, center, width
 
 
 # Steps to generate the dataset.
 # 1. Download the .tar.gz files from the SAIR dataset on Hugging Face.
-# 2. Find the residues in the pocket around the ligand for each structure-ligand pair.
-# 3. For each sequence, aggregate the pocket residues from all structures to find the intersection of residues.
-# 4. Align the pocket for all conformations, and find the best conformation (the least different from the others).
-# 5. Save the best conformation of the pocket residues as a PDB file.
-# 6. From the list of all residues in the pocket, aggregate the list of residues to determine the center of the pocket.
+# 2. Open the parquet sair file. Find the top-50% most potent ligands (based on pIC50) for each sequence, and select only the ones with a top 50% confidence score.
+# 3. Find the residues in the pocket around the ligand for each structure-ligand pair.
+# 4. For each sequence, aggregate the pocket residues from all structures to find the intersection of residues.
+# 5. Align the pocket for all conformations, and find the best conformation (the least different from the others).
+# 6. Save the best conformation of the pocket residues as a PDB file.
+# 7. From the list of all residues in the pocket, aggregate the list of residues to determine the center of the pocket.
 
 
 def process_sair_dataset(
     cif_files: List[str],
+    df_parquet: pd.DataFrame,
     output_dir: str,
-    padding: float = 5.0,
+    topk: int = 3,
     iou_threshold: float = 0.4,
     num_cpus: int = 4,
 ) -> pd.DataFrame:
@@ -331,30 +425,42 @@ def process_sair_dataset(
     Processes the SAIR dataset to identify and aggregate pocket residues.
     Args:
         cif_files: List of paths to CIF files
+        df_parquet: DataFrame containing the SAIR parquet data
         output_dir: Directory to save the best conformation PDB files
-        padding: Padding around the ligand to define the pocket (in Å)
+        topk: Number of closest residues to the ligand to include in the pocket
         iou_threshold: IoU threshold for clustering pockets
     Returns:
-        DataFrame with columns "cif_file", "pocket_residues", "sequence", "cluster", "center", "width"
+        DataFrame with columns "id", "pocket_residues", "cluster", "center", "width"
     """
+
+    cif_files, kept_entry_ids = filter_from_parquet(df_parquet, cif_files)
+    print(f"Kept {len(cif_files)} CIF files after filtering.")
+
     # Process the CIF files to get pocket residues and sequences
-    df = get_seq_to_pocket_residues(cif_files, padding)
+    df = get_seq_to_pocket_residues(cif_files, df_parquet, topk)
     # Aggregate pockets by sequence and cluster them based on IoU
     df, seq_pocketid_pocket = process_df_and_aggregate_pockets(df, iou_threshold)
 
     final_df = pd.DataFrame(
         columns=[
-            "cif_file",
+            "id",
             "pocket_residues",
-            "sequence",
             "cluster",
             "center",
             "width",
+            "n_ligand_poses",
+            "sequence",
+            "prot_id",
+            "avg_pIC50",
+            "avg_confidence",
         ]
     )
 
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    bar = remote_tqdm.remote(total=len(seq_pocketid_pocket))  # type: ignore
+    bar = remote_tqdm.remote(
+        total=len(seq_pocketid_pocket),
+        desc="Finding best configuration for each pocket: ",
+    )  # type: ignore
 
     res = []
     for seq, pocket_dict in seq_pocketid_pocket.items():
@@ -368,6 +474,7 @@ def process_sair_dataset(
                     cluster_df, seq, pocket, output_dir, 8, 30, bar
                 )
             )
+
     results = ray.get(res)
     bar.close.remote()  # type: ignore
 
@@ -379,17 +486,21 @@ def process_sair_dataset(
             if len(cluster_df) <= 1:
                 continue
             try:
-                best_cif, center, width = results[idx]
+                best_struc, center, width = results[idx]
                 logger.info(
-                    f"Sequence: {seq}, Cluster ID: {cluster_id}, Best CIF: {best_cif}"
+                    f"Sequence: {seq}, Cluster ID: {cluster_id}, Best Struc: {best_struc}"
                 )
                 final_df.loc[len(final_df)] = [
-                    best_cif,
+                    best_struc,
                     pocket,
-                    seq,
                     cluster_id,
                     center,
                     width,
+                    len(cluster_df),
+                    seq,
+                    cluster_df["prot_id"].values[0],
+                    cluster_df["avg_pIC50"].values[0],
+                    cluster_df["avg_confidence"].values[0],
                 ]
             except ValueError as e:
                 logger.warning(
@@ -407,7 +518,7 @@ if __name__ == "__main__":
         description="Process the SAIR dataset to identify and aggregate pocket residues."
     )
     parser.add_argument(
-        "--cif-dir",
+        "--sair-dir",
         type=str,
         required=True,
         help="Directory containing CIF files.",
@@ -419,36 +530,109 @@ if __name__ == "__main__":
         help="Directory to save best conformation PDB files.",
     )
     parser.add_argument(
-        "--padding",
-        type=float,
-        default=5.0,
+        "--topk",
+        type=int,
+        default=3,
         help="Padding around the ligand to define the pocket (in Å).",
     )
     parser.add_argument(
         "--iou-threshold",
         type=float,
-        default=0.4,
+        default=0.6,
         help="IoU threshold for clustering pockets.",
     )
     parser.add_argument(
         "--num-cpus",
         type=int,
-        default=4,
+        default=2,
         help="Number of CPUs to use for parallel processing. Set to 0 for sequential processing.",
+    )
+    parser.add_argument(
+        "--download-and-delete",
+        action="store_true",
+        help="Whether to download the dataset and delete the tar.gz files after extraction.",
+        default=False,
     )
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
-    cif_files = [
-        os.path.join(args.cif_dir, f)
-        for f in os.listdir(args.cif_dir)
-        if f.endswith(".cif")
-    ]
-    final_df = process_sair_dataset(
-        cif_files,
-        args.output_dir,
-        args.padding,
-        args.iou_threshold,
-        args.num_cpus,
-    )
-    final_df.to_csv(os.path.join(args.output_dir, "sair_pockets.csv"), index=False)
+    df_parquet = pd.read_parquet(os.path.join(args.sair_dir, "sair.parquet"))
+
+    if not args.download_and_delete:
+        os.makedirs(args.output_dir, exist_ok=True)
+        cif_files = [
+            os.path.join(args.sair_dir, "structures", f)
+            for f in os.listdir(os.path.join(args.sair_dir, "structures"))
+            if f.endswith("0.cif")
+        ]
+
+        final_df = process_sair_dataset(
+            cif_files,
+            df_parquet,
+            args.output_dir,
+            args.topk,
+            args.iou_threshold,
+            args.num_cpus,
+        )
+        final_df.to_csv(os.path.join(args.output_dir, "sair_pockets.csv"), index=False)
+
+    else:
+        from subprocess import check_call
+
+        final_df = pd.DataFrame()
+        for i in range(0, 2):
+            check_call(
+                [
+                    "python",
+                    "mol_gen_docking/data/SAIR_download.py",
+                    "--output-dir",
+                    os.path.dirname(os.path.join(args.sair_dir, "structures")),
+                    "--start-subset",
+                    str(i),
+                    "--end-subset",
+                    str(i + 1),
+                ]
+            )
+            os.makedirs(args.output_dir, exist_ok=True)
+            cif_files = [
+                os.path.join(args.sair_dir, "structures", f)
+                for f in os.listdir(os.path.join(args.sair_dir, "structures"))
+                if f.endswith(".cif")
+            ]
+            df_pocks = process_sair_dataset(
+                cif_files,
+                df_parquet,
+                args.output_dir,
+                args.topk,
+                args.iou_threshold,
+                args.num_cpus,
+            )
+            final_df = pd.concat([final_df, df_pocks], ignore_index=True)
+            final_df.to_csv(
+                os.path.join(args.output_dir, "sair_pockets.csv"), index=False
+            )
+            # Delete the .cif files to save space
+            for f in tqdm(cif_files, desc="Deleting CIF files"):
+                os.remove(f)
+
+    # Save a pocket_inf.json file with the pocket information
+    pocket_info: Dict[str, Dict[str, Any]] = {}
+
+    for _, row in final_df.iterrows():
+        pocket_info[row["id"]] = {
+            "size": row["width"].tolist(),
+            "center": row["center"].tolist(),
+            "metadata": {
+                "cluster": int(row["cluster"]),
+                "center": row["center"].tolist(),
+                "size": row["width"].tolist(),
+                "n_ligand_poses": int(row["n_ligand_poses"]),
+                "sequence": row["sequence"],
+                "prot_id": row["prot_id"],
+                "avg_pIC50": float(row["avg_pIC50"]),
+                "avg_confidence": float(row["avg_confidence"]),
+            },
+        }
+    with open(os.path.join(args.output_dir, "pockets_info.json"), "w") as f:  # type: ignore
+        import json
+
+        json.dump(pocket_info, f, indent=4)  # type: ignore
