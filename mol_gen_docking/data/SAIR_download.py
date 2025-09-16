@@ -92,21 +92,28 @@ def download_and_extract_sair_structures(
     print("Ensured destination directory exists.")
 
     # --- 2. Get the list of relevant files from the Hugging Face Hub ---
-    try:
-        all_files = list_repo_files(repo_id, repo_type="dataset")
-        # Filter for files within the specified folder that are tar.gz archives
-        repo_tars = [
-            f.split("/")[-1]
-            for f in all_files
-            if f.startswith(repo_folder + "/") and f.endswith(".tar.gz")
-        ]
-        print(f"Found {len(repo_tars)} total .tar.gz files in '{repo_folder}'.")
-    except Exception as e:
-        print(
-            f"Error: Could not list files from repository '{repo_id}'. Please check the name and your connection."
-        )
-        print(f"Details: {e}")
-        return
+    if os.path.exists("SAIR_repo_tars.json"):
+        import json
+
+        with open("SAIR_repo_tars.json") as f:
+            repo_tars = json.load(f)
+        print(f"Loaded {len(repo_tars)} .tar.gz filenames from cached JSON.")
+    else:
+        try:
+            all_files = list_repo_files(repo_id, repo_type="dataset")
+            # Filter for files within the specified folder that are tar.gz archives
+            repo_tars = [
+                f.split("/")[-1]
+                for f in all_files
+                if f.startswith(repo_folder + "/") and f.endswith(".tar.gz")
+            ]
+            print(f"Found {len(repo_tars)} total .tar.gz files in '{repo_folder}'.")
+        except Exception as e:
+            print(
+                f"Error: Could not list files from repository '{repo_id}'. Please check the name and your connection."
+            )
+            print(f"Details: {e}")
+            return
 
     # --- 3. Determine which files to download ---
     if file_subset:
