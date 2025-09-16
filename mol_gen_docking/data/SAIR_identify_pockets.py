@@ -61,9 +61,6 @@ def filter_from_parquet(
         df_prot_filtered = df_prot_filtered[
             df_prot_filtered["confidence_score"] >= confidence_threshold
         ]
-        df_prot_filtered = df_prot_filtered.sort_values("pIC50", ascending=False).iloc[
-            : min(df_prot_filtered.shape[0], 20)
-        ]
         entry_ids_prot = df_prot_filtered["entry_id"].unique().tolist()
 
         for entry_id in entry_ids_prot:
@@ -140,7 +137,6 @@ def get_seq_to_pocket_residues(
     Args:
         pocket_residues: List of residues
         topk: Number of closest residues to the ligand to include in the pocket
-        num_cpus: Number of CPUs to use for parallel processing. If 0, process sequentially.
     Returns:
         Dictionary mapping each CIF file path to a list of residue strings
     """
@@ -474,7 +470,6 @@ def process_sair_dataset(
     output_dir: str,
     topk: int = 3,
     iou_threshold: float = 0.4,
-    num_cpus: int = 4,
 ) -> pd.DataFrame:
     """
     Processes the SAIR dataset to identify and aggregate pocket residues.
@@ -616,12 +611,6 @@ if __name__ == "__main__":
         help="IoU threshold for clustering pockets.",
     )
     parser.add_argument(
-        "--num-cpus",
-        type=int,
-        default=2,
-        help="Number of CPUs to use for parallel processing. Set to 0 for sequential processing.",
-    )
-    parser.add_argument(
         "--idx-to-download",
         type=int,
         default=-1,
@@ -644,7 +633,6 @@ if __name__ == "__main__":
             args.output_dir,
             args.topk,
             args.iou_threshold,
-            args.num_cpus,
         )
         final_df.to_csv(os.path.join(args.output_dir, "sair_pockets.csv"), index=False)
 
@@ -678,7 +666,6 @@ if __name__ == "__main__":
             args.output_dir,
             args.topk,
             args.iou_threshold,
-            args.num_cpus,
         )
         final_df.to_csv(
             os.path.join(args.output_dir, f"sair_pockets_{args.idx_to_download}.csv"),
