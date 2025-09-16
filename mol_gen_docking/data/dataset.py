@@ -12,6 +12,7 @@ from datasets import Dataset
 from numpy import random
 from tqdm import tqdm
 
+from mol_gen_docking.data.pydantic_dataset import Conversation, Message, Sample
 from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
     PROPERTY_ALLOWED_OBJECTIVES,
@@ -103,10 +104,11 @@ class RuleSet:
 
 @dataclass
 class DatasetConfig:
-    """Configuration for the MolGenerationInstructionsDataset"""
+    """Configuration for the MolGenerationInstructionsDatasetGenerator"""
 
     data_path: str
-    max_n_props: int = 5
+    max_n_props: int = 3
+    props_prob: List[float] = field(default_factory=lambda: [0.5, 0.3, 0.2])
     vina: bool = False
     split_docking: List[float] = field(default_factory=lambda: [1])
     probs_docking_targets: float = 0.5
@@ -118,7 +120,7 @@ class DatasetConfig:
     )
 
 
-class MolGenerationInstructionsDataset:
+class MolGenerationInstructionsDatasetGenerator:
     """A simple Dataset generating rule-based prompts for molecule generation"""
 
     def __init__(
@@ -219,7 +221,6 @@ class MolGenerationInstructionsDataset:
     def _extract_splits(self, split_docking: List[float]) -> None:
         np.random.shuffle(self.docking_properties)
         i0 = 0
-        print(split_docking)
         for idx, p in enumerate(split_docking):
             i1 = i0 + int(len(self.docking_properties) * p)
             i1 = min(i1, len(self.docking_properties))
@@ -473,18 +474,20 @@ class MolGenerationInstructionsDataset:
         :return:
         """
         for _ in range(n):
-            print(
-                self.rule_set.prohibited_props_at_n,
-                self.max_n_props,
-                docking_properties_list,
+            n_props_probs = np.array(
+                [
+                    self.config.props_prob[i]
+                    * int(
+                        len(self.rule_set.prohibited_props_at_n.get(i + 1, []))
+                        < len(docking_properties_list)
+                    )
+                    for i in range(self.max_n_props)
+                ]
             )
-            possible_n = [
-                i
-                for i in range(1, self.max_n_props + 1)
-                if len(self.rule_set.prohibited_props_at_n.get(i, []))
-                < len(docking_properties_list)
-            ]
-            n_props: int = int(np.random.choice(possible_n))
+            n_props_probs = n_props_probs / n_props_probs.sum()
+            possible_n = np.arange(1, self.max_n_props + 1)
+
+            n_props: int = int(np.random.choice(possible_n, p=n_props_probs))
             properties = self._sample_properties(n_props, docking_properties_list)
             objectives = self.get_obj_from_prop(properties)
 
@@ -523,7 +526,6 @@ class MolGenerationInstructionsDataset:
         Generates prompts, with at most n tries to obtain a prompt that meets the rule.
         """
         docking_prop_list: List[str] = self.docking_properties_split[docking_split]
-        print("DOCKPROP", self.docking_properties_split)
         for _ in range(n):
             found = False
             for prompt, metadata in self.generate(
@@ -566,6 +568,50 @@ class MolGenerationInstructionsDataset:
             tqdm.update(p_bar)
         self.rule_set.partial_reset()
         return data_dict
+
+
+def data_dict_to_hf_dataset(data_dict: dict) -> Dataset:
+    hf_dataset = Dataset.from_dict(data_dict)
+    return hf_dataset
+
+
+def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
+    sample_list: List[Sample] = []
+
+    for i in range(len(data_dict[key])):
+        messages: List[Message] = [Message(**msg) for msg in data_dict[key][i]]
+        conv = Conversation(
+            messages=messages,
+            system_prompt=None,
+            available_tools=None,
+            truncate_at_max_tokens=None,
+            truncate_at_max_image_tokens=None,
+            output_modalities=None,
+            identifier=data_dict["prompt_id"][i],
+            references=[],
+            rating=None,
+            source=None,
+            training_masks_strategy="none",
+            custom_training_masks=None,
+            meta={
+                "properties": data_dict["properties"][i],
+                "objectives": data_dict["objectives"][i],
+                "target": data_dict["target"][i],
+                "prompt_id": data_dict["prompt_id"][i],
+                "n_props": data_dict["n_props"][i],
+                "docking_metadata": data_dict["docking_metadata"][i],
+            },
+        )
+        sample_list.append(
+            Sample(
+                identifier=data_dict["prompt_id"][i],
+                conversations=[conv],
+                trajectories=[],
+                meta={},
+                source=None,
+            )
+        )
+    return sample_list
 
 
 def jsonize_dict(d: Dict[Any, Any]) -> None:

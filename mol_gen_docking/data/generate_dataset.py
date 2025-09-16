@@ -1,13 +1,15 @@
 import argparse
 import logging
 import os
-
-import datasets
+from pathlib import Path
 
 from mol_gen_docking.data.dataset import (
     DatasetConfig,
-    MolGenerationInstructionsDataset,
+    MolGenerationInstructionsDatasetGenerator,
+    data_dict_to_hf_dataset,
+    data_dict_to_pydantic,
 )
+from mol_gen_docking.data.pydantic_dataset import write_jsonl
 
 logger = logging.getLogger(__name__)
 # Set up logging to INFO level
@@ -15,7 +17,7 @@ logging.basicConfig()
 
 
 def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
-    dataset = MolGenerationInstructionsDataset(config)
+    dataset = MolGenerationInstructionsDatasetGenerator(config)
 
     n_valid_prompts = int(args.n_prompts / 0.7 * 0.1)  # 10% of the training set
     n_test_prompts = int(args.n_prompts / 0.7 * 0.2)  # 20% of the training set
@@ -30,15 +32,15 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
 
     for name, docking_split, n_prompts in variables:
         data_dict = dataset.generate_dataset(n_prompts, docking_split=docking_split)
+        pydantic_dataset = data_dict_to_pydantic(data_dict)  # Validate the data
+        write_jsonl(
+            Path(os.path.join(args.data_path, name + ".jsonl")), pydantic_dataset
+        )
+
         hf_dataset = data_dict_to_hf_dataset(data_dict)
         hf_dataset.save_to_disk(os.path.join(args.data_path, name))
         for i in range(10):
             print(f"{i}:   ", hf_dataset[i]["prompt"][1]["content"])
-
-
-def data_dict_to_hf_dataset(data_dict: dict) -> datasets.Dataset:
-    hf_dataset = datasets.Dataset.from_dict(data_dict)
-    return hf_dataset
 
 
 if __name__ == "__main__":
@@ -59,15 +61,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-dock-prop-per-prompt",
         type=int,
-        default=1,
+        default=2,
         help="The maximum number of docking properties per prompt",
     )
 
     parser.add_argument(
-        "--max-n-props",
-        type=int,
-        default=3,
-        help="The maximum number of properties to optimize",
+        "--n-props-probs",
+        nargs="+",
+        type=float,
+        default=[0.5, 0.3, 0.2],
+        help="Probabilities for the number of properties per prompt",
     )
 
     parser.add_argument(
@@ -82,7 +85,8 @@ if __name__ == "__main__":
 
     config = DatasetConfig(
         data_path=args.data_path,
-        max_n_props=args.max_n_props,
+        max_n_props=len(args.n_props_probs),
+        props_prob=args.n_props_probs,
         vina=args.vina,
         split_docking=args.split_docking,
         max_docking_per_prompt=args.max_dock_prop_per_prompt,

@@ -6,7 +6,7 @@ from datasets import load_from_disk
 
 from mol_gen_docking.data.dataset import (
     DatasetConfig,
-    MolGenerationInstructionsDataset,
+    MolGenerationInstructionsDatasetGenerator,
 )
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -61,7 +61,7 @@ def build_metada_pocket(request):
 def test_fill_prompt(props, obj, build_metada_pocket):
     """Tests if the prompt is generated correctly, i.e it can correctly be parsed."""
     obj = get_unscaled_obj(obj, props)
-    dataset = MolGenerationInstructionsDataset(cfg)
+    dataset = MolGenerationInstructionsDatasetGenerator(cfg)
     props = dataset.prop_name_mapping.get(props, props)
     prompt = dataset.fill_prompt([props], [obj])[0]
     assert isinstance(prompt, str)
