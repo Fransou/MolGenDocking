@@ -10,11 +10,11 @@
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --array=0-100
 
-export IDX=$SLURM_ARRAY_TASK_ID
-export DATA_PATH=$SCRATCH/MolGenData/SAIR
+i=$SLURM_ARRAY_TASK_ID
+data_path=$SCRATCH/MolGenData/sair_data
+files=($data_path/structures_compressed/*)
 
-# Get the tar.gz file corresponding IDX-th in the DATA_PATH/structures_compressed
-export DATA_FILE = $(ls $DATA_PATH/structures_compressed | sed -n "${IDX}p")
+data_file=${files[$i]}
 
 
 source $HOME/.bashrc
@@ -22,17 +22,18 @@ source $HOME/OpenRLHF/bin/activate
 export WORKING_DIR=$HOME/MolGenDocking
 
 cd $SLURM_TMPDIR
-cp $DATA_PATH/structures_compressed/$DATA_FILE $SLURM_TMPDIR
-# tar the file into a folder named sair_$IDX
-mkdir sair_$IDX
-tar -xvzf $DATA_FILE -C sair_$IDX
+cp $data_path/structures_compressed/$data_file $SLURM_TMPDIR
+mkdir sair_$i
+tar -xzf $data_file -C sair_$i
+cp $data_path/sair.parquet $SLURM_TMPDIR/sair_$i
 
 ray start --head --node-ip-address 0.0.0.0
 
+cd $WORKING_DIR
 python mol_gen_docking/data/SAIR_identify_pockets.py \
-  --sair-dir sair_$IDX \
+  --sair-dir $SLURM_TMPDIR/sair_$i \
   --iou-threshold 0.4 \
   --topk 3
 
 # Copy results back to SCRATCH
-cp -r sair_$IDX $DATA_PATH/structures_with_pockets/sair_$IDX
+cp -r sair_$i $data_path/structures_with_pockets/sair_$i
