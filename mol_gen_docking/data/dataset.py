@@ -4,7 +4,6 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from multiprocessing import Pool
 from typing import Any, Dict, Iterator, List, Tuple
 
 import numpy as np
@@ -177,30 +176,12 @@ class MolGenerationInstructionsDataset:
         self.obj_templates: Dict[str, List[str]] = OBJECTIVES_TEMPLATES
         self.templates: List[str] = PROMPT_TEMPLATE
         self.prop_key_list = list(self.prop_name_mapping.keys())
+
         self.rule_set = RuleSet(
             probs_docking_targets=config.probs_docking_targets,
             max_occ=config.max_occ,
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
-
-    def save_sim_matrices(self) -> None:
-        # Get similarity matrix per split
-        with open(
-            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
-        ) as f:
-            json.dump(self._get_similarity_matrix(0, 1, self.config.data_path), f)
-        with open(
-            os.path.join(self.config.data_path, "val_dist_to_train.json"), "w"
-        ) as f:
-            json.dump(self._get_similarity_matrix(0, 2, self.config.data_path), f)
-        with open(
-            os.path.join(self.config.data_path, "val_dist_to_val.json"), "w"
-        ) as f:
-            json.dump(self._get_similarity_matrix(1, 1, self.config.data_path), f)
-        with open(
-            os.path.join(self.config.data_path, "test_dist_to_test.json"), "w"
-        ) as f:
-            json.dump(self._get_similarity_matrix(2, 2, self.config.data_path), f)
 
     @staticmethod
     def _get_allowed_props(
@@ -211,119 +192,6 @@ class MolGenerationInstructionsDataset:
             for p in original_prop_list
             if p not in rule_set.prohibited_props_at_n.get(n_props, [])
         ]
-
-    def _get_similarity_matrix(
-        self, i0: int, i1: int, path: str
-    ) -> Dict[str, Dict[str, float]]:
-        pdb_ids_list0 = [
-            self.prop_name_mapping[p]
-            for p in self.docking_properties_split[i0]
-            if not self.prop_name_mapping[p].endswith("_docking")
-        ]
-        pdb_ids_list1 = [
-            self.prop_name_mapping[p]
-            for p in self.docking_properties_split[i1]
-            if not self.prop_name_mapping[p].endswith("_docking")
-        ]
-
-        similarities: Dict[str, Dict[str, float]] = {p: {} for p in pdb_ids_list0}
-        args = [(p0, p1, path) for p0 in pdb_ids_list0 for p1 in pdb_ids_list1]
-        pool = Pool(4)
-        results = list(
-            tqdm(
-                pool.imap(self.get_similarity, args),
-                total=len(args),
-                desc=f"Similarity computing between {i0} and {i1}",
-            )
-        )
-        for r, ar in zip(results, args):
-            similarities[ar[0]][ar[1]] = r
-
-        return similarities
-
-    def get_similarity(self, inp: Tuple[str, str, str]) -> float:
-        from tmtools import tm_align
-        from tmtools.io import get_residue_data, get_structure
-
-        pdb0, pdb1, path = inp
-
-        pocket_id0 = self.pockets_info[pdb0]["metadata"]["pocket_id"]
-        pocket_id1 = self.pockets_info[pdb1]["metadata"]["pocket_id"]
-
-        pocket0 = get_structure(
-            os.path.join(
-                path,
-                "pdb_files",
-                pdb0 + "_processed_out",
-                "pockets",
-                f"pocket{pocket_id0}_atm.pdb",
-            )
-        )
-        pocket1 = get_structure(
-            os.path.join(
-                path,
-                "pdb_files",
-                pdb1 + "_processed_out",
-                "pockets",
-                f"pocket{pocket_id1}_atm.pdb",
-            )
-        )
-
-        s0 = get_structure(os.path.join(path, "pdb_files", pdb0 + "_processed.pdb"))
-        s1 = get_structure(os.path.join(path, "pdb_files", pdb1 + "_processed.pdb"))
-
-        def get_closest_chain(structure: Any, pocket: Any) -> Any:
-            pocket_atoms = [atom.get_coord() for atom in pocket.get_atoms()]
-            pocket_center = np.mean(pocket_atoms, axis=0)
-
-            min_dist = float("inf")
-            closest_chain = None
-            for chain in structure.get_chains():
-                try:
-                    chain_coords = np.array(
-                        [atom.get_coord() for atom in chain.get_atoms()]
-                    )
-                    if chain_coords.shape[0] < 3:
-                        continue
-                    chain_center = np.mean(chain_coords, axis=0)
-                    dist = float(np.linalg.norm(pocket_center - chain_center))
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_chain = chain
-                except Exception:
-                    continue
-            return closest_chain
-
-        chain0 = get_closest_chain(s0, pocket0)
-        chain1 = get_closest_chain(s1, pocket1)
-
-        def normalize_resnames(chain: Any) -> None:
-            rename_map = {
-                "HIE": "HIS",
-                "HIP": "HIS",
-                "HID": "HIS",
-                "ASH": "ASP",
-                "GLH": "GLU",
-                "CYX": "CYS",
-                "CSS": "CYS",
-                # Add more if needed
-            }
-            for res in chain:
-                if res.resname in rename_map:
-                    res.resname = rename_map[res.resname]
-
-        normalize_resnames(chain0)
-        normalize_resnames(chain1)
-
-        try:
-            coords0, seq0 = get_residue_data(chain0)
-            coords1, seq1 = get_residue_data(chain1)
-            if len(seq0) < 3 or len(seq1) < 3:
-                out = 10.0
-            out = tm_align(coords0, coords1, seq0, seq1).rmsd
-        except Exception:
-            out = 10.0
-        return out
 
     def _load_props(self, path: str) -> None:
         assert os.path.exists(path)
@@ -351,6 +219,7 @@ class MolGenerationInstructionsDataset:
     def _extract_splits(self, split_docking: List[float]) -> None:
         np.random.shuffle(self.docking_properties)
         i0 = 0
+        print(split_docking)
         for idx, p in enumerate(split_docking):
             i1 = i0 + int(len(self.docking_properties) * p)
             i1 = min(i1, len(self.docking_properties))
@@ -604,6 +473,11 @@ class MolGenerationInstructionsDataset:
         :return:
         """
         for _ in range(n):
+            print(
+                self.rule_set.prohibited_props_at_n,
+                self.max_n_props,
+                docking_properties_list,
+            )
             possible_n = [
                 i
                 for i in range(1, self.max_n_props + 1)
@@ -649,6 +523,7 @@ class MolGenerationInstructionsDataset:
         Generates prompts, with at most n tries to obtain a prompt that meets the rule.
         """
         docking_prop_list: List[str] = self.docking_properties_split[docking_split]
+        print("DOCKPROP", self.docking_properties_split)
         for _ in range(n):
             found = False
             for prompt, metadata in self.generate(
@@ -662,7 +537,7 @@ class MolGenerationInstructionsDataset:
                 break
             yield prompt, metadata
 
-    def generate_hf_dataset(self, n: int, docking_split: int) -> Dataset:
+    def generate_dataset(self, n: int, docking_split: int) -> Dataset:
         assert docking_split < len(self.docking_properties_split), (
             f"docking_split must be less than the number of docking splits, here:{len(self.docking_properties_split)}"
         )
@@ -689,9 +564,8 @@ class MolGenerationInstructionsDataset:
                 if k in data_dict:
                     data_dict[k].append(metadata[k])
             tqdm.update(p_bar)
-        print(data_dict["prompt_multimodal"])
         self.rule_set.partial_reset()
-        return Dataset.from_dict(data_dict)
+        return data_dict
 
 
 def jsonize_dict(d: Dict[Any, Any]) -> None:

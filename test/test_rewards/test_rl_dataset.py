@@ -4,7 +4,7 @@ from itertools import product
 import pytest
 from datasets import load_from_disk
 
-from mol_gen_docking.data.rl_dataset import (
+from mol_gen_docking.data.dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )

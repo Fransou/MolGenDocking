@@ -1,6 +1,12 @@
+import argparse
 import json
 import os
 from subprocess import DEVNULL, STDOUT, check_call
+from typing import Any
+
+import pandas as pd
+import ray
+from ray.experimental import tqdm_ray
 
 from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping_uniprot
 
@@ -27,8 +33,65 @@ def check_pdb_file(path: str) -> bool:
         return False
 
 
+@ray.remote(num_cpus=1)
+def check_and_copy(
+    structure: str, args: argparse.Namespace, pocket_info: dict, pbar: Any
+) -> str | None:
+    pdb_path = os.path.join(args.sair_path, f"{structure}.pdb")
+    if not check_pdb_file(pdb_path):
+        print(f"[Warning] {structure} could not be processed by prepare_receptor.")
+        return None
+    pocket_info[structure]["pdb_path"] = pdb_path
+
+    # Copy pdb file to the new location (pdb_path)
+    os.system(
+        f"cp {pdb_path} {os.path.join(data_pdb_path, f'{structure}_processed.pdb')}"
+    )
+    if pbar is not None:
+        pbar.update.remote(1)
+
+    return structure
+
+
+def get_final_df__and_pocket_info(
+    sair_path: str,
+) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
+    final_df = pd.concat(
+        [
+            pd.read_csv(os.path.join(sair_path, f))
+            for f in os.listdir(sair_path)
+            if f.endswith(".csv") and f.startswith("sair_pockets")
+        ],
+        ignore_index=True,
+    )
+    final_df = (
+        final_df.sort_values(by="n_ligand_poses", ascending=False)
+        .drop_duplicates(subset=["prot_id"])
+        .reset_index(drop=True)
+    )
+    # Save a pocket_infos.json file with the pocket information
+    pocket_info: dict[str, dict[str, Any]] = {}
+
+    for _, row in final_df.iterrows():
+        pocket_info[row["id"]] = {
+            "size": [row["width_x"], row["width_y"], row["width_z"]],
+            "center": [row["center_x"], row["center_y"], row["center_z"]],
+            "metadata": {
+                "cluster": int(row["cluster"]),
+                "center": [row["center_x"], row["center_y"], row["center_z"]],
+                "size": [row["width_x"], row["width_y"], row["width_z"]],
+                "n_ligand_poses": int(row["n_ligand_poses"]),
+                "sequence": row["sequence"],
+                "prot_id": row["prot_id"],
+                "avg_pIC50": float(row["avg_pIC50"]),
+                "avg_confidence": float(row["avg_confidence"]),
+            },
+        }
+    return final_df, pocket_info
+
+
 if __name__ == "__main__":
-    import argparse
+    ray.init()
 
     parser = argparse.ArgumentParser(
         description="Post-process the SAIR dataset after downloading and pocket extraction."
@@ -50,34 +113,41 @@ if __name__ == "__main__":
     os.makedirs(data_path, exist_ok=True)
     os.makedirs(data_pdb_path, exist_ok=True)
 
-    pocket_info = json.load(open(os.path.join(args.sair_path, "pockets_info.json")))
-    kept_pockets = []
-    kept_pockets_uniprots = []
+    final_df, pocket_info = get_final_df__and_pocket_info(args.sair_path)
+    remote_tqdm = ray.remote(tqdm_ray.tqdm)
+    pbar = remote_tqdm.remote(total=len(pocket_info))  # type: ignore
+
+    kept_pockets_jobs = []
+
     for structure in pocket_info:
-        pdb_path = os.path.join(args.sair_path, "structures", f"{structure}.pdb")
-        if not check_pdb_file(pdb_path):
-            print(f"[Warning] {structure} could not be processed by prepare_receptor.")
-            continue
-        pocket_info[structure]["pdb_path"] = pdb_path
-
-        # Copy pdb file to the new location (pdb_path)
-        os.system(
-            f"cp {pdb_path} {os.path.join(data_pdb_path, f'{structure}_processed.pdb')}"
+        kept_pockets_jobs.append(
+            check_and_copy.remote(structure, args, pocket_info, pbar)
         )
-        kept_pockets.append(structure)
-        kept_pockets_uniprots.append(pocket_info[structure]["metadata"]["prot_id"])
 
+    kept_pockets = ray.get(kept_pockets_jobs)
+    kept_pockets = [p for p in kept_pockets if p is not None]
+
+    pbar.close.remote()  # type: ignore
+
+    kept_pockets_uniprots = [
+        pocket_info[p]["metadata"]["prot_id"] for p in kept_pockets
+    ]
+    print(kept_pockets)
     names_mapping_uniprot = get_names_mapping_uniprot(
         kept_pockets_uniprots, names_override=kept_pockets
     )
 
-    docking_targets = list(
-        [
-            v
-            for v in names_mapping_uniprot.values()
-            if v in kept_pockets or "docking" in v
-        ]
-    )
+    docking_targets = kept_pockets + [
+        "3pbl_docking",
+        "1iep_docking",
+        "2rgp_docking",
+        "3eml_docking",
+        "3ny8_docking",
+        "4rlu_docking",
+        "4unn_docking",
+        "5mo4_docking",
+        "7l11_docking",
+    ]
 
     json.dump(
         pocket_info,

@@ -4,7 +4,7 @@ from typing import Dict, List
 
 from tqdm import tqdm
 
-from data.pdb_uniprot.api_requests import (
+from mol_gen_docking.data.pdb_uniprot.api_requests import (
     fetch_uniprot_id_from_pdbid,
     fetch_uniprot_info,
 )
@@ -68,7 +68,7 @@ def get_names_mapping_uniprot(
             if desc is not None:
                 names_mapping[f"Docking score against {desc}"] = uniprot_id
     else:
-        for name, desc in zip(docking_targets, docking_desc):
+        for name, desc in zip(names_override, docking_desc):
             if desc is not None:
                 names_mapping[f"Docking score against {desc}"] = name
 

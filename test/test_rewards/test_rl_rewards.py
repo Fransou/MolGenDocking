@@ -9,7 +9,7 @@ import ray
 import torch
 
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
-from mol_gen_docking.data.rl_dataset import (
+from mol_gen_docking.data.dataset import (
     DatasetConfig,
     MolGenerationInstructionsDataset,
 )

@@ -4,7 +4,6 @@ Script to download and extract data from the SandboxAQ/SAIR dataset on Hugging F
 
 import argparse
 import os
-import subprocess
 
 from huggingface_hub import hf_hub_download, list_repo_files
 from tqdm import tqdm
@@ -137,6 +136,16 @@ def download_and_extract_sair_structures(
         print("No subset specified. All .tar.gz files will be downloaded.")
 
     # --- 4. Download and Extract each file ---
+    # Check if the files are already downloaded and extracted if only one requested
+    structure_dir = os.path.join(destination_dir, "structures")
+    if os.path.exists(structure_dir) and len(files_to_download) == 1:
+        existing_files = os.listdir(structure_dir)
+        if len(existing_files) == 50000:
+            print(
+                f"Directory '{structure_dir}' already exists and contains 50000 files. Skipping download."
+            )
+            return
+
     for filename in tqdm(files_to_download, desc="Processing files"):
         # Construct the full path within the repository
         repo_filepath = f"{repo_folder}/{filename}"
@@ -146,35 +155,35 @@ def download_and_extract_sair_structures(
         print(f"\nDownloading '{filename}'...")
         try:
             # Download the file from the Hub
-            hf_hub_download(
-                repo_id=repo_id,
-                filename=repo_filepath,
-                repo_type="dataset",
-                local_dir=destination_dir,
-                local_dir_use_symlinks=False,
-            )
-            print(f"Successfully downloaded to '{download_path}'")
-
-            # Extract the downloaded .tar.gz file
-            print(f"Extracting '{filename}'...")
-            subprocess.check_call(
-                [
-                    "tar",
-                    "--use-compress-program=pigz",
-                    "-xf",
-                    download_path,
-                    "-C",
-                    destination_dir,
-                ]
-            )
-            print(f"Successfully extracted contents to '{destination_dir}'")
+            if not os.path.exists(os.path.join(destination_dir, repo_filepath)):
+                hf_hub_download(
+                    repo_id=repo_id,
+                    filename=repo_filepath,
+                    repo_type="dataset",
+                    local_dir=destination_dir,
+                    local_dir_use_symlinks=False,
+                )
+                print(f"Successfully downloaded to '{download_path}'")
+            #
+            # # Extract the downloaded .tar.gz file
+            # print(f"Extracting '{filename}'...")
+            # subprocess.check_call(
+            #     [
+            #         "tar",
+            #         "-xf",
+            #         download_path,
+            #         "-C",
+            #         destination_dir,
+            #     ]
+            # )
+            # print(f"Successfully extracted contents to '{destination_dir}'")
 
         except Exception as e:
             print(f"An error occurred while processing '{filename}': {e}")
             continue
 
         finally:
-            # Clean up the downloaded archive if the flag is set and the file exists
+            #     Clean up the downloaded archive if the flag is set and the file exists
             if cleanup and os.path.exists(download_path):
                 os.remove(download_path)
                 print(f"Cleaned up (deleted) '{download_path}'")
@@ -194,6 +203,12 @@ if __name__ == "__main__":
         help="Directory to save downloaded data.",
     )
     parser.add_argument(
+        "--download-parquet",
+        action="store_true",
+        help="Flag to download the sair.parquet file.",
+        default=False,
+    )
+    parser.add_argument(
         "--start-subset",
         type=int,
         default=0,
@@ -202,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--end-subset",
         type=int,
-        default=2,
+        default=1,
         help="End index for subset of structure files to download (exclusive).",
     )
 
@@ -212,9 +227,9 @@ if __name__ == "__main__":
     output_directory = args.output_dir
 
     # Call the function to download and load the data
-    load_sair_parquet(destination_dir=output_directory)
+    if args.download_parquet:
+        load_sair_parquet(destination_dir=output_directory)
     # --- Download a specific subset of structure tarballs ---
-    print("--- Running Scenario 2: Download a specific subset ---")
     # Define the specific files you want to download
     # Replace this with None to download *all* structures
     # (remember, this is >100 files of ~10GB each!)
