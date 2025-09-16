@@ -4,6 +4,7 @@ Script to download and extract data from the SandboxAQ/SAIR dataset on Hugging F
 
 import argparse
 import os
+import subprocess
 
 from huggingface_hub import hf_hub_download, list_repo_files
 from tqdm import tqdm
@@ -172,18 +173,18 @@ def download_and_extract_sair_structures(
                 )
                 print(f"Successfully downloaded to '{download_path}'")
             #
-            # # Extract the downloaded .tar.gz file
-            # print(f"Extracting '{filename}'...")
-            # subprocess.check_call(
-            #     [
-            #         "tar",
-            #         "-xf",
-            #         download_path,
-            #         "-C",
-            #         destination_dir,
-            #     ]
-            # )
-            # print(f"Successfully extracted contents to '{destination_dir}'")
+            # Extract the downloaded .tar.gz file
+            print(f"Extracting '{filename}'...")
+            subprocess.check_call(
+                [
+                    "tar",
+                    "-xf",
+                    download_path,
+                    "-C",
+                    destination_dir,
+                ]
+            )
+            print(f"Successfully extracted contents to '{destination_dir}'")
 
         except Exception as e:
             print(f"An error occurred while processing '{filename}': {e}")
