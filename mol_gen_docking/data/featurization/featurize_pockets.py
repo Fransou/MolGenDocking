@@ -3,7 +3,7 @@ import logging
 import torch
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
-from mol_gen_docking.data.api_requests import get_data_from_pdb_id
+from mol_gen_docking.data.pdb_uniprot.api_requests import get_data_from_pdb_id
 
 logger = logging.getLogger(__name__)
 

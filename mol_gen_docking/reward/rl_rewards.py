@@ -80,7 +80,7 @@ class RewardScorer:
     @staticmethod
     def get_mol_props_from_prompt(
         prompts: List[Any], search_templates: List[Tuple[str, str]]
-    ) -> List[Dict[str, Tuple[Any, Any]]]:
+    ) -> List[Dict[str, Tuple[str, float]]]:
         """
         Get molecular properties from prompt.
 
@@ -132,7 +132,7 @@ class RewardScorer:
                             assert f"{float(val):.2f}" == val, "Value is not a number"
                             val = float(val)
                         else:
-                            val = 0
+                            val = 0.0
                         props[prop] = (obj_type, val)
                         break
 
@@ -318,7 +318,11 @@ class RewardScorer:
         return df_properties
 
     def get_score(
-        self, prompts: List[Any], completions: List[Any], debug: bool = False
+        self,
+        prompts: List[Any],
+        completions: List[Any],
+        debug: bool = False,
+        metadata: Optional[List[Dict[str, Any]]] = None,
     ) -> List[float]:
         """
         Get reward for molecular properties
@@ -351,7 +355,26 @@ class RewardScorer:
                     outputs[idx] += 1 / len(smiles_list_per_completion[idx])
             return outputs
 
-        objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
+        # objectives: List[Dict[str, Tuple[str, float]]], for each completion dict of the properties to evaluate and the objective ("above", "below", "equal", "maximize", "minimize") and target value
+        if metadata is None or not (
+            all(
+                [
+                    "properties" in m and "objectives" in m and "target" in m
+                    for m in metadata
+                ]
+            )
+        ):
+            objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
+        else:
+            objectives = []
+            for m in metadata:
+                props = {}
+                for p, obj, target in zip(
+                    m["properties"], m["objectives"], m["target"]
+                ):
+                    props[p] = (obj, float(target))
+                objectives.append(props)
+
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
         )

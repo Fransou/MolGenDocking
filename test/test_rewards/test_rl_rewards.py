@@ -9,9 +9,9 @@ import ray
 import torch
 
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
-from mol_gen_docking.data.rl_dataset import (
+from mol_gen_docking.data.dataset import (
     DatasetConfig,
-    MolGenerationInstructionsDataset,
+    MolGenerationInstructionsDatasetGenerator,
 )
 from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.rl_rewards import RewardScorer
@@ -118,7 +118,7 @@ def build_prompt(request, build_metada_pocket):
             properties = [property]
         else:
             properties = property
-        dummy = MolGenerationInstructionsDataset(cfg)
+        dummy = MolGenerationInstructionsDatasetGenerator(cfg)
         prompt, _ = dummy.fill_prompt(properties, [obj] * len(properties))
         return prompt
 
@@ -350,7 +350,7 @@ def test_timeout(
     property_scorer = scorers["property"]
     property_filler = get_fill_completions(property_scorer.parse_whole_completion)
 
-    dataset_cls = MolGenerationInstructionsDataset(cfg)
+    dataset_cls = MolGenerationInstructionsDatasetGenerator(cfg)
 
     def build_prompt(property1):
         """Build a prompt for the given property."""

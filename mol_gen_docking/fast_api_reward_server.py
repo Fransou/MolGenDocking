@@ -74,9 +74,10 @@ if __name__ == "__main__":
         data = await request.json()
         queries = data.get("query")
         prompts = data.get("prompts")
+        metadata = data.get("metadata", None)
 
         rewards_job = reward_model.get_score.remote(  # type: ignore
-            prompts=prompts, completions=queries
+            prompts=prompts, completions=queries, metadata=metadata
         )
         valid_reward = reward_valid_smiles.get_score(
             prompts=prompts, completions=queries

@@ -2,7 +2,6 @@ import logging
 import os
 import pickle
 import re
-import urllib.request
 from multiprocessing import Pool
 from subprocess import DEVNULL, STDOUT, check_call
 from typing import Any, Dict, List, Optional
@@ -24,15 +23,13 @@ class PocketExtractor:
         save_path: str = "data/SIU",
         t_pocket_score: float = 0.5,
         t_drug_score: float = 0.5,
-        download_siu: bool = False,
     ):
         self.save_path: str = save_path
         self.t_pocket_score: float = t_pocket_score
         self.t_drug_score: float = t_drug_score
         self.processed_pdb_ids: List[str] = []
         self.data: Dict[str, Any] = {}
-        if download_siu:
-            self.load_siu_data()
+        self.load_siu_data()
 
     @staticmethod
     def read_pdb_to_dataframe(
@@ -124,41 +121,6 @@ class PocketExtractor:
     def load_siu_data(self) -> None:
         with open(os.path.join(self.save_path, "final_dic.pkl"), "rb") as f:
             self.data = pickle.load(f)
-
-    def _get_pdb_file(self, pdb_id: str) -> pd.DataFrame | None:
-        path = os.path.join(self.save_path, "pdb_files", f"{pdb_id}.pdb")
-
-        if os.path.exists(path):
-            logger.info(f"{pdb_id} already exists, skipping download.")
-            self.processed_pdb_ids.append(pdb_id)
-            return self.read_pdb_to_dataframe(path)
-
-        if self.data == {}:
-            with open(os.path.join(self.save_path, "final_dic.pkl"), "rb") as f:
-                self.data = pickle.load(f)
-        try:
-            # Download the PDB file
-            url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
-            urllib.request.urlretrieve(url, path)
-            df = self.read_pdb_to_dataframe(path)
-            return df
-        except Exception as e:
-            logger.info(f"Failed to download {pdb_id}: {e}")
-            return None
-
-    def download_pdb(self) -> None:
-        for uniprot_id in tqdm(self.data):
-            if len(self.data[uniprot_id]) == 0:
-                logger.info("No data for this uniprot id")
-                continue
-            for j in range(len(self.data[uniprot_id])):
-                data_row = self.data[uniprot_id][j]
-                pdb_id = data_row["source_data"].split(",")[1].split("_")[0]
-                if pdb_id in self.processed_pdb_ids:
-                    continue
-
-                _ = self._get_pdb_file(pdb_id)
-                self.processed_pdb_ids.append(pdb_id)
 
     @staticmethod
     def check_prepare_receptor(path: str) -> bool:
