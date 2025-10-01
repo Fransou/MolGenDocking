@@ -46,18 +46,12 @@ scorers = {
         "valid_smiles",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
-        ),
     ),
     "MolFilters": RewardScorer(
         DATA_PATH,
         "MolFilters",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
-        ),
     ),
     "property": RewardScorer(
         DATA_PATH,
@@ -65,7 +59,10 @@ scorers = {
         parse_whole_completion=True,
         rescale=False,
         oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
+            exhaustiveness=4,
+            docking_oracle="vinagpu",
+            qv_dir="",  # Vina executable
         ),
     ),
     "property_whole": RewardScorer(
@@ -74,7 +71,10 @@ scorers = {
         parse_whole_completion=False,
         rescale=False,
         oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)), exhaustiveness=4
+            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
+            exhaustiveness=4,
+            docking_oracle="vinagpu",
+            qv_dir="",  # Vina executable
         ),
     ),
 }

@@ -40,6 +40,12 @@ def get_args() -> argparse.Namespace:
         default=2,
         help="Number of CPUs to use for the scoring computations.",
     )
+    parser.add_argument(
+        "--docking-oracle",
+        type=str,
+        default="pyscreener",
+        help="The docking oracle.",
+    )
     args = parser.parse_args()
     return args
 
@@ -52,7 +58,9 @@ if __name__ == "__main__":
         parse_whole_completion=False,
         oracle_kwargs=dict(
             exhaustiveness=args.scorer_exhaustivness,
-            ncpu=args.scorer_ncpus,
+            n_cpu=args.scorer_ncpus,
+            docking_oracle=args.docking_oracle,
+            qv_dir="",  # Vina executable
         ),
     )
     reward_valid_smiles = RewardScorer(
