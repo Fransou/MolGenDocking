@@ -413,9 +413,13 @@ class RewardScorer:
         return rewards
 
     def __call__(
-        self, prompts: List[Any], completions: List[Any], debug: bool = False
+        self,
+        prompts: List[Any],
+        completions: List[Any],
+        debug: bool = False,
+        metadata: Optional[List[Dict[str, Any]]] = None,
     ) -> List[float]:
         """
         Call the scorer to get the rewards.
         """
-        return self.get_score(prompts, completions, debug=debug)
+        return self.get_score(prompts, completions, debug=debug, metadata=metadata)

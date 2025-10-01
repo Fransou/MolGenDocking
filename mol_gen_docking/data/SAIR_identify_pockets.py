@@ -31,7 +31,7 @@ def cif_file_to_entry_id(cif_file: str) -> int:
 
 def filter_from_parquet(
     df_parquet: pd.DataFrame, cif_files: List[str]
-) -> Tuple[List[str], List[str]]:
+) -> Tuple[Dict[str, List[str]], Dict[str, pd.DataFrame]]:
     """
     Filters the list of CIF files to only include those that are in the top 50% most potent ligands
     for each sequence, and have a confidence score in the top 50%.
@@ -45,13 +45,14 @@ def filter_from_parquet(
     entry_ids = [cif_file_to_entry_id(f) for f in cif_files]
     df_filtered = df_parquet[df_parquet["entry_id"].isin(entry_ids)]
 
-    new_cif_files: List[str] = []
-    kept_entry_ids: List[str] = []
-
+    protein_cif_files: Dict[str, List[str]] = {}
+    protein_dfs = {}
     for protein in tqdm(
         df_filtered["protein"].unique(),
         desc="Filtering CIF files based on potency and confidence",
     ):
+        new_cif_files: List[str] = []
+
         df_prot = df_filtered[df_filtered["protein"] == protein]
         if len(df_prot) == 0:
             continue
@@ -68,15 +69,15 @@ def filter_from_parquet(
                 f for f in cif_files if cif_file_to_entry_id(f) == entry_id
             ]
             new_cif_files.extend(matching_files)
-            kept_entry_ids.append(entry_id)
 
-    return new_cif_files, kept_entry_ids
+        protein_dfs[protein] = df_prot_filtered
+        protein_cif_files[protein] = new_cif_files
+
+    return protein_cif_files, protein_dfs
 
 
 @ray.remote(num_cpus=1)
-def get_pocket_cif(
-    cif_path: str, topk: int = 3, bar: Any = None
-) -> Tuple[List[Any], Any]:
+def get_pocket_cif(cif_path: str, topk: int = 3) -> Tuple[List[Any], Any]:
     """
     Opens a CIF file annd identifies the position of the ligand.
     Returns the list of residues in the pocket, defined as the top-k closest residues to the ligand + a padding.
@@ -123,14 +124,11 @@ def get_pocket_cif(
         pocket_residues_set.update(closest_residues)
     pocket_residues = list(set(pocket_residues_set))
 
-    if bar is not None:
-        bar.update.remote(1)
-
     return pocket_residues, structure
 
 
 def get_seq_to_pocket_residues(
-    cif_files: List[str], df_parquet: pd.DataFrame, topk: int = 3
+    cif_files: List[str], df_prot: pd.DataFrame, topk: int = 3
 ) -> pd.DataFrame:
     """
     Converts a list of residues to a list of strings in the format "CHAIN:RESIDUE_NUMBER:RESIDUE_NAME"
@@ -152,43 +150,23 @@ def get_seq_to_pocket_residues(
         ]
     )
     res = []
-    remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    bar = remote_tqdm.remote(total=len(cif_files))  # type: ignore
-
     for cif_file in cif_files:
-        res.append(get_pocket_cif.remote(cif_file, topk, bar))
+        res.append(get_pocket_cif.remote(cif_file, topk))
     results = ray.get(res)
-    proteins = (
-        df_parquet[
-            df_parquet["entry_id"].isin([cif_file_to_entry_id(f) for f in cif_files])
-        ]["protein"]
-        .unique()
-        .tolist()
-    )
-    sub_df_parquet = df_parquet[df_parquet["protein"].isin(proteins)]
-    for idx, cif_file in enumerate(
-        tqdm(cif_files, desc="Processing CIF files to get pocket residues")
-    ):
+
+    for idx, cif_file in enumerate(cif_files):
         pocket_residues, structure = results[idx]
         entry_id = cif_file_to_entry_id(cif_file)
-        df_entry = sub_df_parquet[sub_df_parquet["entry_id"] == entry_id]
-        prot_id = df_entry["protein"].values[0]
-        sequence = df_entry["sequence"].values[0]
-        df_prot = sub_df_parquet[sub_df_parquet["protein"] == prot_id]
-        avg_pIC50 = df_prot["pIC50"].mean()
-        avg_confidence = df_prot["confidence_score"].mean()
-
+        df_entry = df_prot[df_prot["entry_id"] == entry_id]
         df.loc[len(df)] = [
             cif_file.split("/")[-1].replace(".cif", ""),
             pocket_residues,
             structure,
-            prot_id,
-            sequence,
-            avg_pIC50,
-            avg_confidence,
+            df_entry["protein"].values[0],
+            df_entry["sequence"].values[0],
+            df_prot["pIC50"].mean(),
+            df_prot["confidence_score"].mean(),
         ]
-
-    bar.close.remote()  # type: ignore
     return df
 
 
@@ -211,13 +189,8 @@ def intersection_over_union(pocketA: List[Any], pocketB: List[Any]) -> float:
     return intersection / union
 
 
-@ray.remote(num_cpus=4)
-def aggregate_pocket(
-    seq_df: pd.DataFrame, iou_threshold: float = 0.4, pbar: Any = None
-) -> List[Any]:
+def aggregate_pocket(seq_df: pd.DataFrame, iou_threshold: float = 0.4) -> List[Any]:
     if len(seq_df) == 1:
-        if pbar is not None:
-            pbar.update.remote(1)
         return [1.0]
 
     num_pockets = len(seq_df)
@@ -237,14 +210,12 @@ def aggregate_pocket(
     condensed_distance = squareform(distance_matrix)
     Z = linkage(condensed_distance, method="single")
     clusters = fcluster(Z, t=1 - iou_threshold, criterion="distance")
-    if pbar is not None:
-        pbar.update.remote(1)
     return clusters.tolist()  # type: ignore
 
 
 def process_df_and_aggregate_pockets(
     df: pd.DataFrame, iou_threshold: float = 0.4
-) -> Tuple[pd.DataFrame, Dict[str, Dict[int, List[Any]]]]:
+) -> Tuple[pd.DataFrame, Dict[int, List[Any]]]:
     """
     Processes the DataFrame to aggregate pocket residues by sequence, and give them a cluster ID based on IoU.
     Args:
@@ -254,61 +225,32 @@ def process_df_and_aggregate_pockets(
         DataFrame with an additional column "cluster" indicating the cluster ID for each pocket
         Dictionary mapping each sequence to a dictionary of cluster IDs and their corresponding aggregated pocket residues
     """
-    sequences = df["sequence"].unique().tolist()
     # Get the IoU matrix for each sequence of the pockets
-    res = []
-    remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    pbar = remote_tqdm.remote(
-        total=len(sequences), desc="Clustering pockets by sequence: "
-    )  # type: ignore
-
-    for seq in sequences:
-        seq_df = df[df["sequence"] == seq]
-        res.append(
-            aggregate_pocket.remote(seq_df, iou_threshold=iou_threshold, pbar=pbar)
-        )
-
-    all_clusters = ray.get(res)
-    for seq, clusters in zip(sequences, all_clusters):
-        seq_df = df[df["sequence"] == seq]
-        df.loc[seq_df.index, "cluster"] = clusters
-
-    seq_pocketid_pocket: Dict[str, Dict[int, List[Any]]] = {}
-    for seq in sequences:
-        seq_df = df[df["sequence"] == seq]
-        seq_pocketid_pocket[seq] = {}
-        clusters = seq_df["cluster"].tolist()
-        # For each cluster, aggregate the pocket residues by taking the residues that appear in at least 50% of the pockets
-        for cluster_id in set(clusters):
-            cluster_df = seq_df[seq_df["cluster"] == cluster_id]
-            all_residues = []
-            for residues in cluster_df["pocket_residues"]:
-                all_residues.extend(residues)
-            residue_counts = pd.Series(all_residues).value_counts()
-            threshold = len(cluster_df) * 7 / 10
-            aggregated_residues = residue_counts[
-                residue_counts >= threshold
-            ].index.tolist()
-            seq_pocketid_pocket[seq][cluster_id] = aggregated_residues
-
-            logger.info(
-                f"Sequence: {seq}, Cluster ID: {cluster_id}, Number of pockets: {len(cluster_df)}, Aggregated residues: {len(aggregated_residues)}, Typical pocket size: {cluster_df.pocket_residues.map(len).median()}"
-            )
-    return df, seq_pocketid_pocket
+    clusters = aggregate_pocket(df, iou_threshold=iou_threshold)
+    df["cluster"] = clusters
+    pocketid_pocket: Dict[int, List[Any]] = {}
+    # For each cluster, aggregate the pocket residues by taking the residues that appear in at least 50% of the pockets
+    for cluster_id in set(clusters):
+        cluster_df = df[df["cluster"] == cluster_id]
+        all_residues: List[Any] = sum(list(cluster_df["pocket_residues"].values), [])
+        residue_counts = pd.Series(all_residues).value_counts()
+        threshold = len(cluster_df) * 7 / 10
+        aggregated_residues = residue_counts[residue_counts >= threshold].index.tolist()
+        if len(aggregated_residues) > 0:
+            pocketid_pocket[cluster_id] = aggregated_residues
+    return df, pocketid_pocket
 
 
-def find_best_conf_pocket(df: pd.DataFrame, seq: str, pocket: List[Any]) -> str:
+def find_best_conf_pocket(df: pd.DataFrame, pocket: List[Any]) -> str:
     """
     Finds the best conformation of a pocket based on the conformation with the lowest RMSD for the concerned residues.
     Args:
         df: DataFrame with columns "id", "pocket_residues", "sequence", and "cluster"
-        seq: Sequence to filter the DataFrame
         pocket: List of residues in the pocket to compare against
     Returns:
         CIF file path of the best conformation
     """
     # First open all concerned cif files
-    import time
 
     t0 = time.time()
 
@@ -336,46 +278,24 @@ def find_best_conf_pocket(df: pd.DataFrame, seq: str, pocket: List[Any]) -> str:
                     if residue in pocket:
                         atomsB.extend(residue.get_atoms())
             if not atomsA or not atomsB or len(atomsA) != len(atomsB):
-                return None
+                for chain in modelA:
+                    for residue in chain:
+                        print(residue)
+                print(atomsB, atomsA, structA)
+                raise ValueError("Problem with the pocket residues.")
+                continue
             sup.set_atoms(atomsA, atomsB)
 
             rmsd_vals.append(float(sup.rms))
         return rmsd_vals
 
-    @ray.remote(num_cpus=4)
-    def chunk_get_rmsd_list(
-        structAs: List[Any], structBs: List[Any], pocket: List[Any]
-    ) -> List[List[float] | None]:
-        return [
-            get_rmsd_list(structA, structBs[k + 1 :], pocket)
-            for k, structA in enumerate(structAs)
-        ]
-
     rmsd_values = []
     all_ids = list(df["id"])
-    if len(all_ids) < 200:  # Do not parrallelize
-        for i in range(len(all_ids)):
-            idA = all_ids[i]
-            structureA = structures[idA]
-            structureBs = [structures[all_ids[j]] for j in range(i + 1, len(all_ids))]
-            rmsd_values.append(get_rmsd_list(structureA, structureBs, pocket))
-    else:
-        chunk_size = 100
-        chunks = [
-            all_ids[i : i + chunk_size] for i in range(0, len(all_ids), chunk_size)
-        ]
-        res = []
-        for i, chunk in enumerate(chunks):
-            res.append(
-                chunk_get_rmsd_list.remote(
-                    [structures[id] for id in chunk],
-                    [structures[id] for id in all_ids[i * chunk_size :]],
-                    pocket,
-                )
-            )
-        chunk_results = ray.get(res)
-        rmsd_values = sum(chunk_results, [])
-
+    for i in range(len(all_ids)):
+        idA = all_ids[i]
+        structureA = structures[idA]
+        structureBs = [structures[all_ids[j]] for j in range(i + 1, len(all_ids))]
+        rmsd_values.append(get_rmsd_list(structureA, structureBs, pocket))
     rmsd_matrix = squareform(sum(rmsd_values, []))  # type: ignore
     rmsd_df = pd.DataFrame(rmsd_matrix, index=df["id"], columns=df["id"], dtype=float)
     best_struc = rmsd_df.mean(axis=1).idxmin()
@@ -388,16 +308,13 @@ def find_best_conf_pocket(df: pd.DataFrame, seq: str, pocket: List[Any]) -> str:
     return best_struc
 
 
-@ray.remote(num_cpus=1)
 def get_best_conf_pocket_center_width(
     df: pd.DataFrame,
-    sequence: str,
     pocket: List[Any],
     output_dir: str,
     min_pocket_size: int = 8,
     max_pocket_size: int = 30,
-    bar: Any = None,
-) -> Tuple[str, np.ndarray, float]:
+) -> Tuple[str, np.ndarray, np.ndarray]:
     """
     Finds the center and width of the pocket residues in the given CIF file.
     Args:
@@ -413,11 +330,9 @@ def get_best_conf_pocket_center_width(
         Width of the pocket as a float (maximum distance from the center to any pocket residue)
     """
 
-    import time
-
     t0 = time.time()
 
-    best_struc = find_best_conf_pocket(df, sequence, pocket)
+    best_struc = find_best_conf_pocket(df, pocket)
 
     structure = df[df["id"] == best_struc]["structure"].values[0]
     model = structure[0]
@@ -435,7 +350,9 @@ def get_best_conf_pocket_center_width(
     width = np.clip(width, a_min=min_pocket_size, a_max=max_pocket_size)
 
     # Save to PDB file in output_dir without the ligand
-    file_path = os.path.join(output_dir, best_struc + ".pdb")
+    file_path = os.path.join(output_dir, "pdb_files", best_struc + ".pdb")
+    os.makedirs(os.path.join(output_dir, "pdb_files"), exist_ok=True)
+
     io = PDBIO()
 
     # Remove the ligand from the structure
@@ -445,9 +362,6 @@ def get_best_conf_pocket_center_width(
                 chain.detach_child(residue.id)
     io.set_structure(structure)
     io.save(file_path)
-
-    if bar is not None:
-        bar.update.remote(1)
 
     t1 = time.time()
     logger.info(f"Processed {best_struc} in {t1 - t0:.2f} seconds.")
@@ -462,6 +376,78 @@ def get_best_conf_pocket_center_width(
 # 5. Align the pocket for all conformations, and find the best conformation (the least different from the others).
 # 6. Save the best conformation of the pocket residues as a PDB file.
 # 7. From the list of all residues in the pocket, aggregate the list of residues to determine the center of the pocket.
+
+
+@ray.remote(num_cpus=1)
+def process_prot(
+    cif_files: List[str],
+    df_prot: pd.DataFrame,
+    topk: int,
+    iou_threshold: float,
+    output_dir: str,
+    bar: Any = None,
+) -> pd.DataFrame:
+    df = get_seq_to_pocket_residues(cif_files, df_prot, topk)
+    assert df.prot_id.nunique() == 1
+    df, pocket_dict = process_df_and_aggregate_pockets(df, iou_threshold)
+
+    res = []
+    for cluster_id, pocket in pocket_dict.items():
+        cluster_df = df[df["cluster"] == cluster_id]
+        # Only consider clusters with more than one conformation
+        if len(cluster_df) <= 1:
+            continue
+        res.append(
+            get_best_conf_pocket_center_width(cluster_df, pocket, output_dir, 8, 30)
+        )
+    results = res
+    final_df = pd.DataFrame(
+        columns=[
+            "id",
+            "pocket_residues",
+            "cluster",
+            "center_x",
+            "center_y",
+            "center_z",
+            "width_x",
+            "width_y",
+            "width_z",
+            "n_ligand_poses",
+            "sequence",
+            "prot_id",
+            "avg_pIC50",
+            "avg_confidence",
+        ]
+    )
+    idx = 0
+    for cluster_id, pocket in pocket_dict.items():
+        cluster_df = df[df["cluster"] == cluster_id]
+        # Only consider clusters with more than one conformation
+        if len(cluster_df) <= 1:
+            continue
+        best_struc, center, width = results[idx]
+        final_df.loc[len(final_df)] = [
+            best_struc,
+            pocket,
+            cluster_id,
+            center[0],
+            center[1],
+            center[2],
+            width[0],
+            width[1],
+            width[2],
+            len(cluster_df),
+            df.sequence.unique()[0],
+            cluster_df["prot_id"].values[0],
+            cluster_df["avg_pIC50"].values[0],
+            cluster_df["avg_confidence"].values[0],
+        ]
+        idx += 1
+
+    if bar is not None:
+        bar.update.remote(1)
+
+    return final_df
 
 
 def process_sair_dataset(
@@ -482,101 +468,28 @@ def process_sair_dataset(
     Returns:
         DataFrame with columns "id", "pocket_residues", "cluster", "center", "width"
     """
-    t0 = time.time()
-
-    cif_files, kept_entry_ids = filter_from_parquet(df_parquet, cif_files)
-    t1 = time.time()
-    print(
-        f"Kept {len(cif_files)} CIF files after filtering. Time taken: {t1 - t0:.2f} seconds."
-    )
-
+    protein_cif_files, protein_dfs = filter_from_parquet(df_parquet, cif_files)
     # Process the CIF files to get pocket residues and sequences
-    df = get_seq_to_pocket_residues(cif_files, df_parquet, topk)
-    t2 = time.time()
-    print(
-        f"Processed CIF files to get pocket residues. Time taken: {t2 - t1:.2f} seconds."
-    )
-
-    # Aggregate pockets by sequence and cluster them based on IoU
-    df, seq_pocketid_pocket = process_df_and_aggregate_pockets(df, iou_threshold)
-    t3 = time.time()
-    print(f"Aggregated pockets by sequence. Time taken: {t3 - t2:.2f} seconds.")
-
-    final_df = pd.DataFrame(
-        columns=[
-            "id",
-            "pocket_residues",
-            "cluster",
-            "center_x",
-            "center_y",
-            "center_z",
-            "width_x",
-            "width_y",
-            "width_z",
-            "n_ligand_poses",
-            "sequence",
-            "prot_id",
-            "avg_pIC50",
-            "avg_confidence",
-        ]
-    )
-
+    final_dfs_jobs = []
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    bar = remote_tqdm.remote(
-        total=len(seq_pocketid_pocket),
-        desc="Finding best configuration for each pocket: ",
-    )  # type: ignore
+    pbar = remote_tqdm.remote(total=len(protein_cif_files), desc="Processing Proteins")  # type: ignore
 
-    res = []
-    for seq, pocket_dict in seq_pocketid_pocket.items():
-        for cluster_id, pocket in pocket_dict.items():
-            cluster_df = df[(df["sequence"] == seq) & (df["cluster"] == cluster_id)]
-            # Only consider clusters with more than one conformation
-            if len(cluster_df) <= 1:
-                continue
-            res.append(
-                get_best_conf_pocket_center_width.remote(
-                    cluster_df, seq, pocket, output_dir, 8, 30, bar
-                )
+    for prot in protein_cif_files:
+        df_prot = protein_dfs[prot]
+        cif_file_p = protein_cif_files[prot]
+        if len(cif_file_p) == 0:
+            pbar.update.remote(1)  # type: ignore
+            continue
+
+        final_dfs_jobs.append(
+            process_prot.remote(
+                cif_file_p, df_prot, topk, iou_threshold, output_dir, pbar
             )
+        )
+    final_dfs = ray.get(final_dfs_jobs)
 
-    results = ray.get(res)
-    bar.close.remote()  # type: ignore
-
-    idx = 0
-    for seq, pocket_dict in seq_pocketid_pocket.items():
-        for cluster_id, pocket in pocket_dict.items():
-            cluster_df = df[(df["sequence"] == seq) & (df["cluster"] == cluster_id)]
-            # Only consider clusters with more than one conformation
-            if len(cluster_df) <= 1:
-                continue
-            try:
-                best_struc, center, width = results[idx]
-                logger.info(
-                    f"Sequence: {seq}, Cluster ID: {cluster_id}, Best Struc: {best_struc}"
-                )
-                final_df.loc[len(final_df)] = [
-                    best_struc,
-                    pocket,
-                    cluster_id,
-                    center[0],
-                    center[1],
-                    center[2],
-                    width[0],
-                    width[1],
-                    width[2],
-                    len(cluster_df),
-                    seq,
-                    cluster_df["prot_id"].values[0],
-                    cluster_df["avg_pIC50"].values[0],
-                    cluster_df["avg_confidence"].values[0],
-                ]
-            except ValueError as e:
-                logger.warning(
-                    f"Could not find best conformation for Sequence: {seq}, Cluster ID: {cluster_id}. Reason: {e}"
-                )
-            idx += 1
-
+    pbar.close.remote()  # type: ignore
+    final_df: pd.DataFrame = pd.concat(final_dfs, ignore_index=True)
     return final_df
 
 
