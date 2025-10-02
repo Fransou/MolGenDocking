@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -202,16 +203,23 @@ if __name__ == "__main__":
     )
     BaselineConfig.add_arguments(parser)
     parser.add_argument(
-        "--data-path", type=str, default="data/mol_orz/eval_data/eval_prompts"
+        "--data-path", type=str, default="data/sair_rl/eval_data/eval_prompts"
     )
-    parser.add_argument("--datasets-path", type=str, default="data/mol_orz")
+    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
     args = parser.parse_args()
 
     config = BaselineConfig.from_args(args)
     dataset = load_from_disk(args.data_path)
 
-    for prompt in dataset["prompt"]:
-        reward_fn = get_reward_fn(prompt, args.datasets_path)
+    with open(os.path.join(args.datasets_path, "docking_targets.json")) as f:
+        docking_targets = json.load(f)
+
+    for row in dataset:
+        metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
+        print(metadata)
+        if any([prop in docking_targets for prop in metadata["properties"]]):
+            continue
+
         optimizer = get_mol_opt_cls(config.baseline_name)(
             smi_file=None,
             n_jobs=config.n_jobs,
@@ -222,9 +230,9 @@ if __name__ == "__main__":
         )
         optimizer.oracle = BatchedOracle.from_oracle(optimizer.oracle)
         optimizer.optimize(
-            oracle=get_reward_fn(prompt, args.datasets_path),
+            oracle=get_reward_fn(metadata, args.datasets_path),
             patience=config.patience,
             seed=0,
         )
-
+        break
     print(dataset)

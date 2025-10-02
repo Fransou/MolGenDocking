@@ -1,0 +1,5 @@
+program: mol_gen_docking/baselines/reinvent/pretrain.py
+method: grid
+parameters:
+  model_name:
+    values: [Franso/reinvent_301K, Franso/reinvent_1M, Franso/reinvent_4M]
