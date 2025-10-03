@@ -3,7 +3,6 @@ Pretraining simply corresponds to SFT
 """
 
 import argparse
-import json
 import os
 
 from datasets import load_dataset
@@ -44,14 +43,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--lr_scheduler_type",
         type=str,
-        default="constant_with_warmup",
+        default="cosine_with_restarts",
         help="Learning rate scheduler type",
     )
     parser.add_argument(
-        "--lr_scheduler_kwargs",
-        type=str,
-        nargs="*",
-        default="""{"num_warmup_steps": 128}""",
+        "--lr_warmup_ratio",
+        type=float,
+        default=0.1,
     )
     parser.add_argument(
         "--weight_decay",
@@ -62,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=256,
+        default=1024,
         help="Batch size for training and evaluation",
     )
     parser.add_argument(
@@ -85,7 +83,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    args.lr_scheduler_kwargs = json.loads(args.lr_scheduler_kwargs)
     args.output_dir = os.path.join(args.output_dir, args.model_name.replace("/", "-"))
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -115,19 +112,17 @@ if __name__ == "__main__":
         logging_steps=10,
         learning_rate=args.learning_rate,
         lr_scheduler_type=args.lr_scheduler_type,
-        lr_scheduler_kwargs=args.lr_scheduler_kwargs,
+        warmup_ratio=args.lr_warmup_ratio,
         weight_decay=args.weight_decay,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         dataloader_num_workers=args.dataloader_num_workers,
-        max_seq_length=None,
-        dataset_num_proc=8,
         packing=False,
         bf16=True,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         save_total_limit=3,
+        dataset_num_proc=32,
         dataloader_prefetch_factor=2,
-        completion_only_loss=True,
     )
 
     trainer = SFTTrainer(

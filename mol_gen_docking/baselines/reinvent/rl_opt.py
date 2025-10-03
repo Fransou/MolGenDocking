@@ -10,17 +10,20 @@ from trl import GRPOConfig
 from mol_gen_docking.baselines.reinvent.trainers import VanillaReinventTrainer
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
+os.environ["WANDB_PROJECT"] = "REINVENT_HF"
+
 
 def get_reward_fn(
     metadata: Dict[str, Any], datasets_path: str
 ) -> Callable[[str | List[str]], float | List[float]]:
     SCORER = RewardScorer(datasets_path, "property", parse_whole_completion=True)
 
-    def reward_fn(completions: str | List[str]) -> float | List[float]:
+    def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            smiles = [completions]
-            return SCORER([""], [completions], metadata=[metadata])[0]
-        return SCORER([""], completions, metadata=[metadata] * len(smiles))
+            return SCORER([""], [completions], metadata=[metadata], use_pbar=False)[0]
+        return SCORER(
+            [""], completions, metadata=[metadata] * len(completions), use_pbar=False
+        )
 
     return reward_fn
 
@@ -38,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name",
         type=str,
-        default="Franso/reinvent_301K",
+        default="Franso/reinvent_42M",
         help="Name of the model",
     )
     parser.add_argument(
@@ -68,14 +71,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=4,
+        default=512,
         help="Batch size for training and evaluation",
-    )
-    parser.add_argument(
-        "--dataloader_num_workers",
-        type=int,
-        default=4,
-        help="Number of workers for data loading",
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -85,13 +82,15 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    dataset = load_from_disk(args.data_path)
+    args.output_dir = os.path.join(
+        args.output_dir, args.model_name.replace("/", "-") + "_rl"
+    )
+    dataset = load_from_disk(args.dataset)
     with open(os.path.join(args.datasets_path, "docking_targets.json")) as f:
         docking_targets = json.load(f)
 
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
-        print(metadata)
         if any([prop in docking_targets for prop in metadata["properties"]]):
             continue
 
@@ -105,34 +104,30 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             run_name=args.output_dir,
             num_train_epochs=args.num_train_epochs,
-            eval_strategy="steps",
             save_strategy="steps",
             logging_strategy="steps",
             save_steps=500,
-            eval_steps=500,
             logging_steps=10,
             learning_rate=args.learning_rate,
             weight_decay=args.weight_decay,
             per_device_train_batch_size=args.batch_size,
-            per_device_eval_batch_size=args.batch_size,
-            dataloader_num_workers=args.dataloader_num_workers,
-            max_seq_length=1024,
-            dataset_num_proc=8,
-            packing=True,
+            num_generations=args.batch_size,
+            dataloader_num_workers=0,
+            max_completion_length=256,
             bf16=True,
             gradient_accumulation_steps=args.gradient_accumulation_steps,
             save_total_limit=3,
-            dataloader_prefetch_factor=2,
-            completion_only_loss=True,
+            beta=1,
         )
 
-        train_dataset = Dataset.from_dict({"prompt": ""})
+        train_dataset = Dataset.from_dict({"prompt": ["<s>"]})
 
         trainer = VanillaReinventTrainer(
             model=model,
             args=training_args,
             train_dataset=train_dataset,
             processing_class=tokenizer,
+            reward_funcs=reward_fn,
         )
 
         trainer.train()

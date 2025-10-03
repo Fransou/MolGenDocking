@@ -30,11 +30,19 @@ def create_reinvent_model(
     ds = load_dataset("jarod0411/zinc10M")["train"]
     tokenizer = old_tokenizer.train_new_from_iterator(get_training_corpus(ds), N_voc)
 
-    fast_tok = PreTrainedTokenizerFast(tokenizer_object=tokenizer.backend_tokenizer)
+    fast_tok = PreTrainedTokenizerFast(
+        tokenizer_object=tokenizer.backend_tokenizer,
+        model_input_names=["input_ids", "attention_mask"],
+    )
     fast_tok.add_special_tokens({"pad_token": "<pad>"})
     fast_tok.add_special_tokens({"bos_token": "<s>"})
     fast_tok.add_special_tokens({"eos_token": "</s>"})
     fast_tok.add_special_tokens({"unk_token": "<unk>"})
+
+    print("#-#" * 20)
+    print(f"Tokenizer vocab :\n {fast_tok.vocab}")
+    print(fast_tok("CCC"))
+    print("#-#" * 20)
 
     config = model.config.__dict__
     config["vocab_size"] = len(fast_tok)
@@ -60,7 +68,7 @@ def create_reinvent_model(
     print(f"Model name : {NAME}")
     print("#-#" * 20)
 
-    print(model.forward(**tokenizer("CCC", return_tensors="pt")))
+    assert model.forward(**tokenizer("CCC", return_tensors="pt")) is not None
 
     fast_tok.save_pretrained(f"./{NAME}")
     fast_tok.push_to_hub(f"Franso/{NAME}")

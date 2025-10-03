@@ -418,6 +418,7 @@ class RewardScorer:
         completions: List[Any],
         debug: bool = False,
         metadata: Optional[List[Dict[str, Any]]] = None,
+        use_pbar: bool = True,
     ) -> List[float]:
         """
         Call the scorer to get the rewards.

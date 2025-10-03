@@ -2,4 +2,8 @@ program: mol_gen_docking/baselines/reinvent/pretrain.py
 method: grid
 parameters:
   model_name:
-    values: [Franso/reinvent_301K, Franso/reinvent_1M, Franso/reinvent_4M]
+    values: [Franso/reinvent_42M]
+  lr_scheduler_type:
+    values: [cosine_with_restarts, constant_with_warmup]
+  num_train_epochs:
+    values: [1]
