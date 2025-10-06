@@ -220,15 +220,6 @@ def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_fill
     )
 
 
-# @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
-# def test_filter_smiles(completion, smiles, filter_smiles_scorer, filter_smiles_filler):
-#     """Test the function molecular_properties."""
-#     completions = [filter_smiles_filler(smiles, completion)]
-#     prompts = [""] * len(completions)
-#     rewards = np.array(filter_smiles_scorer(prompts, completions))
-#     assert not np.isnan(rewards.sum())
-
-
 @pytest.mark.parametrize(
     "property1, property2",
     product(
@@ -254,7 +245,7 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
         for k in range(n_generations * 2)
     ]
     completions = [property_filler(s, completion) for s in smiles]
-    rewards = property_scorer(prompts, completions)
+    rewards = property_scorer(prompts, completions, use_pbar=False)
 
     for i in range(n_generations * 2):
         if smiles != []:
@@ -278,7 +269,7 @@ def test_properties_single_prompt_vina_reward(
         property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
-    rewards = property_scorer(prompts, completions)
+    rewards = property_scorer(prompts, completions, use_pbar=False)
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
@@ -300,6 +291,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     Test the reward function with the optimization of one property.
     Assumes the value of the reward function when using maximise is correct.
     """
+    t0 = time.time()
     obj = get_unscaled_obj(obj, prop)
     n_generations = len(smiles)
     prompts = [build_prompt(prop, obj)] * n_generations + [
@@ -314,7 +306,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
         for s in smiles
     ]
     property_scorer.rescale = True
-    rewards = property_scorer(prompts, completions, debug=True)
+    rewards = property_scorer(prompts, completions, debug=True, use_pbar=False)
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
@@ -336,6 +328,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
             val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
+    print(f" --- [{prop}] - {time.time() - t0}s")
 
 
 @pytest.mark.skipif(

@@ -64,6 +64,8 @@ class RewardScorer:
         self.docking_target_list = docking_target_list
         self.path_to_mappings = path_to_mappings
 
+        self.slow_props = docking_target_list  # + ["GSK3B", "JNK3", "DRD2"]
+
         self.rescale = rescale
         self.reward = reward
         self.oracle_kwargs = oracle_kwargs
@@ -194,7 +196,39 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
-    def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
+    def _get_property_no_ray(
+        self,
+        smiles: List[str],
+        prop: str,
+        rescale: bool = True,
+        kwargs: Dict[str, Any] = {},
+        pbar: Optional[Any] = None,
+    ) -> List[float]:
+        """
+        Get property reward
+        """
+        oracle_fn = self.oracles.get(
+            prop,
+            get_oracle(
+                prop,
+                path_to_data=self.path_to_mappings if self.path_to_mappings else "",
+                docking_target_list=self.docking_target_list,
+                property_name_mapping=self.property_name_mapping,
+                **kwargs,
+            ),
+        )
+        if prop not in self.oracles:
+            self.oracles[prop] = oracle_fn
+        property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
+        assert isinstance(property_reward, np.ndarray)
+        if pbar is not None:
+            pbar.update.remote(len(property_reward))
+
+        return [float(p) for p in property_reward]
+
+    def fill_df_properties(
+        self, df_properties: pd.DataFrame, use_pbar: bool = True
+    ) -> None:
         @ray.remote(num_cpus=1)
         def _get_property(
             smiles: List[str],
@@ -230,25 +264,54 @@ class RewardScorer:
             p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
             for p in all_properties
         }
-
-        pbar = self.remote_tqdm.remote(  # type: ignore
-            total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
-            desc="[Properties]",
-        )
-        values_job = []
-        for p in all_properties:
-            smiles = prop_smiles[p]
-            values_job.append(
-                _get_property.remote(
-                    smiles,
-                    p,
-                    rescale=self.rescale,
-                    kwargs=self.oracle_kwargs,
-                    pbar=pbar,
-                )
+        if use_pbar:
+            pbar = self.remote_tqdm.remote(  # type: ignore
+                total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
+                desc="[Properties]",
             )
+        else:
+            pbar = None
 
-        all_values = ray.get(values_job)
+        values_job = []
+        seq_values = []
+        for p in all_properties:
+            print(p)
+            # If the reward is long to compute, use ray
+            smiles = prop_smiles[p]
+            if p in self.slow_props:
+                values_job.append(
+                    _get_property.remote(
+                        smiles,
+                        p,
+                        rescale=self.rescale,
+                        kwargs=self.oracle_kwargs,
+                        pbar=pbar,
+                    )
+                )
+            else:  # Otherwise go sequentially
+                seq_values.append(
+                    self._get_property_no_ray(
+                        smiles,
+                        p,
+                        rescale=self.rescale,
+                        kwargs=self.oracle_kwargs,
+                        pbar=pbar,
+                    )
+                )
+
+        all_values_ray = ray.get(values_job)
+        all_values = []
+        idx_ray = 0
+        idx_seq = 0
+        # Merge all_values ray and seq_values
+        for p in all_properties:
+            if p in self.slow_props:
+                all_values.append(all_values_ray[idx_ray])
+                idx_ray += 1
+            else:
+                all_values.append(seq_values[idx_seq])
+                idx_seq += 1
+
         for idx_p, p in enumerate(all_properties):
             values = all_values[idx_p]
             smiles = prop_smiles[p]
@@ -257,8 +320,8 @@ class RewardScorer:
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
                     "value",
                 ] = v
-
-        pbar.close.remote()  # type: ignore
+        if pbar is not None:
+            pbar.close.remote()  # type: ignore
 
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
@@ -323,6 +386,7 @@ class RewardScorer:
         completions: List[Any],
         debug: bool = False,
         metadata: Optional[List[Dict[str, Any]]] = None,
+        use_pbar: bool = False,
     ) -> List[float]:
         """
         Get reward for molecular properties
@@ -378,7 +442,7 @@ class RewardScorer:
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
         )
-        self.fill_df_properties(df_properties)
+        self.fill_df_properties(df_properties, use_pbar=use_pbar)
         df_properties["reward"] = df_properties.apply(
             lambda x: self.get_reward(x), axis=1
         )
@@ -423,4 +487,6 @@ class RewardScorer:
         """
         Call the scorer to get the rewards.
         """
-        return self.get_score(prompts, completions, debug=debug, metadata=metadata)
+        return self.get_score(
+            prompts, completions, debug=debug, metadata=metadata, use_pbar=use_pbar
+        )
