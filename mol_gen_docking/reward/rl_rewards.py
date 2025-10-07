@@ -173,10 +173,10 @@ class RewardScorer:
                 return False
             try:
                 _ = Chem.MolToMolBlock(mol)
-                return True
             except Exception as e:
                 print(f"Error in MolToMolBlock for {smi}: {e}")
                 return False
+            return True
 
         s_spl = [
             x for x in s_poss if test_is_valid(x)
@@ -275,7 +275,6 @@ class RewardScorer:
         values_job = []
         seq_values = []
         for p in all_properties:
-            print(p)
             # If the reward is long to compute, use ray
             smiles = prop_smiles[p]
             if p in self.slow_props:
@@ -345,16 +344,20 @@ class RewardScorer:
             reward += np.clip(1 - 100 * (mol_prop - target_value) ** 2, 0, 1)
         return float(reward)
 
-    def _get_smiles_list(self, completions: List[Any]) -> List[List[str]]:
-        smiles = self.get_all_completions_smiles(completions)
-        return smiles
-
     def _get_prop_to_smiles_dataframe(
         self,
         smiles_list_per_completion: List[List[str]],
         objectives: List[dict[str, Tuple[str, float]]],
     ) -> pd.DataFrame:
         df_properties = pd.DataFrame(
+            [
+                (s, p, None, obj, target_value, i)
+                for i, (props, smiles_list) in enumerate(
+                    zip(objectives, smiles_list_per_completion)
+                )
+                for s in smiles_list
+                for p, (obj, target_value) in props.items()
+            ],
             columns=[
                 "smiles",
                 "property",
@@ -362,22 +365,8 @@ class RewardScorer:
                 "obj",
                 "target_value",
                 "id_completion",
-            ]
+            ],
         )
-
-        for id_completion, (props, smiles) in enumerate(
-            zip(objectives, smiles_list_per_completion)
-        ):
-            for s in smiles:
-                for p in props:
-                    df_properties.loc[len(df_properties)] = [
-                        s,
-                        p,
-                        None,
-                        props[p][0],
-                        props[p][1],
-                        id_completion,
-                    ]
         return df_properties
 
     def get_score(
@@ -392,7 +381,7 @@ class RewardScorer:
         Get reward for molecular properties
         """
 
-        smiles_list_per_completion = self._get_smiles_list(completions)
+        smiles_list_per_completion = self.get_all_completions_smiles(completions)
         if (
             self.reward == "valid_smiles"
         ):  # TODO: Always return 1 if at least one valid smiles
@@ -423,8 +412,9 @@ class RewardScorer:
         if metadata is None or not (
             all(
                 [
-                    "properties" in m and "objectives" in m and "target" in m
+                    p in m
                     for m in metadata
+                    for p in ["properties", "objectives", "target"]
                 ]
             )
         ):

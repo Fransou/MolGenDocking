@@ -1,9 +1,47 @@
-program: mol_gen_docking/baselines/reinvent/pretrain.py
+program: mol_gen_docking/baselines/reinvent/rl_opt.py
 method: grid
+metric:
+  goal: maximize
+  name: train/reward
 parameters:
   model_name:
-    values: [Franso/reinvent_42M]
-  lr_scheduler_type:
-    values: [cosine_with_restarts, constant_with_warmup]
-  num_train_epochs:
-    values: [1]
+    values: [results/Franso-reinvent_10M/checkpoint-28206]
+  batch_size:
+    values: [32,64]
+  sigma:
+    values: [1, 10]
+  train_on_beams:
+    values: [0, 1]
+  generation_config:
+    values: [
+      '{}',
+      '{"num_beams": 2}',
+      '{"num_beams": 4}',
+      '{"num_beams": 8}',
+      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 0.1}',
+      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 0.1}',
+      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 0.1}',
+      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 0.1}',
+      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 0.1}',
+      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 0.1}',
+      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 0.1}',
+      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 0.1}',
+      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 1}',
+      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 1}',
+      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 1}',
+      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 1}',
+      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 1}',
+      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 1}',
+      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 1}',
+      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 1}',
+      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 10}',
+      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 10}',
+      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 10}',
+      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 10}',
+      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 10}',
+      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 10}',
+      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 10}',
+      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 10}',
+    ]
+  id_obj:
+    values: [0]

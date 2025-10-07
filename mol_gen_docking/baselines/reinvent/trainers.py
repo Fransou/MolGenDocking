@@ -1,18 +1,44 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.utils.data
 from accelerate.utils import gather_object
+from datasets import Dataset
+from tdc import Evaluator
+from torch.utils.data import Sampler
 from trl import GRPOTrainer
-from trl.trainer.utils import (
-    nanmax,
-    nanmin,
-    nanstd,
-    pad,
-)
+from trl.trainer.utils import RepeatSampler, nanmax, nanmin, nanstd, pad
 
 
 class VanillaReinventTrainer(GRPOTrainer):
+    def __init__(
+        self, compute_metrics: Any, n_repeat_test: int, *args: Any, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.mol_evaluators = {
+            name: Evaluator(name=name)
+            for name in ["Validity", "Uniqueness", "Diversity"]
+        }
+        self.compute_metrics = compute_metrics
+        self.n_repeat_test = n_repeat_test
+
+    def _get_eval_sampler(self, eval_dataset: Dataset) -> Sampler:
+        # See _get_train_sampler for an explanation of the sampler.
+        n_generations = len(eval_dataset) // self.n_repeat_test // 4
+        assert (
+            n_generations % self.generation_config.num_beams == 0
+            or self.generation_config.num_beams % n_generations == 0
+        )
+        # Modify generation_config to generate n_generation completions
+        self.generation_config.num_return_sequences = min(
+            n_generations, self.generation_config.num_beams
+        )
+        return RepeatSampler(
+            data_source=eval_dataset,
+            mini_repeat_count=1,
+            seed=self.args.seed,
+        )
+
     def _compute_loss(self, model: Any, inputs: Dict[str, Any]) -> Any:
         # Compute the per-token log probabilities for the model
         prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
@@ -48,19 +74,7 @@ class VanillaReinventTrainer(GRPOTrainer):
         per_token_diff = ref_per_token_logps - per_token_logps
         diff = per_token_diff.mean(-1)
 
-        loss = (diff - self.beta * reward) ** 2
-        # Log the metrics
-        mode = "train" if self.model.training else "eval"
-
-        if self.beta != 0.0:
-            self._metrics[mode]["NLL_diff"].append(
-                self.accelerator.gather(diff).nanmean().item()
-            )
-
-        mean_entropy = entropies.mean()
-        self._metrics[mode]["entropy"].append(
-            self.accelerator.gather(mean_entropy).nanmean().item()
-        )
+        loss = (diff + self.beta * reward) ** 2
         return loss.mean()
 
     def _generate_and_score_completions(
@@ -68,9 +82,14 @@ class VanillaReinventTrainer(GRPOTrainer):
     ) -> dict[str, Union[torch.Tensor, Any]]:
         device = self.accelerator.device
         mode = "train" if self.model.training else "eval"
-
+        num_generations = self.num_generations if mode == "train" else 1
         prompts = [x["prompt"] for x in inputs]
-
+        if mode == "eval":
+            assert len(prompts) % self.generation_config.num_return_sequences == 0
+            n_prompts_to_keep = (
+                len(prompts) // self.generation_config.num_return_sequences
+            )
+            prompts = prompts[:n_prompts_to_keep]
         images = None
 
         (
@@ -82,7 +101,14 @@ class VanillaReinventTrainer(GRPOTrainer):
         ) = self._generate(prompts, images)
 
         # Convert lists of token IDs to padded tensors
-        prompt_ids = [torch.tensor(ids, device=device) for ids in prompt_ids_list]
+        if mode == "train":
+            prompt_ids = [torch.tensor(ids, device=device) for ids in prompt_ids_list]
+        else:
+            prompt_ids = [
+                torch.tensor(ids, device=device)
+                for ids in prompt_ids_list
+                for _ in range(self.generation_config.num_return_sequences)
+            ]
         prompt_mask = [torch.ones_like(ids, dtype=torch.long) for ids in prompt_ids]
         prompt_ids = pad(
             prompt_ids, padding_value=self.pad_token_id, padding_side="left"
@@ -219,7 +245,14 @@ class VanillaReinventTrainer(GRPOTrainer):
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
         rewards_per_func = self._calculate_rewards(
-            inputs, prompts, completions, completion_ids_list
+            inputs,
+            [
+                p
+                for p in prompts
+                for _ in range(self.generation_config.num_return_sequences)
+            ],
+            completions,
+            completion_ids_list,
         )
 
         # Apply weights to each reward function's output and sum
@@ -228,18 +261,18 @@ class VanillaReinventTrainer(GRPOTrainer):
         ).nansum(dim=1)
 
         # Compute grouped-wise rewards
-        mean_grouped_rewards = rewards.view(-1, self.num_generations).mean(dim=1)
+        mean_grouped_rewards = rewards.view(-1, num_generations).mean(dim=1)
 
         # Normalize the rewards to compute the advantages
         mean_grouped_rewards = mean_grouped_rewards.repeat_interleave(
-            self.num_generations, dim=0
+            num_generations, dim=0
         )
         advantages = rewards - mean_grouped_rewards
 
         if self.scale_rewards in ["group", "none"]:
             # If self.scale_rewards = "none", we'll still log group level std
-            std_rewards = rewards.view(-1, self.num_generations).std(dim=1)
-            std_rewards = std_rewards.repeat_interleave(self.num_generations, dim=0)
+            std_rewards = rewards.view(-1, num_generations).std(dim=1)
+            std_rewards = std_rewards.repeat_interleave(num_generations, dim=0)
         elif self.scale_rewards == "batch":
             # Compute global std
             std_rewards = rewards.std().expand_as(rewards)
@@ -276,6 +309,11 @@ class VanillaReinventTrainer(GRPOTrainer):
             is_std_zero.float().mean().item()
         )
 
+        ### MOLECULE SPECIFIC METRICS ###
+        for eval_name in self.mol_evaluators:
+            self._metrics[mode][eval_name].append(
+                self.mol_evaluators[eval_name](completions_text)
+            )
         # Log prompt and completion texts
         self._logs["prompt"].extend(gather_object(prompts_text))
         self._logs["completion"].extend(gather_object(completions_text))
@@ -328,7 +366,6 @@ class VanillaReinventTrainer(GRPOTrainer):
             self._metrics[mode]["sampling/importance_sampling_ratio/max"].append(
                 nanmax(self.accelerator.gather(max_importance_sampling_ratio)).item()
             )
-
         output = {
             "prompt_ids": prompt_ids,
             "prompt_mask": prompt_mask,
@@ -344,14 +381,15 @@ class VanillaReinventTrainer(GRPOTrainer):
             output["importance_sampling_ratio"] = importance_sampling_ratio
         if ref_per_token_logps is not None:
             output["ref_per_token_logps"] = ref_per_token_logps
-        if "pixel_values" in forward_kwargs:
-            output["pixel_values"] = forward_kwargs["pixel_values"]
-        if "image_grid_thw" in forward_kwargs:
-            output["image_grid_thw"] = forward_kwargs["image_grid_thw"]
-        if "pixel_attention_mask" in forward_kwargs:
-            output["pixel_attention_mask"] = forward_kwargs["pixel_attention_mask"]
-        if "image_sizes" in forward_kwargs:
-            output["image_sizes"] = forward_kwargs["image_sizes"]
-        if "token_type_ids" in forward_kwargs:
-            output["token_type_ids"] = forward_kwargs["token_type_ids"]
+
         return output
+
+    def prediction_step(
+        self,
+        model: Any,
+        inputs: Any,
+        prediction_loss_only: Any,
+        ignore_keys: Optional[list[str]] = None,
+    ) -> Tuple[Any, Any, Any]:
+        inputs = self._prepare_inputs(inputs)
+        return torch.tensor(0.0), inputs["completion_ids"], inputs["completion_ids"]
