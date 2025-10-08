@@ -9,7 +9,7 @@ parameters:
   batch_size:
     values: [32,64]
   sigma:
-    values: [1, 10]
+    values: [1]
   train_on_beams:
     values: [0, 1]
   generation_config:
@@ -18,30 +18,9 @@ parameters:
       '{"num_beams": 2}',
       '{"num_beams": 4}',
       '{"num_beams": 8}',
-      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 0.1}',
-      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 0.1}',
-      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 0.1}',
-      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 0.1}',
-      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 0.1}',
-      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 0.1}',
-      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 0.1}',
-      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 0.1}',
-      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 1}',
-      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 1}',
-      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 1}',
-      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 1}',
-      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 1}',
-      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 1}',
-      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 1}',
-      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 1}',
-      '{"num_beams": 4, "num_beam_groups": 2, "penalty_alpha": 10}',
-      '{"num_beams": 8, "num_beam_groups": 2, "penalty_alpha": 10}',
-      '{"num_beams": 16, "num_beam_groups": 2, "penalty_alpha": 10}',
-      '{"num_beams": 8, "num_beam_groups": 4, "penalty_alpha": 10}',
-      '{"num_beams": 16, "num_beam_groups": 4, "penalty_alpha": 10}',
-      '{"num_beams": 32, "num_beam_groups": 4, "penalty_alpha": 10}',
-      '{"num_beams": 16, "num_beam_groups": 8, "penalty_alpha": 10}',
-      '{"num_beams": 32, "num_beam_groups": 8, "penalty_alpha": 10}',
+      '{"num_beams": 16}',
+      '{"num_beams": 32}',
+      '{"num_beams": 64}',
     ]
   id_obj:
     values: [0]
