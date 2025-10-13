@@ -31,7 +31,7 @@ class CustomTask(GFNTask):
         return self.temperature_conditional.sample(n)
 
     def compute_obj_properties(
-        self, mols: List[RDMol]
+        self, mols: List[RDMol], *args: Any, **kwargs: Any
     ) -> Tuple[ObjectProperties, Tensor]:
         rs = torch.tensor(
             self.custom_reward_fn([Chem.MolToSmiles(m) for m in mols])

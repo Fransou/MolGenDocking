@@ -11,10 +11,14 @@ from synflownet.algo.config import (
     TBConfig,
     TBVariant,
 )
-from synflownet.config import Config, OptimizerConfig
-from synflownet.data.config import ReplayConfig
-from synflownet.models.config import ModelConfig
-from synflownet.utils.config import ConditionalsConfig
+from synflownet.config import (
+    ConditionalsConfig,
+    Config,
+    ModelConfig,
+    OptimizerConfig,
+    ReplayConfig,
+)
+from synflownet.tasks.config import ReactionTaskConfig, TasksConfig
 
 
 def add_TB_config(parser: argparse.ArgumentParser) -> argparse._ArgumentGroup:
@@ -204,6 +208,22 @@ def add_replay_config(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_task_config(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--templates_filename", type=str, default="data/synflownet/templates/hb.txt"
+    )
+    parser.add_argument(
+        "--building_blocks_filename",
+        type=str,
+        default="data/synflownet/enamine_bbs.txt",
+    )
+    parser.add_argument(
+        "--precomputed_bb_masks_filename",
+        type=str,
+        default="data/synflownet/precomputed_bb_masks_enamine_bbs.pkl",
+    )
+
+
 def process_algo_args(
     args: argparse.Namespace, group_dict: Dict[str, argparse._ArgumentGroup]
 ) -> Dict[str, Dict[str, Any]]:
@@ -271,6 +291,8 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
 
     # ConditionalsConfig
 
+    add_task_config(parser)
+
     args = parser.parse_args()
 
     algo_args = process_algo_args(args, group_dict)
@@ -309,6 +331,13 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
         opt=opt_config,
         replay=replay_config,
         cond=cond_config,
+        task=TasksConfig(
+            ReactionTaskConfig(
+                templates_filename=args.templates_filename,
+                building_blocks_filename=args.building_blocks_filename,
+                precomputed_bb_masks_filename=args.precomputed_bb_masks_filename,
+            )
+        ),
     )
 
     return config, args

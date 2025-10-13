@@ -1,62 +1,71 @@
-from typing import Any, Callable, Dict, List, Tuple
+import pickle
+from typing import Any, Callable, Dict, List
 
-import torch
-from gflownet import GFNTask, LogScalar, ObjectProperties
-from gflownet.config import Config
-from gflownet.envs.frag_mol_env import FragMolBuildingEnvContext
-from gflownet.models.bengio2021flow import FRAGMENTS
-from gflownet.online_trainer import StandardOnlineTrainer
-from gflownet.utils.conditioning import TemperatureConditional
 from rdkit import Chem
-from rdkit.Chem.rdchem import Mol as RDMol
+from synflownet.algo.reaction_sampling import SynthesisSampler
+from synflownet.config import Config
+from synflownet.envs.synthesis_building_env import (
+    ReactionTemplateEnv,
+    ReactionTemplateEnvContext,
+)
+from synflownet.online_trainer import StandardOnlineTrainer
 from tdc import Evaluator
-from torch import Tensor
 
+from mol_gen_docking.baselines.GFlownets.trainer import CustomTask
 
-class CustomTask(GFNTask):
-    """A toy task where the reward is the number of rings in the molecule."""
-
-    def __init__(
-        self,
-        reward_fn: Callable[[List[str] | str], float | List[float]],
-        cfg: Config,
-        *args: Any,
-        **kwargs: Any,
-    ):
-        self.custom_reward_fn = reward_fn
-        self.temperature_conditional = TemperatureConditional(cfg)
-        self.num_cond_dim = self.temperature_conditional.encoding_size()
-
-    def sample_conditional_information(self, n: int, train_it: int) -> Any:
-        return self.temperature_conditional.sample(n)
-
-    def compute_obj_properties(
-        self, mols: List[RDMol]
-    ) -> Tuple[ObjectProperties, Tensor]:
-        rs = torch.tensor(
-            self.custom_reward_fn([Chem.MolToSmiles(m) for m in mols])
-        ).float()
-
-        return ObjectProperties(rs.reshape((-1, 1))), torch.ones(len(mols)).bool()
-
-    def cond_info_to_logreward(
-        self, cond_info: Dict[str, Tensor], obj_props: ObjectProperties
-    ) -> LogScalar:
-        scalar_logreward = torch.as_tensor(obj_props).squeeze().clamp(min=1e-8).log()
-        return LogScalar(
-            self.temperature_conditional.transform(cond_info, scalar_logreward)
-        )
+ATOMS: list[str] = [
+    "C",
+    "N",
+    "O",
+    "F",
+    "P",
+    "S",
+    "Cl",
+    "Br",
+    "I",
+    "B",
+    "Sn",
+    "Ca",
+    "Na",
+    "Ba",
+    "Zn",
+    "Rh",
+    "Ag",
+    "Li",
+    "Yb",
+    "K",
+    "Fe",
+    "Cs",
+    "Bi",
+    "Pd",
+    "Cu",
+    "Si",
+    "Ni",
+    "As",
+    "Cd",
+    "H",
+    "Hg",
+    "Mg",
+    "Mn",
+    "Se",
+    "Pt",
+    "Sb",
+    "Pb",
+]
 
 
 class MakeCustomTaskTrainer(StandardOnlineTrainer):
     def __init__(
         self,
         reward_fn: Callable[[List[str] | str], float | List[float]],
+        config: Any,
+        syn_flow_repo_root: str = ".",
         *args: Any,
         **kwargs: Any,
     ) -> None:
         self.custom_reward_fn = reward_fn
-        super().__init__(*args, **kwargs)
+        self.syn_flow_repo_root = syn_flow_repo_root
+        super().__init__(config, *args, **kwargs)
 
     def set_default_hps(self, cfg: Config) -> None:
         cfg.algo.illegal_action_logreward = -100
@@ -66,11 +75,39 @@ class MakeCustomTaskTrainer(StandardOnlineTrainer):
         self.task = CustomTask(self.custom_reward_fn, self.cfg)
 
     def setup_env_context(self) -> None:
-        # The per-atom generation context
-        self.ctx = FragMolBuildingEnvContext(
-            max_frags=64,
+        # Load building blocks
+        building_blocks_path = self.cfg.task.reactions_task.building_blocks_filename
+        with open(building_blocks_path) as file:
+            building_blocks = file.read().splitlines()
+
+        # Load templates
+        templates_path = self.cfg.task.reactions_task.templates_filename
+        with open(templates_path) as file:
+            reaction_templates = file.read().splitlines()
+
+        precomputed_bb_masks_path = (
+            self.cfg.task.reactions_task.precomputed_bb_masks_filename
+        )
+
+        with open(precomputed_bb_masks_path, "rb") as f:
+            precomputed_bb_masks = pickle.load(f)
+
+        self.ctx = ReactionTemplateEnvContext(
+            atoms=ATOMS,
             num_cond_dim=self.task.num_cond_dim,
-            fragments=FRAGMENTS,
+            building_blocks=building_blocks,
+            reaction_templates=reaction_templates,
+            precomputed_bb_masks=precomputed_bb_masks,
+            fp_type=self.cfg.model.graph_transformer.fingerprint_type,
+            fp_path=self.cfg.model.graph_transformer.fingerprint_path,
+            strict_bck_masking=self.cfg.algo.strict_bck_masking,
+        )
+        self.env = ReactionTemplateEnv(
+            reaction_templates=reaction_templates,
+            building_blocks=building_blocks,
+            precomputed_bb_masks=precomputed_bb_masks,
+            fp_type=self.cfg.model.graph_transformer.fingerprint_type,
+            fp_path=self.cfg.model.graph_transformer.fingerprint_path,
         )
 
     def setup(self) -> None:
@@ -79,9 +116,19 @@ class MakeCustomTaskTrainer(StandardOnlineTrainer):
             EvaluatorHook(["validity", "uniqueness", "diversity"], self.ctx)
         )
 
+    def setup_sampler(self) -> None:
+        self.sampler = SynthesisSampler(
+            cfg=self.cfg,
+            ctx=self.ctx,
+            env=self.env,
+            max_len=self.cfg.algo.max_len,
+            correct_idempotent=self.cfg.algo.tb.do_correct_idempotent,
+            pad_with_terminal_state=self.cfg.algo.tb.do_parameterize_p_b,
+        )
+
 
 class EvaluatorHook:
-    def __init__(self, fns: List[str], ctx: FragMolBuildingEnvContext):
+    def __init__(self, fns: List[str], ctx: ReactionTemplateEnvContext):
         self.fns = [Evaluator(name) for name in fns]
         self.ctx = ctx
 

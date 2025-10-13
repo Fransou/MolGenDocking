@@ -9,8 +9,8 @@ from datasets import load_from_disk
 from rdkit import Chem
 from tdc import Evaluator
 
-from mol_gen_docking.baselines.GFlownets.args import get_config
-from mol_gen_docking.baselines.GFlownets.trainer import MakeCustomTaskTrainer
+from mol_gen_docking.baselines.SynFlownets.args import get_config
+from mol_gen_docking.baselines.SynFlownets.trainer import MakeCustomTaskTrainer
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 N_REPEAT_TEST = 8
@@ -81,10 +81,7 @@ if __name__ == "__main__":
         if args.id_obj == -1 or args.id_obj == id:
             reward_fn = get_reward_fn(metadata, args.datasets_path)
             evaluator = EvalMolMetrics(reward_fn)
-            wandb.init(
-                project="GFlowNets-RL",
-                config=config.__dict__,
-            )
+            wandb.init(project="SynFlowNets-RL", allow_val_change=True)
             wandb.config.update({"prompt": metadata})
             trial = MakeCustomTaskTrainer(reward_fn, config, print_config=False)
             trial.run()
