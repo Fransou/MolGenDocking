@@ -105,8 +105,8 @@ class VinaDocking:
         gpu_ids: Union[int, List[int]] = 0,
         docking_attempts: int = 10,
         print_msgs: bool = True,
-        print_vina_output: bool = False,
-        debug: bool = False,
+        print_vina_output: bool = True,
+        debug: bool = True,
     ) -> None:
         """
             Parameters:
@@ -156,7 +156,6 @@ class VinaDocking:
                 raise Exception(
                     f"Command 'nvidia-smi --list-gpus' returned unsuccessfully: {proc.stderr.read()}"  # type:ignore
                 )
-
         # Checking for incorrect GPU id input
         gpu_ids_list = []
         if gpu_ids is None:
@@ -172,7 +171,7 @@ class VinaDocking:
                     unknown_gpu_ids.append(gpu_id)
             if len(unknown_gpu_ids) > 0:
                 raise Exception(f"Unknown GPU id(s): {unknown_gpu_ids}")
-            gpu_ids_list = gpu_ids_list
+            gpu_ids_list = gpu_ids
         else:
             raise Exception(f"Unknown GPU ids: {gpu_ids}")
         self.vina_cmd = vina_cmd
@@ -186,6 +185,8 @@ class VinaDocking:
         self.preparator = preparator
         self.vina_cwd = vina_cwd
         self.gpu_ids: List[int] = gpu_ids_list
+        print(f"Available GPU ids: {gpu_ids_list}")
+
         self.docking_attempts = docking_attempts
         self.print_msgs = print_msgs
         self.print_vina_output = print_vina_output
@@ -225,6 +226,10 @@ class VinaDocking:
         ligand_dir_path = ligand_tempdir.name
         output_dir_path = output_tempdir.name
         config_dir_path = config_tempdir.name
+
+        make_dir(ligand_dir_path, exist_ok=True)
+        make_dir(output_dir_path, exist_ok=True)
+        make_dir(config_dir_path, exist_ok=True)
 
         # make different directories to support parallelization across multiple GPUs.
         for gpu_id in self.gpu_ids:
@@ -287,7 +292,7 @@ class VinaDocking:
         vina_cmd_prefixes = [
             f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids
         ]
-
+        log_paths = [f"log_{i}" for i in range(len(tmp_config_file_paths))]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
             if self.debug:
@@ -296,12 +301,14 @@ class VinaDocking:
                     tmp_config_file_paths,
                     vina_cmd_prefixes=vina_cmd_prefixes,
                     blocking=False,
+                    log_paths=log_paths,
                 )
             else:
                 self._run_vina(
                     tmp_config_file_paths,
                     vina_cmd_prefixes=vina_cmd_prefixes,
                     blocking=False,
+                    log_paths=log_paths,
                 )
             if all(
                 len(os.listdir(f"{output_dir_path}/{gpu_id}/")) > 0
@@ -320,6 +327,7 @@ class VinaDocking:
 
         # Something went horribly wrong
         if all(not os.path.exists(path) for path in output_paths):
+            raise ValueError
             binding_scores = None
 
         else:
@@ -429,7 +437,8 @@ class VinaDocking:
 
             if not self.print_vina_output:
                 cmd_str += " > /dev/null 2>&1"
-
+            elif log_paths is not None:
+                cmd_str += f" > {log_paths[i]} 2>&1"
             proc = subprocess.Popen(
                 cmd_str, shell=True, start_new_session=False, cwd=self.vina_cwd
             )

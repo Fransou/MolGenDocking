@@ -15,7 +15,7 @@ from mol_gen_docking.reward.oracles.docking_utils.preparators import (
 from mol_gen_docking.reward.oracles.docking_utils.vinagpu_wrapper import VinaDocking
 
 
-def _chunks(lst: List[str], n: int) -> Generator[List[str]]:
+def _chunks(lst: List[str], n: int) -> Generator[List[str], None, None]:
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
@@ -25,7 +25,7 @@ class DockingMoleculeGpuOracle:
     def __init__(
         self,
         path_to_data: str,
-        qv_dir: Union[Path, str],
+        qv_dir: Optional[Union[Path, str]] = None,
         preparator_class: Type[BasePreparator] = MeekoLigandPreparator,
         vina_mode: str = "QuickVina2",
         gnina: bool = False,
@@ -33,7 +33,7 @@ class DockingMoleculeGpuOracle:
         receptor_name: Optional[str] = None,
         center: Optional[List[float]] = None,
         size: Optional[List[float]] = None,
-        print_msgs: bool = False,
+        print_msgs: bool = True,
         failed_score: float = 0.0,
         conformer_attempts: int = 20,
         n_conformers: int = 1,
@@ -41,6 +41,7 @@ class DockingMoleculeGpuOracle:
         docking_batch_size: int = 25,
         exhaustiveness: int = 8000,
         n_gpu: int = 1,
+        gpu_ids: Optional[List[int]] = None,
         n_cpu: Optional[int] = None,
     ):
         """
@@ -130,22 +131,25 @@ class DockingMoleculeGpuOracle:
             n_conformers=self.n_conformers,
             num_cpus=self.n_cpu,
         )
-
-        vina_fullpath = os.path.realpath(f"{self.qv_dir}/{self.vina_mode}-GPU-2.1")
+        if self.qv_dir is not None:
+            vina_fullpath = os.path.realpath(f"{self.qv_dir}/{self.vina_mode}-GPU-2.1")
+        else:
+            vina_fullpath = self.vina_mode
         self.docking_module_gpu = VinaDocking(
-            f"./{self.vina_mode}-GPU-2-1",
+            f"{vina_fullpath}/{self.vina_mode}-GPU-2-1"
+            if self.qv_dir
+            else self.vina_mode,
             receptor_pdbqt_file=self.receptor_path,
             center_pos=self.center,
             size=self.size,
             n_conformers=self.n_conformers,
-            vina_cwd=vina_fullpath,
             get_pose_str=True,
             preparator=self.preparator,
             timeout_duration=None,
-            debug=False,
+            debug=True,
             print_msgs=self.print_msgs,
-            print_vina_output=False,
-            gpu_ids=list(range(self.n_gpu)),
+            print_vina_output=True,
+            gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
             docking_attempts=self.docking_attempts,
             additional_vina_args={
                 "thread": self.exhaustiveness,

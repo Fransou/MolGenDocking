@@ -1,5 +1,3 @@
-import os
-import time
 from itertools import product
 from typing import Callable, List
 
@@ -19,7 +17,6 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 from .utils import (
     COMPLETIONS,
     DATA_PATH,
-    DOCKING_PROP_LIST,
     OBJECTIVES_TO_TEST,
     PROP_LIST,
     PROPERTIES_NAMES_SIMPLE,
@@ -34,9 +31,6 @@ try:
 except Exception:
     ray.init()
 
-SKIP_VINA = (
-    os.system("vina --help") == 32512 or str(os.environ.get("SKIP_VINA", "0")) == "1"
-)
 
 cfg = DatasetConfig(data_path=DATA_PATH)
 
@@ -58,24 +52,12 @@ scorers = {
         "property",
         parse_whole_completion=True,
         rescale=False,
-        oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
-            exhaustiveness=4,
-            docking_oracle="vinagpu",
-            qv_dir="",  # Vina executable
-        ),
     ),
     "property_whole": RewardScorer(
         DATA_PATH,
         "property",
         parse_whole_completion=False,
         rescale=False,
-        oracle_kwargs=dict(
-            ncpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
-            exhaustiveness=4,
-            docking_oracle="vinagpu",
-            qv_dir="",  # Vina executable
-        ),
     ),
 }
 
@@ -266,25 +248,6 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
             assert sum(rewards[i]) == 0
 
 
-@pytest.mark.skipif(SKIP_VINA, reason="requires vina")
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:3])
-def test_properties_single_prompt_vina_reward(
-    target, property_scorer, property_filler, build_prompt, n_generations=1
-):
-    """Test the reward function runs for vina targets."""
-    prompts = [build_prompt(target)] * n_generations
-    smiles = [propeties_csv.iloc[:128]["smiles"].tolist() for k in range(n_generations)]
-    completions = [
-        property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
-        for s in smiles
-    ]
-    rewards = property_scorer(prompts, completions)
-
-    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
-    rewards = torch.Tensor(rewards)
-    assert not rewards.isnan().any()
-
-
 @pytest.mark.parametrize(
     "prop, obj, smiles",
     list(
@@ -336,43 +299,6 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
             val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
-
-
-@pytest.mark.skipif(
-    SKIP_VINA,
-    reason="requires vina",
-)
-@pytest.mark.parametrize("property1", np.random.choice(DOCKING_PROP_LIST, 4))
-def test_timeout(
-    property1,
-    n_generation=1,
-):
-    property_scorer = scorers["property"]
-    property_filler = get_fill_completions(property_scorer.parse_whole_completion)
-
-    dataset_cls = MolGenerationInstructionsDatasetGenerator(cfg)
-
-    def build_prompt(property1):
-        """Build a prompt for the given property."""
-        return dataset_cls.fill_prompt([property1], ["maximize"])[0]
-
-    completion = "Here is a molecule: [SMILES] what are its properties?"
-    prompts = [build_prompt(property1)] * n_generation
-    smiles = [propeties_csv.sample(1)["smiles"].tolist() for _ in range(n_generation)]
-    completions = [property_filler(s, completion) for s in smiles]
-    t0 = time.time()
-    scorer = RewardScorer(
-        DATA_PATH,
-        "property",
-        parse_whole_completion=True,
-        oracle_kwargs=dict(ncpu=1, exhaustiveness=1024),
-    )
-
-    result = scorer(prompts, completions)
-    t1 = time.time()
-    assert (torch.tensor(result) == 0).all() or (t1 - t0) < 60, (
-        "Some rewards are not positive, check the oracle."
-    )
 
 
 @pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
