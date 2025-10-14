@@ -16,7 +16,7 @@ export DATASET=sair_processed
 
 cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
 cd $SLURM_TMPDIR
-tar -xvzf $DATASET.tar.gz
+tar -xzf $DATASET.tar.gz
 
 cd $WORKING_DIR
 cp data/properties.csv $SLURM_TMPDIR
