@@ -215,8 +215,23 @@ if __name__ == "__main__":
 
     processor = ReceptorProcess(data_path=args.data_path)
     missed_receptors_1, missed_receptors_2 = processor.process_all_receptors()
-    print(
-        "###########\n Missed receptors with failed residues inside the box: \n",
-        missed_receptors_1,
-    )
     print("###########\n Missed receptors with critical errors: \n", missed_receptors_2)
+
+    # Remove receptors with critical errors from pockets_info.json and docking_targets.json
+    if len(missed_receptors_2) > 0:
+        with open(os.path.join(args.data_path, "pockets_info.json")) as f:
+            pockets_info = json.load(f)
+        for receptor in missed_receptors_2:
+            if receptor in pockets_info:
+                del pockets_info[receptor]
+        with open(os.path.join(args.data_path, "pockets_info.json"), "w") as f:
+            json.dump(pockets_info, f, indent=4)
+
+        if os.path.exists(os.path.join(args.data_path, "docking_targets.json")):
+            with open(os.path.join(args.data_path, "docking_targets.json")) as f:
+                docking_targets = json.load(f)
+            docking_targets = [
+                target for target in docking_targets if target not in missed_receptors_2
+            ]
+            with open(os.path.join(args.data_path, "docking_targets.json"), "w") as f:
+                json.dump(docking_targets, f, indent=4)
