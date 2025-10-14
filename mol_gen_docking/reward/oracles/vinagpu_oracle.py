@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Generator, List, Optional, Tuple, Type, Union
 
+from reward.oracles.docking_utils.vinagpu_wrapper import AutoDockGPUDocking
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
@@ -135,28 +136,44 @@ class DockingMoleculeGpuOracle:
             vina_fullpath = os.path.realpath(f"{self.qv_dir}/{self.vina_mode}-GPU-2.1")
         else:
             vina_fullpath = self.vina_mode
-        self.docking_module_gpu = VinaDocking(
-            f"{vina_fullpath}/{self.vina_mode}-GPU-2-1"
-            if self.qv_dir
-            else self.vina_mode,
-            receptor_pdbqt_file=self.receptor_path,
-            center_pos=self.center,
-            size=self.size,
-            n_conformers=self.n_conformers,
-            get_pose_str=True,
-            preparator=self.preparator,
-            timeout_duration=None,
-            debug=True,
-            print_msgs=self.print_msgs,
-            print_vina_output=True,
-            gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
-            docking_attempts=self.docking_attempts,
-            additional_vina_args={
-                "thread": self.exhaustiveness,
-                "opencl_binary_path": vina_fullpath,
-                "num_modes": 1,
-            },
-        )
+        if self.qv_dir:
+            self.docking_module_gpu = VinaDocking(
+                f"{vina_fullpath}/{self.vina_mode}-GPU-2-1",
+                receptor_file=self.receptor_path,
+                center_pos=self.center,
+                size=self.size,
+                n_conformers=self.n_conformers,
+                get_pose_str=True,
+                preparator=self.preparator,
+                timeout_duration=None,
+                debug=True,
+                print_msgs=self.print_msgs,
+                print_output=True,
+                gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
+                docking_attempts=self.docking_attempts,
+                additional_args={
+                    "thread": self.exhaustiveness,
+                    "opencl_binary_path": vina_fullpath,
+                    "num_modes": 1,
+                },
+            )
+        else:
+            self.docking_module_gpu = AutoDockGPUDocking(
+                self.vina_mode,
+                receptor_file=self.receptor_path,
+                n_conformers=self.n_conformers,
+                get_pose_str=True,
+                preparator=self.preparator,
+                timeout_duration=None,
+                debug=True,
+                print_msgs=self.print_msgs,
+                print_output=True,
+                gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
+                docking_attempts=self.docking_attempts,
+                additional_args={
+                    "--nrun": self.exhaustiveness,
+                },
+            )
 
         # if self.gnina:
         #     self.gnina_rescorer = GninaRescorer(
