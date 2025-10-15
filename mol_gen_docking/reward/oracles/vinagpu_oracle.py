@@ -3,17 +3,16 @@ import os
 from pathlib import Path
 from typing import Generator, List, Optional, Tuple, Type, Union
 
-from reward.oracles.docking_utils.vinagpu_wrapper import AutoDockGPUDocking
+from reward.oracles.docking_utils.docking_soft import AutoDockGPUDocking
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
+# from rgfn.gfns.reaction_gfn.proxies.docking_proxy.gnina_wrapper import GninaRescorer
+from mol_gen_docking.reward.oracles.docking_utils.docking_soft import VinaDocking
 from mol_gen_docking.reward.oracles.docking_utils.preparators import (
     BasePreparator,
     MeekoLigandPreparator,
 )
-
-# from rgfn.gfns.reaction_gfn.proxies.docking_proxy.gnina_wrapper import GninaRescorer
-from mol_gen_docking.reward.oracles.docking_utils.vinagpu_wrapper import VinaDocking
 
 
 def _chunks(lst: List[str], n: int) -> Generator[List[str], None, None]:

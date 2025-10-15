@@ -45,7 +45,7 @@ scorers = {
         oracle_kwargs=dict(
             n_cpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
             exhaustiveness=4,
-            docking_oracle="vinagpu",
+            docking_oracle="soft_docking",
             vina_mode="autodock-gpu_256wi",
         ),
     ),
@@ -57,7 +57,7 @@ scorers = {
         oracle_kwargs=dict(
             n_cpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
             exhaustiveness=4,
-            docking_oracle="vinagpu",
+            docking_oracle="soft_docking",
             vina_mode="AutoDock-Vina",
             qv_dir="external_repositories/Vina-GPU-2.1/AutoDock-Vina-GPU-2.1",  # Vina executable
         ),

@@ -27,7 +27,29 @@ python mol_gen_docking/data/meeko_process.py --data_path $DATA_PATH
 
 cd $SLURM_TMPDIR
 rm $DATASET/*.csv  # Remove original CSV files to save space
-tar -czvf $DATASET_meeko.tar.gz $DATASET
+rm $DATASET/pdb_files/*.glg  # Remove intermediate files to save space
+rm $DATASET/pdb_files/*.gpf  # Remove intermediate files to save space
+rm $DATASET/pdb_files/*.box.pdb  # Remove intermediate files to save space
+
+rm $DATASET/pdb_files/*.map  # Remove map files that will be computed at inf time
+rm $DATASET/pdb_files/*.maps.fld  # Remove map files that will be computed at inf time
+rm $DATASET/pdb_files/*.maps.xyz  # Remove map files that will be computed at inf time
+rm $DATASET/pdb_files/*.pdbqt  # Remove pdbqt files that will be computed at inf time
+
+total_bytes=$(du -sb "$DATASET" | awk '{print $1}')
+checkpoint_bytes=1000
+
+tar -czf "$DATASET"_meeko.tar.gz "$DATASET" \
+  --checkpoint=$checkpoint_bytes \
+  --checkpoint-action=exec='
+    bytes=$((TAR_CHECKPOINT * '"$checkpoint_bytes"'))
+    if [ $bytes -gt '"$total_bytes"' ]; then bytes='"$total_bytes"'; fi
+    kb=$((bytes / 1000))
+    total_kb=$(( '"$total_bytes"' / 1000 ))
+    percent=$((100 * bytes / '"$total_bytes"'))
+    printf "%d/%d KB (%d%%)\r" $kb $total_kb $percent
+  '
+
 
 cp $DATASET_meeko.tar.gz $SCRATCH/MolGenData/
 echo "Preprocessed data copied to $SCRATCH/MolGenData/$DATASET_meeko.tar.gz"

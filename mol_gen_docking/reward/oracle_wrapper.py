@@ -168,7 +168,7 @@ def get_oracle(
                 PyscreenerOracle(oracle_name, path_to_data=path_to_data, **kwargs),
                 f"docking_prop/{oracle_name}",
             )
-        elif docking_oracle == "vinagpu":
+        elif docking_oracle == "soft_docking":
             from mol_gen_docking.reward.oracles.vinagpu_oracle import (
                 DockingMoleculeGpuOracle,
             )

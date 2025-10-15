@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from rdkit import Chem
+from ringtail import RingtailCore
 
 VINA_DOCKING_OUTPUT = None | Tuple[List[float | None], List[str | None]]
 
@@ -27,8 +28,12 @@ def sanitize_smi_name_for_file(smi: str) -> str:
     return hashlib.sha224(smi.encode()).hexdigest()
 
 
-def move_files_from_dir(source_dir_path: str, dest_dir_path: str) -> None:
+def move_files_from_dir(
+    source_dir_path: str, dest_dir_path: str, include_only: List[str] = []
+) -> None:
     files = os.listdir(source_dir_path)
+    if len(include_only) > 0:
+        files = [f for f in files if f in include_only]
     for file in files:
         source_file = os.path.join(source_dir_path, file)
         destination_file = os.path.join(dest_dir_path, file)
@@ -598,28 +603,20 @@ class AutoDockGPUDocking:
         # make different directories to support parallelization across multiple GPUs.
         for gpu_id in self.gpu_ids:
             make_dir(f"{ligand_dir_path}/{gpu_id}/", exist_ok=True)
-            make_dir(f"{output_dir_path}/{gpu_id}/", exist_ok=True)
 
         # create hashed filename for each unique smiles
         ligand_path_fn = get_ligand_hashed_fn(
             ligand_dir_path, n_conformers=self.n_conformers
         )
 
-        # create hashed output filename for each unique smiles
-        output_path_fn = get_ligand_hashed_fn(
-            output_dir_path, n_conformers=self.n_conformers, suffix="_out"
-        )
-
         # not the fastest implementation, but safe if multiple experiments running at same time (with different tmp file paths)
         ligand_paths = []
-        output_paths = []
         ligand_paths_by_smiles = []
 
         for i in range(len(smis)):
             current_ligand_paths = ligand_path_fn(smis[i])
             ligand_paths_by_smiles.append(current_ligand_paths)
             ligand_paths += current_ligand_paths
-            output_paths += output_path_fn(smis[i])
 
         # Prepare ligands that don't have an existing output file (they aren't overlapping)
         if self.print_msgs:
@@ -676,8 +673,9 @@ class AutoDockGPUDocking:
         for gpu_id in self.gpu_ids:
             move_files_from_dir(f"{ligand_dir_path}/{gpu_id}/", ligand_dir_path)
 
-        for gpu_id in self.gpu_ids:
-            move_files_from_dir(f"{output_dir_path}/{gpu_id}/", output_dir_path)
+        output_paths = [
+            os.path.abspath(file).split(".")[0] + ".dlg" for file in ligand_files
+        ]
 
         # Something went horribly wrong
         if all(not os.path.exists(path) for path in output_paths):
@@ -686,8 +684,26 @@ class AutoDockGPUDocking:
         else:
             # Gather binding scores
             binding_scores_list: List[Any] = []
+            # Move all output files to a TempDir
+            move_files_from_dir(".", output_dir_path, include_only=output_paths)
+            output_paths = [
+                os.path.abspath(f"{output_dir_path}/" + os.path.basename(file))
+                for file in output_paths
+            ]
 
+            rtc = RingtailCore(f"{output_dir_path}/output.db")
+            rtc.add_results_from_files(
+                file_path=output_dir_path,
+                receptor_file=self.receptor_pdbqt_file,
+                save_receptor=False,
+                max_poses=3,
+            )
+            print(rtc.produce_summary())
+            with rtc.storageman:
+                df = rtc.storageman.to_dataframe("")
+            print(df)
             raise NotImplementedError
+
             for i in range(len(output_paths)):
                 binding_scores_list.append(self._get_output_score(output_paths[i]))
 
@@ -718,7 +734,9 @@ class AutoDockGPUDocking:
             return self.preparator(smis, ligand_paths_by_smiles)
 
     @staticmethod
-    def _get_output_score(output_path: str) -> Union[float, None]:
+    def _get_output_score(
+        output_path: str,
+    ) -> Union[float, None]:  # TODO: Maybe use ringtail to speed this up?
         try:
             score = float("inf")
             with open(output_path) as f:
@@ -754,10 +772,12 @@ class AutoDockGPUDocking:
         procs = []
 
         for i in range(len(ligand_files)):
+            ligand_name = os.path.basename(ligand_files[i]).split(".")[0]
+
             if vina_cmd_prefixes is not None and vina_cmd_prefixes[i] is not None:
-                cmd_str = f"{vina_cmd_prefixes[i]} {self.cmd.format(ligand_files[i])}"
+                cmd_str = f"{vina_cmd_prefixes[i]} {self.cmd.format(ligand_files[i])} --resname {ligand_name}"
             else:
-                cmd_str = self.cmd.format(ligand_files[i])
+                cmd_str = self.cmd.format(ligand_files[i]) + f" --resname {ligand_name}"
 
             if not self.print_vina_output:
                 cmd_str += " > /dev/null 2>&1"

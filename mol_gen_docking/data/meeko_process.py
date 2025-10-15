@@ -108,9 +108,14 @@ class ReceptorProcess:
 
         return stderr_text, process.returncode, output_path
 
-    def meeko_process(self, receptor: str) -> Tuple[int, str]:
+    def meeko_process(
+        self, receptor: str, allow_bad_res: bool = False
+    ) -> Tuple[int, str]:
         input_path = os.path.join(self.receptor_path, f"{receptor}.pdb")
-        stderr_text, returncode, output_path = self._run_meeko(input_path, receptor)
+        stderr_text, returncode, output_path = self._run_meeko(
+            input_path, receptor, allow_bad_res
+        )
+
         if returncode != 0:
             # Check if failing resiudes are inside the docking box
             failed_residues = set()
@@ -165,9 +170,13 @@ class ReceptorProcess:
             raise RuntimeError(f"AutoGrid failed for {path}")
         self.logger.info(f"Successfully ran AutoGrid on {path}")
 
-    def process_all_receptors(self) -> Tuple[list[str], list[str]]:
+    def process_receptors(
+        self, receptors: list[str] = [], allow_bad_res: bool = False
+    ) -> Tuple[list[str], list[str]]:
         @ray.remote(num_cpus=4)
-        def process_receptors(receptor: str, pbar: Any) -> int:
+        def process_receptors(
+            receptor: str, pbar: Any, allow_bad_res: bool = False
+        ) -> int:
             """
             Outputs the level of the error:
             0: Success
@@ -175,7 +184,7 @@ class ReceptorProcess:
             2: Other errors (critical)
             """
             try:
-                result, processed_path = self.meeko_process(receptor)
+                result, processed_path = self.meeko_process(receptor, allow_bad_res)
                 self._run_autogrid(processed_path)
                 pbar.update.remote(1)
             except Exception as e:
@@ -184,12 +193,21 @@ class ReceptorProcess:
                 return 2
             return result
 
-        receptors = list(self.pockets.keys())
+        if receptors == []:
+            receptors = list(self.pockets.keys())
+        else:
+            assert all(r in self.pockets for r in receptors), (
+                "Some receptors are not in pockets_info.json"
+            )
+
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
         pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")  # type: ignore
 
         self.logger.info(f"Processing {len(receptors)} receptors.")
-        futures = [process_receptors.remote(receptor, pbar) for receptor in receptors]
+        futures = [
+            process_receptors.remote(receptor, pbar, allow_bad_res)
+            for receptor in receptors
+        ]
         results = ray.get(futures)
 
         missed_receptors_1 = [
@@ -214,7 +232,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     processor = ReceptorProcess(data_path=args.data_path)
-    missed_receptors_1, missed_receptors_2 = processor.process_all_receptors()
+    missed_receptors_1, missed_receptors_2 = processor.process_receptors()
     print("###########\n Missed receptors with critical errors: \n", missed_receptors_2)
 
     # Remove receptors with critical errors from pockets_info.json and docking_targets.json
