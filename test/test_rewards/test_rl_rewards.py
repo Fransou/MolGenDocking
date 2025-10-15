@@ -1,3 +1,4 @@
+import time
 from itertools import product
 from typing import Callable, List
 

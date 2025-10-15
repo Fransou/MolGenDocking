@@ -7,7 +7,6 @@ from typing import Any, List
 import pyscreener as ps
 import ray
 from pyscreener.docking import DockingVirtualScreen, get_runner
-from pyscreener.docking.vina.utils import Software
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 from tqdm import tqdm
@@ -79,7 +78,7 @@ class PyscreenerOracle:
         else:
             pdb_id = target_name
             receptor_pdb_file = os.path.join(
-                path_to_data, "pdb_files", f"{target_name}_processed.pdb"
+                path_to_data, "pdb_files", f"{target_name}.pdb"
             )
             with open(os.path.join(path_to_data, "pockets_info.json")) as f:
                 pockets_info = json.load(f)
@@ -97,9 +96,6 @@ class PyscreenerOracle:
             raise OSError(
                 "Pyscreener version is not compatible. Please update to the latest version."
             )
-
-        if software_class == "qvina" and os.system("qvina --help") != 32512:
-            metadata.software = Software.QVINA
 
         if hasattr(ps, "virtual_screen"):
             self.scorer = DockingVirtualScreenWithTimeout(

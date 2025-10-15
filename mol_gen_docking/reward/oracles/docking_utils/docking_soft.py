@@ -472,7 +472,7 @@ class AutoDockGPUDocking:
         n_conformers: int = 1,
         get_pose_str: bool = False,
         timeout_duration: Optional[int] = None,
-        additional_vina_args: Optional[Dict[str, Any]] = None,
+        additional_args: Optional[Dict[str, Any]] = None,
         preparator: Optional[Callable[[List[str], List[List[str]]], List[bool]]] = None,
         cwd: Optional[str] = None,
         gpu_ids: Union[int, List[int]] = 0,
@@ -541,19 +541,22 @@ class AutoDockGPUDocking:
             raise Exception(f"Unknown GPU ids: {gpu_ids}")
 
         pdbqt_file = receptor_file.replace(".pdb", "_ag.pdbqt")
-        grid_map_file = receptor_file.replace(".pdb", "_ag.map.fld")
+        grid_map_file = receptor_file.replace(".pdb", "_ag.maps.fld")
         assert os.path.exists(pdbqt_file), "Receptor file not found"
         assert os.path.exists(grid_map_file), "Grid map file not found"
 
         self.cmd = (
             cmd + "--lfile {} " + f"--flexres {pdbqt_file} --ffile {grid_map_file}"
         )
+        if additional_args is not None:
+            for k, v in additional_args.items():
+                self.cmd += f" {k} {v} "
         self.receptor_pdbqt_file = os.path.abspath(pdbqt_file)
         self.receptor_map_file = os.path.abspath(grid_map_file)
         self.n_conformers = n_conformers
         self.get_pose_str = get_pose_str
         self.timeout_duration = timeout_duration
-        self.additional_vina_args = additional_vina_args
+        self.additional_args = additional_args
         self.preparator = preparator
         self.cwd = cwd
         self.gpu_ids: List[int] = gpu_ids_list

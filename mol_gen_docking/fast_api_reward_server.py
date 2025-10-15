@@ -38,7 +38,7 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--scorer-ncpus",
-        type=float,
+        type=int,
         default=2,
         help="Number of CPUs to use for the scoring computations.",
     )
@@ -89,9 +89,23 @@ if __name__ == "__main__":
     async def get_reward(request: Request) -> JSONResponse:
         data = await request.json()
         queries = data.get("query")
-        prompts = data.get("prompts")
+        prompts = data.get("prompts", None)
         metadata = data.get("metadata", None)
-
+        if prompts is None:
+            assert metadata is not None
+            prompts = []
+            for meta in metadata:
+                assert all([k in meta for k in ["properties", "objectives", "target"]])
+                prompts.append(
+                    "|".join(
+                        [
+                            f"{p}, {o}, {t}"
+                            for p, o, t in zip(
+                                meta["properties"], meta["objectives"], meta["target"]
+                            )
+                        ]
+                    )
+                )
         rewards_job = reward_model.get_score.remote(  # type: ignore
             prompts=prompts, completions=queries, metadata=metadata
         )
@@ -165,9 +179,7 @@ if __name__ == "__main__":
     async def prepare_receptor(request: Request) -> JSONResponse:
         data = await request.json()
 
-        if args.docking_oracle != "soft_docking" and not args.docking_oracle.startswith(
-            "autodock-gpu"
-        ):
+        if args.docking_oracle != "soft_docking":
             # No need to prepare receptors
             return JSONResponse(
                 {
@@ -183,7 +195,12 @@ if __name__ == "__main__":
             ]
         )
 
-        targets = [m["properties"] for m in metadata if m["properties"] in receptors]
+        targets = [
+            m["properties"][i]
+            for m in metadata
+            for i in range(len(m["properties"]))
+            if m["properties"][i] in receptors
+        ]
         targets = list(set(targets))
         if targets == []:
             return JSONResponse(

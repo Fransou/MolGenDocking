@@ -36,10 +36,12 @@ rm $DATASET/pdb_files/*.maps.fld  # Remove map files that will be computed at in
 rm $DATASET/pdb_files/*.maps.xyz  # Remove map files that will be computed at inf time
 rm $DATASET/pdb_files/*.pdbqt  # Remove pdbqt files that will be computed at inf time
 
-total_bytes=$(du -sb "$DATASET" | awk '{print $1}')
+mv $DATASET ${DATASET}_meeko
+
+total_bytes=$(du -sb ${DATASET}_meeko | awk '{print $1}')
 checkpoint_bytes=1000
 
-tar -czf "$DATASET"_meeko.tar.gz "$DATASET" \
+tar -czf ${DATASET}_meeko.tar.gz ${DATASET}_meeko \
   --checkpoint=$checkpoint_bytes \
   --checkpoint-action=exec='
     bytes=$((TAR_CHECKPOINT * '"$checkpoint_bytes"'))
@@ -51,5 +53,5 @@ tar -czf "$DATASET"_meeko.tar.gz "$DATASET" \
   '
 
 
-cp $DATASET_meeko.tar.gz $SCRATCH/MolGenData/
-echo "Preprocessed data copied to $SCRATCH/MolGenData/$DATASET_meeko.tar.gz"
+cp ${DATASET}_meeko.tar.gz $SCRATCH/MolGenData/
+echo "Preprocessed data copied to $SCRATCH/MolGenData/${DATASET}_meeko.tar.gz"

@@ -75,10 +75,6 @@ class DockingMoleculeGpuOracle:
             raise ValueError(
                 "Expected only one of receptor_path and receptor_name to be specified."
             )
-        if vina_mode not in ["QuickVina2", "AutoDock-Vina", "QuickVina-W"]:
-            raise ValueError(
-                "Argument 'vina_mode' must be one of 'QuickVina2', 'AutoDock-Vina', or 'QuickVina-W'."
-            )
 
         if receptor_name is not None:
             if receptor_name.endswith("docking") or receptor_name.endswith(
@@ -92,7 +88,7 @@ class DockingMoleculeGpuOracle:
                 assert center is not None
             else:
                 self.receptor_path = os.path.join(
-                    path_to_data, "pdb_files", f"{receptor_name}_processed.pdb"
+                    path_to_data, "pdb_files", f"{receptor_name}.pdb"
                 )
                 if center is None:
                     with open(os.path.join(path_to_data, "pockets_info.json")) as f:
