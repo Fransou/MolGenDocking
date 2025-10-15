@@ -29,3 +29,4 @@ cd $SLURM_TMPDIR
 tar -czf processed_$DATASET.tar $DATASET
 
 cp processed_$DATASET.tar $SCRATCH/MolGenData/
+echo "Preprocessed data copied to $SCRATCH/MolGenData/processed_$DATASET.tar"
