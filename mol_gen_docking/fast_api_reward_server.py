@@ -98,7 +98,9 @@ if __name__ == "__main__":
         valid_reward = reward_valid_smiles.get_score(
             prompts=prompts, completions=queries
         )
-        final_smiles = reward_valid_smiles._get_smiles_list(completions=queries)
+        final_smiles = reward_valid_smiles.get_all_completions_smiles(
+            completions=queries
+        )
 
         # filter_reward_job = reward_filters.get_score.remote(prompts=prompts, completions=queries)
 

@@ -1,0 +1,288 @@
+import argparse
+import json
+import os
+from typing import Any, Callable, Dict, List
+
+import numpy as np
+import pandas as pd
+import wandb
+from datasets import Dataset, load_from_disk
+from rdkit import Chem
+from tdc import Evaluator
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    EvalPrediction,
+)
+from trl import GRPOConfig
+
+from mol_gen_docking.baselines.reinvent.trainers import VanillaReinventTrainer
+from mol_gen_docking.reward.rl_rewards import RewardScorer
+
+N_REPEAT_TEST = 8
+os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
+
+
+def get_reward_fn(
+    metadata: Dict[str, Any], datasets_path: str
+) -> Callable[[str | List[str]], float | List[float]]:
+    SCORER = RewardScorer(datasets_path, "property", parse_whole_completion=True)
+
+    def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
+        if isinstance(completions, str):
+            return SCORER([""], [completions], metadata=[metadata], use_pbar=False)[0]
+        return SCORER(
+            [""], completions, metadata=[metadata] * len(completions), use_pbar=False
+        )
+
+    return reward_fn
+
+
+class EvalMolMetrics:
+    def __init__(
+        self,
+        tokenizer: AutoTokenizer,
+        reward_fn: Callable[[str | List[str]], float | List[float]],
+    ):
+        self.tokenizer = tokenizer
+        self.reward_fn = reward_fn
+        self.mol_evaluators = {
+            name: Evaluator(name=name)
+            for name in ["Validity", "Uniqueness", "Diversity"]
+        }
+
+    def __call__(self, preds: EvalPrediction) -> Dict[str, float]:
+        metrics_sub: Dict[str, List[float]] = {
+            eval_name: [] for eval_name in self.mol_evaluators.keys()
+        }
+        metrics_sub["reward"] = []
+
+        for i in range(0, len(preds.label_ids), len(preds.label_ids) // N_REPEAT_TEST):
+            sub_label_ids = preds.label_ids[i : i + N_REPEAT_TEST]
+            sub_label_ids[sub_label_ids == -100] = self.tokenizer.pad_token_id
+            completions_text = self.tokenizer.batch_decode(
+                sub_label_ids, skip_special_tokens=True
+            )
+            # We generate 4x the number of generations for the reward completions, but the
+            # Validity, Uniqueness and Diversity are computed on the top-n elements
+            n = len(completions_text) // 4
+            for eval_name in self.mol_evaluators:
+                metrics_sub[eval_name].append(
+                    self.mol_evaluators[eval_name](completions_text[:n])
+                )
+
+            # for the reward, we remove duplicates and keep the top-n after this processing
+            mols = [Chem.MolFromSmiles(smi) for smi in completions_text]
+            smiles = []
+            for mol in mols:
+                if mol is not None:
+                    smi = Chem.MolToSmiles(mol)
+                    if smi not in smiles:
+                        smiles.append(smi)
+                if len(smiles) == n:
+                    break
+            metrics_sub["reward"].append(
+                float(
+                    np.mean(self.reward_fn(smiles)) * len(smiles) / n
+                )  # Scale for non-generated smiles
+            )
+
+        metrics = {k: float(np.mean(m)) for k, m in metrics_sub.items()}
+        return metrics
+
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="data/sair_rl/eval_data/eval_prompts",
+        help="Dataset name",
+    )
+    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
+
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="Franso/reinvent_42M",
+        help="Name of the model",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="./results",
+        help="Output directory for model checkpoints",
+    )
+    parser.add_argument(
+        "--num_train_epochs",
+        type=int,
+        default=500,
+        help="Number of training epochs",
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-4,
+        help="Learning rate",
+    )
+    parser.add_argument(
+        "--lr_scheduler_type",
+        type=str,
+        default="cosine_with_restarts",
+        help="Learning rate scheduler type",
+    )
+    parser.add_argument(
+        "--lr_warmup_ratio",
+        type=float,
+        default=0.1,
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=0.01,
+        help="Weight decay",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=512,
+        help="Batch size for training and evaluation",
+    )
+    parser.add_argument(
+        "--eval_batch_size",
+        type=int,
+        default=1024,
+        help="Batch size for training and evaluation",
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of gradient accumulation steps",
+    )
+    parser.add_argument(
+        "--sigma",
+        type=float,
+        default=0.1,
+        help="Sigma parameter for reinvent",
+    )
+    parser.add_argument("--train_on_beams", type=int, default=0)
+    parser.add_argument(
+        "--generation_config",
+        type=json.loads,
+        default={},
+    )
+
+    parser.add_argument(
+        "--id_obj",
+        type=int,
+        default=-1,
+    )
+
+    args = parser.parse_args()
+    args.train_on_beams = bool(args.train_on_beams)
+    args.output_dir = os.path.join(
+        args.output_dir, args.model_name.replace("/", "-") + "_rl"
+    )
+    return args
+
+
+if __name__ == "__main__":
+    args = get_args()
+    dataset = load_from_disk(args.dataset)
+    with open(os.path.join(args.datasets_path, "docking_targets.json")) as f:
+        docking_targets = json.load(f)
+
+    id = 0
+    for row in dataset:
+        metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
+        if any([prop in docking_targets for prop in metadata["properties"]]):
+            continue
+        print(f" -#-#-#-#  Task : {metadata}")
+        if args.id_obj == -1 or args.id_obj == id:
+            reward_fn = get_reward_fn(metadata, args.datasets_path)
+
+            # Load model and tokenizer
+            model = AutoModelForCausalLM.from_pretrained(args.model_name)
+            tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+
+            args.generation_config["do_sample"] = True
+            generation_config = {k: v for k, v in args.generation_config.items()}
+
+            if not args.train_on_beams:
+                generation_config["num_beams"] = 1
+                generation_config["num_beam_groups"] = 1
+                generation_config["penalty_alpha"] = None
+
+            training_args = GRPOConfig(
+                output_dir=args.output_dir,
+                num_train_epochs=args.num_train_epochs,
+                logging_strategy="steps",
+                eval_steps=10,
+                logging_steps=10,
+                learning_rate=args.learning_rate,
+                lr_scheduler_type=args.lr_scheduler_type,
+                warmup_ratio=args.lr_warmup_ratio,
+                weight_decay=args.weight_decay,
+                per_device_train_batch_size=args.batch_size,
+                per_device_eval_batch_size=args.eval_batch_size,
+                num_generations=args.batch_size,
+                dataloader_num_workers=0,
+                max_completion_length=256,
+                bf16=True,
+                gradient_accumulation_steps=args.gradient_accumulation_steps,
+                save_total_limit=0,
+                beta=args.sigma,
+                generation_kwargs=generation_config,
+                batch_eval_metrics=False,
+            )
+            train_dataset = Dataset.from_dict({"prompt": ["<s>"]})
+
+            trainer = VanillaReinventTrainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                processing_class=tokenizer,
+                reward_funcs=reward_fn,
+                compute_metrics=EvalMolMetrics(
+                    tokenizer=tokenizer, reward_fn=reward_fn
+                ),
+                n_repeat_test=N_REPEAT_TEST,
+            )
+            trainer.train()
+            wandb.config.update({"id_obj": args.id_obj})
+
+            ## Evaluate
+            trainer.generation_config.num_beams = args.generation_config.get(
+                "num_beams", 1
+            )
+            trainer.generation_config.num_beam_groups = args.generation_config.get(
+                "num_beam_groups", 1
+            )
+            trainer.generation_config.penalty_alpha = args.generation_config.get(
+                "penalty_alpha", None
+            )
+            eval_datasets = {
+                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n * 4})
+                for n in [1, 4, 16, 64, 256]
+            }
+            metrics = trainer.evaluate(eval_datasets)
+            rows = []
+            for k in metrics:
+                n = int(k.split("@")[1].split("_")[0])
+                metric = k.split("_")[-1]
+                if metric in ["reward", "Validity", "Uniqueness", "Diversity"]:
+                    v = metrics[k]
+                    if np.isnan(v):
+                        v = 0
+                    rows.append([n, metric, v])
+
+            metrics_df = pd.DataFrame(rows, columns=["n", "metric", "value"])
+            metrics_df = pd.pivot_table(
+                metrics_df, columns="metric", values="value", index="n"
+            ).reset_index(names="n")
+            table = wandb.Table(dataframe=metrics_df)
+            wandb.log({"Final_Evaluation": table})
+            for k, v in args.generation_config.items():
+                wandb.log({f"eff_{k}": v})
+        id += 1
