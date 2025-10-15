@@ -26,7 +26,8 @@ ray start --head --node-ip-address 0.0.0.0
 python mol_gen_docking/data/meeko_process.py --data_path $DATA_PATH
 
 cd $SLURM_TMPDIR
-tar -czf processed_$DATASET.tar $DATASET
+rm $DATASET/*.csv  # Remove original CSV files to save space
+tar -czvf $DATASET_meeko.tar.gz $DATASET
 
-cp processed_$DATASET.tar $SCRATCH/MolGenData/
-echo "Preprocessed data copied to $SCRATCH/MolGenData/processed_$DATASET.tar"
+cp $DATASET_meeko.tar.gz $SCRATCH/MolGenData/
+echo "Preprocessed data copied to $SCRATCH/MolGenData/$DATASET_meeko.tar.gz"
