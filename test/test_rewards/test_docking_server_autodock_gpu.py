@@ -8,7 +8,7 @@ import torch
 from .utils import DOCKING_PROP_LIST, fill_df_time, propeties_csv
 
 
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16] * 3)
 def test_docking(target, n_generations=16):
     """Test the reward function runs for vina targets."""
     # Launch the reward server

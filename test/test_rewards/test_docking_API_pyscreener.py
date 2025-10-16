@@ -82,8 +82,8 @@ def build_metada_pocket(request):
     return wrapped_fn
 
 
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
-def test_properties_single_prompt_vina_reward(target, n_generations=16):
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16] * 3)
+def test_docking_props(target, n_generations=16):
     """Test the reward function runs for vina targets."""
     property_filler = get_fill_completions(scorers["property"].parse_whole_completion)
     prompts = [build_prompt(target)] * n_generations

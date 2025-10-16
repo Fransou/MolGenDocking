@@ -84,7 +84,7 @@ def build_metada_pocket(request):
     return wrapped_fn
 
 
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16] * 3)
 def test_docking_props(target, n_generations=16):
     """Test the reward function runs for vina targets."""
     t_pre = time.time()

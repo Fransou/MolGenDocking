@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=test
 #SBATCH --account=def-ibenayed
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
-#SBATCH --gpus=h100_20gb:1
+#SBATCH --gpus=h100:1
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out

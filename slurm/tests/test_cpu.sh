@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=test
 #SBATCH --account=def-ibenayed
-#SBATCH --time=00:30:00
+#SBATCH --time=01:30:00
 #SBATCH --cpus-per-task=192
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
