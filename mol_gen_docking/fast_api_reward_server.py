@@ -62,7 +62,7 @@ if __name__ == "__main__":
             exhaustiveness=args.scorer_exhaustivness,
             n_cpu=args.scorer_ncpus,
             docking_oracle=args.docking_oracle,
-            vina_mode="autodock-gpu_256wi",
+            vina_mode="autodock_gpu_256wi",
         ),
     )
     reward_valid_smiles = RewardScorer(

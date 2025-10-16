@@ -3,12 +3,15 @@ import os
 from pathlib import Path
 from typing import Generator, List, Optional, Tuple, Type, Union
 
-from reward.oracles.docking_utils.docking_soft import AutoDockGPUDocking
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
 # from rgfn.gfns.reaction_gfn.proxies.docking_proxy.gnina_wrapper import GninaRescorer
-from mol_gen_docking.reward.oracles.docking_utils.docking_soft import VinaDocking
+from mol_gen_docking.reward.oracles.docking_utils.docking_soft import (
+    AutoDockGPUDocking,
+    BaseDocking,
+    VinaDocking,
+)
 from mol_gen_docking.reward.oracles.docking_utils.preparators import (
     BasePreparator,
     MeekoLigandPreparator,
@@ -131,6 +134,8 @@ class DockingMoleculeGpuOracle:
             vina_fullpath = os.path.realpath(f"{self.qv_dir}/{self.vina_mode}-GPU-2.1")
         else:
             vina_fullpath = self.vina_mode
+
+        self.docking_module_gpu: BaseDocking
         if self.qv_dir:
             self.docking_module_gpu = VinaDocking(
                 f"{vina_fullpath}/{self.vina_mode}-GPU-2-1",
@@ -138,12 +143,12 @@ class DockingMoleculeGpuOracle:
                 center_pos=self.center,
                 size=self.size,
                 n_conformers=self.n_conformers,
-                get_pose_str=True,
+                get_pose_str=False,
                 preparator=self.preparator,
                 timeout_duration=None,
-                debug=True,
+                debug=False,
                 print_msgs=self.print_msgs,
-                print_output=True,
+                print_output=False,
                 gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
                 docking_attempts=self.docking_attempts,
                 additional_args={
@@ -157,12 +162,12 @@ class DockingMoleculeGpuOracle:
                 self.vina_mode,
                 receptor_file=self.receptor_path,
                 n_conformers=self.n_conformers,
-                get_pose_str=True,
+                get_pose_str=False,
                 preparator=self.preparator,
                 timeout_duration=None,
-                debug=True,
+                debug=False,
                 print_msgs=self.print_msgs,
-                print_output=True,
+                print_output=False,
                 gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
                 docking_attempts=self.docking_attempts,
                 additional_args={

@@ -1,58 +1,55 @@
-import subprocess as sp
+import time as time
 
 import numpy as np
 import pytest
 import requests
 import torch
 
-from .utils import (
-    DATA_PATH,
-    DOCKING_PROP_LIST,
-    propeties_csv,
-)
+from .utils import DOCKING_PROP_LIST, fill_df_time, propeties_csv
 
 
-@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:3])
-def test_properties_single_prompt_vina_reward(target, n_generations=128):
+@pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
+def test_docking(target, n_generations=16):
     """Test the reward function runs for vina targets."""
     # Launch the reward server
     port = "5001"
-    command = f"python mol_gen_docking/fast_api_reward_server.py --data-path {DATA_PATH} --port {port} --host 0.0.0.0"
-    command += (
-        " --scorer-ncpus 8 --docking-oracle soft_docking --scorer-exhaustivness 8"
+
+    smiles = [
+        f"<answer> {smi} </answer>"
+        for smi in propeties_csv.iloc[:n_generations]["smiles"].tolist()
+    ]
+    metadata = [
+        {"properties": [target], "objectives": ["maximize"], "target": [0]}
+        for k in range(n_generations)
+    ]
+    t_pre = time.time()
+    response = requests.post(
+        f"http://0.0.0.0:{port}/prepare_receptor",
+        json={"metadata": metadata},
     )
-    process = sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
-    try:
-        smiles = [
-            f"<answer> {smi} </answer>"
-            for smi in propeties_csv.iloc[:n_generations]["smiles"].tolist()
-        ]
-        metadata = [
-            {"properties": [target], "objectives": ["maximize"], "target": [0]}
-            for k in range(n_generations)
-        ]
-        print(metadata)
-        response = requests.post(
-            f"http://0.0.0.0:{port}/prepare_receptor",
-            json={"metadata": metadata},
-        )
-        print(response.json())
-        # Request Server
-        response = requests.post(
-            f"http://0.0.0.0:{port}/get_reward",
-            json={"query": smiles, "metadata": metadata},
-        )
+    print(response.json())
+    # Request Server
+    t0 = time.time()
+    response = requests.post(
+        f"http://0.0.0.0:{port}/get_reward",
+        json={"query": smiles, "metadata": metadata},
+    )
 
-        assert response.status_code == 200, response.text
-        rewards = response.json()["rewards"]
+    assert response.status_code == 200, response.text
+    rewards = response.json()["rewards"]
+    t1 = time.time()
 
-        assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
-        # Kill the server
-        process.terminate()
+    assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
+    rewards = torch.Tensor(rewards)
+    assert not rewards.isnan().any()
 
-    except Exception as e:
-        # Kill the server
-        process.terminate()
-        raise e
+    fill_df_time(
+        target,
+        n_generations,
+        t0=t0,
+        t1=t1,
+        method="autodock_gpu",
+        server=True,
+        scores=rewards.mean().item(),
+        t_pre=t_pre,
+    )

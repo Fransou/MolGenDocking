@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import pandas as pd
 
@@ -57,3 +57,41 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
         return completion.replace("[SMILES]", smiles_joined)
 
     return fill_completion
+
+
+def fill_df_time(
+    target: str,
+    n_generations: int,
+    t0: float,
+    t1: float,
+    method: str,
+    server: bool,
+    scores: float,
+    t_pre: Optional[float] = None,
+) -> None:
+    # get_current_commit_hash
+    commit_hash = (
+        os.popen("git rev-parse --short HEAD").read().strip()
+        if os.path.exists(".git")
+        else "N/A"
+    )
+    df = pd.DataFrame(
+        {
+            "target": [target],
+            "n_generations": [n_generations],
+            "method": [method],
+            "server": [server],
+            "time_preparation_s": [t0 - t_pre] if t_pre is not None else [0],
+            "time_docking_s": [t1 - t0],
+            "time_per_molecule_s": [(t1 - t0) / n_generations],
+            "scores": [scores],
+            "commit_hash": [commit_hash],
+        }
+    )
+    path = os.path.join("test", "test_docking.csv")
+    df.to_csv(
+        path,
+        mode="a",
+        index=False,
+        header=not os.path.exists(path),
+    )

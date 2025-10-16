@@ -10,6 +10,7 @@ from mol_gen_docking.data.dataset import (
     DatasetConfig,
     MolGenerationInstructionsDatasetGenerator,
 )
+from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
@@ -37,7 +38,8 @@ scorers = {
         oracle_kwargs=dict(
             n_cpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
             exhaustiveness=4,
-            docking_oracle="pyscreener",
+            docking_oracle="soft_docking",
+            vina_mode="autodock_gpu_256wi",
         ),
     ),
 }
@@ -83,8 +85,14 @@ def build_metada_pocket(request):
 
 
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
-def test_properties_single_prompt_vina_reward(target, n_generations=16):
+def test_docking_props(target, n_generations=16):
     """Test the reward function runs for vina targets."""
+    t_pre = time.time()
+    preparator = ReceptorProcess(data_path=DATA_PATH)
+    _, err = preparator.process_receptors(receptors=[target], allow_bad_res=True)
+
+    assert err == [], f"Receptor {target} could not be processed"
+
     property_filler = get_fill_completions(scorers["property"].parse_whole_completion)
     prompts = [build_prompt(target)] * n_generations
     smiles = [[propeties_csv.iloc[i]["smiles"]] for i in range(n_generations)]
@@ -92,7 +100,7 @@ def test_properties_single_prompt_vina_reward(target, n_generations=16):
         property_filler(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
-    t0 = time.time()
+    t_0 = time.time()
     rewards = scorers["property"](prompts, completions)
     t1 = time.time()
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
@@ -103,9 +111,10 @@ def test_properties_single_prompt_vina_reward(target, n_generations=16):
     fill_df_time(
         target,
         n_generations,
-        t0=t0,
+        t0=t_0,
         t1=t1,
-        method="pyscreener",
+        method="autodock_gpu",
         server=False,
+        t_pre=t_pre,
         scores=rewards.mean().item(),
     )

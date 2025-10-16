@@ -436,7 +436,6 @@ class RewardScorer:
         df_properties["reward"] = df_properties.apply(
             lambda x: self.get_reward(x), axis=1
         )
-        df_properties.to_csv("debug_properties.csv", index=False)
 
         rewards = []
         for id_completion, smiles in enumerate(smiles_list_per_completion):
