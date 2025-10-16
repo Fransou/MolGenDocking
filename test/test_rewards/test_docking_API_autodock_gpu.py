@@ -35,7 +35,8 @@ scorers = {
         oracle_kwargs=dict(
             n_cpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
             exhaustiveness=4,
-            docking_oracle="pyscreener",
+            docking_oracle="soft_docking",
+            vina_mode="autodock-gpu_256wi",
         ),
     ),
 }
