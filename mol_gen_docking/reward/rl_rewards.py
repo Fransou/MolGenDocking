@@ -53,13 +53,14 @@ class RewardScorer:
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
+        gpu_utilization_gpu_docking: float = 0.05,  # Takes 1Gb on 80Gb we allow 5% of a GPU to keep a margin
     ):
         if path_to_mappings is not None:
             with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
                 property_name_mapping = json.load(f)
             with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
                 docking_target_list = json.load(f)
-
+        self.gpu_utilization_gpu_docking = gpu_utilization_gpu_docking
         self.property_name_mapping = property_name_mapping
         self.docking_target_list = docking_target_list
         self.path_to_mappings = path_to_mappings
@@ -196,40 +197,9 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
-    def _get_property_no_ray(
-        self,
-        smiles: List[str],
-        prop: str,
-        rescale: bool = True,
-        kwargs: Dict[str, Any] = {},
-        pbar: Optional[Any] = None,
-    ) -> List[float]:
-        """
-        Get property reward
-        """
-        oracle_fn = self.oracles.get(
-            prop,
-            get_oracle(
-                prop,
-                path_to_data=self.path_to_mappings if self.path_to_mappings else "",
-                docking_target_list=self.docking_target_list,
-                property_name_mapping=self.property_name_mapping,
-                **kwargs,
-            ),
-        )
-        if prop not in self.oracles:
-            self.oracles[prop] = oracle_fn
-        property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
-        assert isinstance(property_reward, np.ndarray)
-        if pbar is not None:
-            pbar.update.remote(len(property_reward))
-
-        return [float(p) for p in property_reward]
-
     def fill_df_properties(
         self, df_properties: pd.DataFrame, use_pbar: bool = True
     ) -> None:
-        @ray.remote(num_cpus=1)
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -259,6 +229,11 @@ class RewardScorer:
 
             return [float(p) for p in property_reward]
 
+        _get_property_cpu = ray.remote(num_cpus=1)(_get_property)
+        _get_property_gpu = ray.remote(
+            num_cpus=1, num_gpus=self.gpu_utilization_gpu_docking
+        )(_get_property)
+
         all_properties = df_properties["property"].unique().tolist()
         prop_smiles = {
             p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
@@ -278,8 +253,15 @@ class RewardScorer:
             # If the reward is long to compute, use ray
             smiles = prop_smiles[p]
             if p in self.slow_props:
+                if (
+                    p not in self.docking_target_list
+                    or "gpu" not in self.oracle_kwargs.get("docking_oracle", "")
+                ):
+                    _get_property_remote = _get_property_cpu
+                else:
+                    _get_property_remote = _get_property_gpu
                 values_job.append(
-                    _get_property.remote(
+                    _get_property_remote.remote(
                         smiles,
                         p,
                         rescale=self.rescale,
@@ -289,7 +271,7 @@ class RewardScorer:
                 )
             else:  # Otherwise go sequentially
                 seq_values.append(
-                    self._get_property_no_ray(
+                    _get_property(
                         smiles,
                         p,
                         rescale=self.rescale,

@@ -203,18 +203,39 @@ class ReceptorProcess:
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
         pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")  # type: ignore
 
-        self.logger.info(f"Processing {len(receptors)} receptors.")
+        # Find receptors that already have a _ag.pdbqt and_ag.maps.fld file
+        receptors_to_process = []
+        for receptor in receptors:
+            ag_pdbqt_path = os.path.join(self.receptor_path, f"{receptor}_ag.pdbqt")
+            ag_maps_fld_path = os.path.join(
+                self.receptor_path, f"{receptor}_ag.maps.fld"
+            )
+            if not (os.path.exists(ag_pdbqt_path) and os.path.exists(ag_maps_fld_path)):
+                receptors_to_process.append(receptor)
+            else:
+                self.logger.info(f"Receptor {receptor} already processed. Skipping.")
+                pbar.update.remote(1)  # type: ignore
+        if len(receptors_to_process) == 0:
+            self.logger.info("All receptors already processed.")
+            pbar.close.remote()  # type: ignore
+            return [], []
+
+        self.logger.info(f"Processing {len(receptors_to_process)} receptors.")
         futures = [
             process_receptors.remote(receptor, pbar, allow_bad_res)
-            for receptor in receptors
+            for receptor in receptors_to_process
         ]
         results = ray.get(futures)
 
         missed_receptors_1 = [
-            receptor for receptor, success in zip(receptors, results) if success == 1
+            receptor
+            for receptor, success in zip(receptors_to_process, results)
+            if success == 1
         ]
         missed_receptors_2 = [
-            receptor for receptor, success in zip(receptors, results) if success == 2
+            receptor
+            for receptor, success in zip(receptors_to_process, results)
+            if success == 2
         ]
         return missed_receptors_1, missed_receptors_2
 

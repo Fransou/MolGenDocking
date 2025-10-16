@@ -65,8 +65,9 @@ def fill_df_time(
     t0: float,
     t1: float,
     method: str,
-    server: bool,
+    exhaustiveness: int,
     scores: float,
+    server: bool = False,
     t_pre: Optional[float] = None,
 ) -> None:
     # get_current_commit_hash
@@ -85,6 +86,7 @@ def fill_df_time(
             "time_docking_s": [t1 - t0],
             "time_per_molecule_s": [(t1 - t0) / n_generations],
             "scores": [scores],
+            "exhaustiveness": [exhaustiveness],
             "commit_hash": [commit_hash],
         }
     )

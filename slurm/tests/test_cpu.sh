@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=test
 #SBATCH --account=def-ibenayed
-#SBATCH --time=01:30:00
+#SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=192
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
@@ -25,11 +25,4 @@ export PATH=$PATH:$HOME/autodock_vina_1_1_2_linux_x86/bin
 
 ray start --head --node-ip-address 0.0.0.0
 
-coverage run -m pytest test/test_rewards/test_docking_API_pyscreener.py
-
-# Launch server
-python mol_gen_docking/fast_api_reward_server.py \
-  --data-path $DATA_PATH --port 5001 --host 0.0.0.0 \
-  --scorer-ncpus 4 --docking-oracle pyscreener --scorer-exhaustivness 4 &
-sleep 10
-coverage run -m pytest test/test_rewards/test_docking_server_pyscreener.py
+coverage run -m pytest test/test_rewards/test_docking_API.py --accelerator=cpu

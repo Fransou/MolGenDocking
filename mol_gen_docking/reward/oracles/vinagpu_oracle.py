@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Generator, List, Optional, Tuple, Type, Union
+from typing import Generator, List, Literal, Optional, Tuple, Type, Union
 
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
@@ -31,6 +31,7 @@ class DockingMoleculeGpuOracle:
         qv_dir: Optional[Union[Path, str]] = None,
         preparator_class: Type[BasePreparator] = MeekoLigandPreparator,
         vina_mode: str = "QuickVina2",
+        aggreggation_type: Literal["mean", "min", "cluster_min"] = "mean",
         gnina: bool = False,
         receptor_path: Optional[Union[Path, str]] = None,
         receptor_name: Optional[str] = None,
@@ -69,7 +70,7 @@ class DockingMoleculeGpuOracle:
         """
 
         super().__init__()
-
+        self.aggregation_type = aggreggation_type
         if receptor_path is None and receptor_name is None:
             raise ValueError(
                 "Expected either receptor_path or receptor_name to be specified."
@@ -162,6 +163,7 @@ class DockingMoleculeGpuOracle:
                 self.vina_mode,
                 receptor_file=self.receptor_path,
                 n_conformers=self.n_conformers,
+                agg_type=self.aggregation_type,
                 get_pose_str=False,
                 preparator=self.preparator,
                 timeout_duration=None,

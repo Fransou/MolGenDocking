@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import time
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 from rdkit import Chem
 from ringtail.parsers import parse_single_dlg
@@ -511,6 +511,7 @@ class AutoDockGPUDocking(BaseDocking):
         print_msgs: bool = True,
         print_output: bool = True,
         debug: bool = True,
+        agg_type: Literal["mean", "min", "cluster_min"] = "min",
     ) -> None:
         pdbqt_file = receptor_file.replace(".pdb", "_ag.pdbqt")
         grid_map_file = receptor_file.replace(".pdb", "_ag.maps.fld")
@@ -538,6 +539,7 @@ class AutoDockGPUDocking(BaseDocking):
                 self.cmd += f" {k} {v} "
         self.receptor_pdbqt_file = os.path.abspath(pdbqt_file)
         self.receptor_map_file = os.path.abspath(grid_map_file)
+        self.agg_type = agg_type
 
     def _batched_docking(self, smis: List[str]) -> VINA_DOCKING_OUTPUT:
         # make temp pdbqt directories.
@@ -608,7 +610,6 @@ class AutoDockGPUDocking(BaseDocking):
                     cmd_prefixes=cmd_prefixes,
                     blocking=False,
                 )
-            print([os.listdir(lg_dir) for lg_dir in ligand_dir])
             if all(
                 len([f for f in os.listdir(lg_dir) if f.endswith(".dlg")]) > 0
                 for lg_dir in ligand_dir
@@ -641,8 +642,32 @@ class AutoDockGPUDocking(BaseDocking):
             for file in output_paths:
                 ligand_dict = parse_single_dlg(file)
                 identifier = ligand_dict["ligname"]
-                lowest_binding_score: float | None = min(ligand_dict["scores"])
-                binding_scores_dict[identifier] = lowest_binding_score
+                binding_score_val: float | None
+                if self.agg_type == "min":
+                    binding_score_val = min(ligand_dict["scores"])
+                elif self.agg_type == "mean":
+                    binding_score_val = sum(ligand_dict["scores"]) / len(
+                        ligand_dict["scores"]
+                    )
+                elif self.agg_type == "cluster_min":
+                    cluster_sizes: Dict[str, int] = ligand_dict["cluster_sizes"]
+                    largest_cluster = max(cluster_sizes, key=cluster_sizes.get)  # type: ignore
+                    binding_score_val = min(
+                        [
+                            score
+                            for c, score in zip(
+                                ligand_dict["cluster_list"], ligand_dict["scores"]
+                            )
+                            if c == largest_cluster
+                        ]
+                    )
+                # We cap the binding score to a maximum value  of 0.0 kcal/mol
+                binding_score_val = (
+                    min(binding_score_val, 0.0)
+                    if binding_score_val is not None
+                    else None
+                )
+                binding_scores_dict[identifier] = binding_score_val
 
             if self.get_pose_str:
                 binding_poses = []
