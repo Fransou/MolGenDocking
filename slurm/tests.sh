@@ -26,4 +26,4 @@ source $HOME/OpenRLHF/bin/activate
 export PATH=$PATH:$HOME/autodock_vina_1_1_2_linux_x86/bin
 
 ray start --head --node-ip-address 0.0.0.0
-coverage run -m pytest test/test_rewards/test_docking_API.py
+coverage run -m pytest test/test_rewards/test_docking_API_autodock_gpu.py

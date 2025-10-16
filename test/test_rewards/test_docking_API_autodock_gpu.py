@@ -9,6 +9,7 @@ from mol_gen_docking.data.dataset import (
     DatasetConfig,
     MolGenerationInstructionsDatasetGenerator,
 )
+from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
@@ -84,6 +85,11 @@ def build_metada_pocket(request):
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:64])
 def test_properties_single_prompt_vina_reward(target, n_generations=1):
     """Test the reward function runs for vina targets."""
+
+    preparator = ReceptorProcess(data_path=DATA_PATH)
+    _, err = preparator.process_receptors(receptors=target, allow_bad_res=True)
+    assert err == [], f"Receptor {target} could not be processed"
+
     property_filler = get_fill_completions(scorers["property"].parse_whole_completion)
     prompts = [build_prompt(target)] * n_generations
     smiles = [propeties_csv.iloc[:128]["smiles"].tolist() for k in range(n_generations)]
