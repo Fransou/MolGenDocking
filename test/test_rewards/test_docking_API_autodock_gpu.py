@@ -87,7 +87,8 @@ def test_properties_single_prompt_vina_reward(target, n_generations=1):
     """Test the reward function runs for vina targets."""
 
     preparator = ReceptorProcess(data_path=DATA_PATH)
-    _, err = preparator.process_receptors(receptors=target, allow_bad_res=True)
+    _, err = preparator.process_receptors(receptors=[target], allow_bad_res=True)
+
     assert err == [], f"Receptor {target} could not be processed"
 
     property_filler = get_fill_completions(scorers["property"].parse_whole_completion)
