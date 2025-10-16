@@ -94,13 +94,11 @@ class TimedProfiler:
         return self._average
 
 
-class VinaDocking:
+class BaseDocking:
     def __init__(
         self,
         cmd: str,
         receptor_file: str,
-        center_pos: List[float],
-        size: List[float],
         n_conformers: int = 1,
         get_pose_str: bool = False,
         timeout_duration: Optional[int] = None,
@@ -115,10 +113,8 @@ class VinaDocking:
     ) -> None:
         """
             Parameters:
-            - cmd: Command line prefix to execute vina command (e.g. "/path/to/qvina2.1")
-            - receptor_pdbqt_file: Cleaned receptor PDBQT file to use for docking
-            - center_pos: 3-dim list containing (x,y,z) coordinates of grid box
-            - size: 3-dim list containing sizing information of grid box in (x,y,z) directions
+            - cmd: Command line prefix to execute command (e.g. "/path/to/qvina2.1")
+            - receptor_file: Cleaned receptor PDBQT file to use for docking
             - n_conformers: how many times are we docking each SMILES string?
             - get_pose_str: Return output pose as string (True) or not (False)
             - timeout_duration: Timeout in seconds before new process automatically stops
@@ -134,17 +130,8 @@ class VinaDocking:
             - print_output: Show Vina docking output in console (True) or not (False)
             - debug: Profiling the Vina docking process and ligand preparation.
         """
-
         if not os.path.isfile(receptor_file):
             raise Exception(rf"Receptor file: {receptor_file} not found")
-
-        if len(center_pos) != 3:
-            raise Exception(
-                f"center_pos must contain 3 values: {center_pos} was provided"
-            )
-
-        if len(size) != 3:
-            raise Exception(f"size must contain 3 values: {size} was provided")
 
         # Getting all available GPU ids
         with subprocess.Popen(
@@ -179,27 +166,41 @@ class VinaDocking:
             gpu_ids_list = gpu_ids
         else:
             raise Exception(f"Unknown GPU ids: {gpu_ids}")
-        self.vina_cmd = cmd
+
+        self.cmd = cmd
         self.receptor_pdbqt_file = os.path.abspath(receptor_file)
-        self.center_pos = center_pos
-        self.size = size
         self.n_conformers = n_conformers
         self.get_pose_str = get_pose_str
         self.timeout_duration = timeout_duration
-        self.additional_vina_args = additional_args
+        self.additional_args = additional_args
         self.preparator = preparator
-        self.vina_cwd = cwd
+        self.cwd = cwd
         self.gpu_ids: List[int] = gpu_ids_list
         print(f"Available GPU ids: {gpu_ids_list}")
 
         self.docking_attempts = docking_attempts
         self.print_msgs = print_msgs
-        self.print_vina_output = print_output
+        self.print_output = print_output
         self.debug = debug
 
         if debug:
             self.preparation_profiler = TimedProfiler()
             self.docking_profiler = TimedProfiler()
+
+    def _prepare_ligands(
+        self, smis: List[str], ligand_paths_by_smiles: List[List[str]]
+    ) -> Any:
+        # Perform ligand preparation and save to proper path (tmp/non-tmp ligand dir)
+        assert self.preparator is not None
+        if self.debug:
+            return self.preparation_profiler.time_it(
+                self.preparator, smis, ligand_paths_by_smiles
+            )
+        else:
+            return self.preparator(smis, ligand_paths_by_smiles)
+
+    def _batched_docking(self, smis: List[str]) -> Union[None, VINA_DOCKING_OUTPUT]:
+        raise NotImplementedError
 
     def __call__(self, smi: Union[str, List[str]]) -> None | VINA_DOCKING_OUTPUT:
         """
@@ -222,6 +223,52 @@ class VinaDocking:
             return self._batched_docking(smi_list)
         else:
             return None
+
+
+class VinaDocking(BaseDocking):
+    def __init__(
+        self,
+        cmd: str,
+        receptor_file: str,
+        center_pos: List[float],
+        size: List[float],
+        n_conformers: int = 1,
+        get_pose_str: bool = False,
+        timeout_duration: Optional[int] = None,
+        additional_args: Optional[Dict[str, Any]] = None,
+        preparator: Optional[Callable[[List[str], List[List[str]]], List[bool]]] = None,
+        cwd: Optional[str] = None,
+        gpu_ids: Union[int, List[int]] = 0,
+        docking_attempts: int = 10,
+        print_msgs: bool = True,
+        print_output: bool = True,
+        debug: bool = True,
+    ) -> None:
+        if len(center_pos) != 3:
+            raise Exception(
+                f"center_pos must contain 3 values: {center_pos} was provided"
+            )
+
+        if len(size) != 3:
+            raise Exception(f"size must contain 3 values: {size} was provided")
+
+        self.center_pos = center_pos
+        self.size = size
+        super().__init__(
+            cmd,
+            receptor_file,
+            n_conformers,
+            get_pose_str,
+            timeout_duration,
+            additional_args,
+            preparator,
+            cwd,
+            gpu_ids,
+            docking_attempts,
+            print_msgs,
+            print_output,
+            debug,
+        )
 
     def _batched_docking(self, smis: List[str]) -> Union[None, VINA_DOCKING_OUTPUT]:
         # make temp pdbqt directories.
@@ -294,26 +341,21 @@ class VinaDocking:
         if self.print_msgs:
             print("Ligands prepared. Docking...")
 
-        vina_cmd_prefixes = [
-            f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids
-        ]
+        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
         log_paths = [f"log_{i}" for i in range(len(tmp_config_file_paths))]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
             if self.debug:
                 self.docking_profiler.time_it(
-                    self._run_vina,
+                    self._run_docking,
                     tmp_config_file_paths,
-                    vina_cmd_prefixes=vina_cmd_prefixes,
+                    cmd_prefixes=cmd_prefixes,
                     blocking=False,
                     log_paths=log_paths,
                 )
             else:
-                self._run_vina(
-                    tmp_config_file_paths,
-                    vina_cmd_prefixes=vina_cmd_prefixes,
-                    blocking=False,
-                    log_paths=log_paths,
+                self._run_docking(
+                    tmp_config_file_paths, log_paths=log_paths, blocking=False
                 )
             if all(
                 len(os.listdir(f"{output_dir_path}/{gpu_id}/")) > 0
@@ -356,18 +398,6 @@ class VinaDocking:
             print("Docking complete.")
         return binding_scores
 
-    def _prepare_ligands(
-        self, smis: List[str], ligand_paths_by_smiles: List[List[str]]
-    ) -> Any:
-        # Perform ligand preparation and save to proper path (tmp/non-tmp ligand dir)
-        assert self.preparator is not None
-        if self.debug:
-            return self.preparation_profiler.time_it(
-                self.preparator, smis, ligand_paths_by_smiles
-            )
-        else:
-            return self.preparator(smis, ligand_paths_by_smiles)
-
     @staticmethod
     def _get_output_score(output_path: str) -> Union[float, None]:
         try:
@@ -401,12 +431,12 @@ class VinaDocking:
             + f"size_z = {self.size[2]}\n"
         )
 
-        if self.additional_vina_args:
-            for k, v in self.additional_vina_args.items():
+        if self.additional_args:
+            for k, v in self.additional_args.items():
                 conf += f"{str(k)} = {str(v)}\n"
 
         for k, v in args.items():
-            if self.vina_cwd:  # vina_cwd is not none, meaning we have to use global paths for config ligand and output dirs
+            if self.cwd:  # vina_cwd is not none, meaning we have to use global paths for config ligand and output dirs
                 conf += f"{str(k)} = {os.path.join(os.getcwd(), str(v))}\n"
             else:
                 conf += f"{str(k)} = {str(v)}\n"
@@ -415,11 +445,11 @@ class VinaDocking:
             f.write(conf)
         return conf
 
-    def _run_vina(
+    def _run_docking(
         self,
         config_paths: List[str],
         log_paths: Optional[List[str]] = None,
-        vina_cmd_prefixes: Optional[List[str]] = None,
+        cmd_prefixes: Optional[List[str]] = None,
         blocking: bool = True,
     ) -> None:
         """
@@ -428,24 +458,24 @@ class VinaDocking:
 
         if log_paths is not None:
             assert len(config_paths) == len(log_paths)
-        if vina_cmd_prefixes is not None:
-            assert len(config_paths) == len(vina_cmd_prefixes)
+        if cmd_prefixes is not None:
+            assert len(config_paths) == len(cmd_prefixes)
         procs = []
 
         for i in range(len(config_paths)):
-            if vina_cmd_prefixes is not None and vina_cmd_prefixes[i] is not None:
-                cmd_str = vina_cmd_prefixes[i]
+            if cmd_prefixes is not None and cmd_prefixes[i] is not None:
+                cmd_str = cmd_prefixes[i]
             else:
                 cmd_str = ""
 
-            cmd_str += f"{self.vina_cmd} --config {config_paths[i]}"
+            cmd_str += f"{self.cmd} --config {config_paths[i]}"
 
-            if not self.print_vina_output:
+            if not self.print_output:
                 cmd_str += " > /dev/null 2>&1"
             elif log_paths is not None:
                 cmd_str += f" > {log_paths[i]} 2>&1"
             proc = subprocess.Popen(
-                cmd_str, shell=True, start_new_session=False, cwd=self.vina_cwd
+                cmd_str, shell=True, start_new_session=False, cwd=self.cwd
             )
 
             if blocking:
@@ -464,7 +494,7 @@ class VinaDocking:
                     proc.kill()
 
 
-class AutoDockGPUDocking:
+class AutoDockGPUDocking(BaseDocking):
     def __init__(
         self,
         cmd: str,
@@ -481,70 +511,26 @@ class AutoDockGPUDocking:
         print_output: bool = True,
         debug: bool = True,
     ) -> None:
-        """
-            Parameters:
-            - vina_cmd: Command line prefix to execute vina command (e.g. "/path/to/qvina2.1")
-            - receptor_pdbqt_file: Cleaned receptor PDBQT file to use for docking
-            - center_pos: 3-dim list containing (x,y,z) coordinates of grid box
-            - size: 3-dim list containing sizing information of grid box in (x,y,z) directions
-            - n_conformers: how many times are we docking each SMILES string?
-            - get_pose_str: Return output pose as string (True) or not (False)
-            - timeout_duration: Timeout in seconds before new process automatically stops
-            - additional_vina_args: Dictionary of additional Vina command arguments (e.g. {"cpu": "5"})
-            - preparator: Function/Class callable to prepare molecule for docking. Should take the \
-                argument format (smiles strings, ligand paths)
-            - vina_cwd: Change current working directory of Vina shell (sometimes needed for GPU versions \
-                and incorrect openCL pathing)
-            - gpu_ids: GPU ids to use for multi-GPU docking (0 is default for single-GPU nodes). If None, \
-                use all GPUs.
-            - docking_attempts: Number of docking attempts to make on each GPU.
-            - print_msgs: Show Python print messages in console (True) or not (False)
-            - print_vina_output: Show Vina docking output in console (True) or not (False)
-            - debug: Profiling the Vina docking process and ligand preparation.
-        """
-
-        if not os.path.isfile(receptor_file):
-            raise Exception(rf"Receptor file: {receptor_file} not found")
-
-        # Getting all available GPU ids
-        with subprocess.Popen(
-            "nvidia-smi --list-gpus",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-        ) as proc:
-            if proc.wait(timeout=timeout_duration) == 0:
-                out = proc.stdout.read().decode("ascii")  # type:ignore
-                pattern = r"GPU (\d+):"
-                available_gpu_ids = [int(x) for x in re.findall(pattern, out)]
-            else:
-                raise Exception(
-                    f"Command 'nvidia-smi --list-gpus' returned unsuccessfully: {proc.stderr.read()}"  # type:ignore
-                )
-        # Checking for incorrect GPU id input
-        gpu_ids_list = []
-        if gpu_ids is None:
-            gpu_ids_list = available_gpu_ids
-        elif type(gpu_ids) is int:
-            if gpu_ids not in available_gpu_ids:
-                raise Exception(f"Unknown GPU id: {gpu_ids}")
-            gpu_ids_list = [gpu_ids]
-        elif type(gpu_ids) is list:
-            unknown_gpu_ids = []
-            for gpu_id in gpu_ids:
-                if gpu_id not in available_gpu_ids:
-                    unknown_gpu_ids.append(gpu_id)
-            if len(unknown_gpu_ids) > 0:
-                raise Exception(f"Unknown GPU id(s): {unknown_gpu_ids}")
-            gpu_ids_list = gpu_ids
-        else:
-            raise Exception(f"Unknown GPU ids: {gpu_ids}")
-
         pdbqt_file = receptor_file.replace(".pdb", "_ag.pdbqt")
         grid_map_file = receptor_file.replace(".pdb", "_ag.maps.fld")
         assert os.path.exists(pdbqt_file), "Receptor file not found"
         assert os.path.exists(grid_map_file), "Grid map file not found"
 
+        super().__init__(
+            self.cmd,
+            pdbqt_file,
+            n_conformers,
+            get_pose_str,
+            timeout_duration,
+            additional_args,
+            preparator,
+            cwd,
+            gpu_ids,
+            docking_attempts,
+            print_msgs,
+            print_output,
+            debug,
+        )
         self.cmd = (
             cmd + "--lfile {} " + f"--flexres {pdbqt_file} --ffile {grid_map_file}"
         )
@@ -553,45 +539,6 @@ class AutoDockGPUDocking:
                 self.cmd += f" {k} {v} "
         self.receptor_pdbqt_file = os.path.abspath(pdbqt_file)
         self.receptor_map_file = os.path.abspath(grid_map_file)
-        self.n_conformers = n_conformers
-        self.get_pose_str = get_pose_str
-        self.timeout_duration = timeout_duration
-        self.additional_args = additional_args
-        self.preparator = preparator
-        self.cwd = cwd
-        self.gpu_ids: List[int] = gpu_ids_list
-        print(f"Available GPU ids: {gpu_ids_list}")
-
-        self.docking_attempts = docking_attempts
-        self.print_msgs = print_msgs
-        self.print_vina_output = print_output
-        self.debug = debug
-
-        if debug:
-            self.preparation_profiler = TimedProfiler()
-            self.docking_profiler = TimedProfiler()
-
-    def __call__(self, smi: Union[str, List[str]]) -> None | VINA_DOCKING_OUTPUT:
-        """
-        Parameters:
-        - smi: SMILES strings to perform docking. A single string activates single-ligand docking mode, while \
-            multiple strings utilizes batched docking (if Vina version allows it).
-        """
-        smi_list: List[str] = []
-        if type(smi) is str:
-            smi_list = [smi]
-        elif type(smi) is list:
-            for i in range(len(smi)):
-                mol = Chem.MolFromSmiles(smi[i])
-                if mol is not None:
-                    smi[i] = Chem.MolToSmiles(mol, isomericSmiles=True, canonical=True)
-                smi_list = smi
-        else:
-            raise Exception("smi must be a string or a list of strings")
-        if len(smi) > 0:
-            return self._batched_docking(smi_list)
-        else:
-            return None
 
     def _batched_docking(self, smis: List[str]) -> Union[None, VINA_DOCKING_OUTPUT]:
         # make temp pdbqt directories.
@@ -646,24 +593,18 @@ class AutoDockGPUDocking:
         if self.print_msgs:
             print("Ligands prepared. Docking...")
 
-        vina_cmd_prefixes = [
-            f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids
-        ]
+        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
             if self.debug:
                 self.docking_profiler.time_it(
                     self._run_docking,
                     ligand_files,
-                    vina_cmd_prefixes=vina_cmd_prefixes,
+                    cmd_prefixes=cmd_prefixes,
                     blocking=False,
                 )
             else:
-                self._run_docking(
-                    ligand_files,
-                    vina_cmd_prefixes=vina_cmd_prefixes,
-                    blocking=False,
-                )
+                self._run_docking(ligand_files, blocking=False)
             if all(
                 len(os.listdir(f"{output_dir_path}/{gpu_id}/")) > 0
                 for gpu_id in self.gpu_ids
@@ -707,9 +648,6 @@ class AutoDockGPUDocking:
             print(df)
             raise NotImplementedError
 
-            for i in range(len(output_paths)):
-                binding_scores_list.append(self._get_output_score(output_paths[i]))
-
             if self.get_pose_str:
                 binding_poses = []
                 for i in range(len(output_paths)):
@@ -724,33 +662,6 @@ class AutoDockGPUDocking:
             print("Docking complete.")
         return binding_scores
 
-    def _prepare_ligands(
-        self, smis: List[str], ligand_paths_by_smiles: List[List[str]]
-    ) -> Any:
-        # Perform ligand preparation and save to proper path (tmp/non-tmp ligand dir)
-        assert self.preparator is not None
-        if self.debug:
-            return self.preparation_profiler.time_it(
-                self.preparator, smis, ligand_paths_by_smiles
-            )
-        else:
-            return self.preparator(smis, ligand_paths_by_smiles)
-
-    @staticmethod
-    def _get_output_score(
-        output_path: str,
-    ) -> Union[float, None]:  # TODO: Maybe use ringtail to speed this up?
-        try:
-            score = float("inf")
-            with open(output_path) as f:
-                for line in f.readlines():
-                    if "REMARK VINA RESULT" in line:
-                        new_score = re.findall(r"([-+]?[0-9]*\.?[0-9]+)", line)[0]
-                        score = min(score, float(new_score))
-            return score
-        except FileNotFoundError:
-            return None
-
     @staticmethod
     def _get_output_pose(output_path: str) -> Union[str, None]:
         try:
@@ -763,26 +674,26 @@ class AutoDockGPUDocking:
     def _run_docking(
         self,
         ligand_files: List[str],
-        vina_cmd_prefixes: Optional[List[str]] = None,
+        cmd_prefixes: Optional[List[str]] = None,
         blocking: bool = True,
     ) -> None:
         """
         Runs Vina docking in separate shell process(es).
         """
-        if vina_cmd_prefixes is not None:
-            assert len(vina_cmd_prefixes) == len(ligand_files)
+        if cmd_prefixes is not None:
+            assert len(cmd_prefixes) == len(ligand_files)
 
         procs = []
 
         for i in range(len(ligand_files)):
             ligand_name = os.path.basename(ligand_files[i]).split(".")[0]
 
-            if vina_cmd_prefixes is not None and vina_cmd_prefixes[i] is not None:
-                cmd_str = f"{vina_cmd_prefixes[i]} {self.cmd.format(ligand_files[i])} --resname {ligand_name}"
+            if cmd_prefixes is not None and cmd_prefixes[i] is not None:
+                cmd_str = f"{cmd_prefixes[i]} {self.cmd.format(ligand_files[i])} --resname {ligand_name}"
             else:
                 cmd_str = self.cmd.format(ligand_files[i]) + f" --resname {ligand_name}"
 
-            if not self.print_vina_output:
+            if not self.print_output:
                 cmd_str += " > /dev/null 2>&1"
             proc = subprocess.Popen(
                 cmd_str, shell=True, start_new_session=False, cwd=self.cwd
