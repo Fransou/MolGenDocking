@@ -1,0 +1,12 @@
+name: pyscreener
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - pdbfixer
+  - pip
+  - python=3.10
+  - openbabel
+  - openmm

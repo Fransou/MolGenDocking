@@ -25,18 +25,12 @@ jobs:
       with:
         push: false
         tags: fransou/reward:latest
-        target: vina
-        file: docker/Dockerfile
+        file: Dockerfile
 
     - name: Get branch name
       run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
 
-    - name: Install dependencies
-      run: |
-        pip install -U pip
-        pip install pytest pytest-cov coverage coverage-badge
-
     - name: Test with pytest
       run: |
         rm -rf .coverage
-        docker run -v ${PWD}:/tmp fransou/reward bash /tmp/docker/run_docker_test.sh
+        docker run -v ${PWD}:/tmp fransou/reward bash /tmp/run_docker_test.sh

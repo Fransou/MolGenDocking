@@ -7,17 +7,17 @@ name = "mol_gen_docking"
 version = "2025.8.4"
 dependencies = [
     "torch>=2.6.0",
+    "datasets",
     "ray",
     "selfies",
     "fastapi",
     "PyTDC",
-    "coverage",
     "pytest",
-    "coverage-badge",
-    "loguru",
-    "omegaconf",
     "hydra-core",
-    "meeko"
+    "pyscreener",
+    "meeko",
+    "scikit-learn==1.2.2",
+    "biopython"
 ]
 
 requires-python = ">=3.10"
