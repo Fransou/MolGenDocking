@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
@@ -9,10 +9,12 @@ class MolecularVerifierSettings(BaseSettings):
     Protocol for molecular docking.
     """
 
-    scorer_exhaustiveness: int = 2
-    scorer_cpus: int = 2
+    scorer_exhaustiveness: int = 8
+    scorer_ncpus: int = 8
+    gpu_utilization_gpu_docking: float = 0.05
     max_concurrent_requests: int = 128
-
+    docking_oracle: Literal["pyscreener", "soft_docking"] = "pyscreener"
+    vina_mode: str = "autodock_gpu_256wi"  # Command used to run autodock gpu
     data_path: str = "data"
 
     def __post_init__(self) -> None:
@@ -25,6 +27,9 @@ class MolecularVerifierSettings(BaseSettings):
             self.scorer_cpus
             == self.scorer_exhaustiveness * self.max_concurrent_requests
         ), "Number of CPUs must be equal to exhaustiveness"
+        assert self.gpu_utilization_gpu_docking > 0.0, (
+            "GPU utilization per docking run must be > 0"
+        )
 
 
 class MolecularVerifierQuery(BaseModel):
@@ -32,8 +37,8 @@ class MolecularVerifierQuery(BaseModel):
     Query model for the MolecularVerifier.
     """
 
-    query: list[str]
-    prompts: list[str]
+    query: Optional[list[str]] = None
+    prompts: Optional[list[str]] = None
     metadata: Optional[list[dict[str, Any]]] = None
 
 
