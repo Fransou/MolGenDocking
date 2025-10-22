@@ -30,9 +30,12 @@ ray start --head --node-ip-address 0.0.0.0
 coverage run -m pytest test/test_rewards/test_docking_API.py --accelerator=gpu
 
 # Launch server
-python mol_gen_docking/fast_api_reward_server.py \
-  --data-path $DATA_PATH --port 5001 --host 0.0.0.0 \
-  --scorer-ncpus 4 --docking-oracle soft_docking --scorer-exhaustivness 4 &
+export docking_oracle=soft_docking
+export scorer_exhaustiveness=4
+export docking_oracle=soft_docking
+gunicorn mol_gen_docking.server:app --bind 0.0.0.0:5001 -k uvicorn.workers.UvicornWorker --log-level info &
+
+
 sleep 10
 
 coverage run -m pytest test/test_rewards/test_docking_server_autodock_gpu.py -x -s

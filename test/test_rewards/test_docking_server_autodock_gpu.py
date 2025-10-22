@@ -27,6 +27,9 @@ def test_docking(target, n_generations=16):
         f"http://0.0.0.0:{port}/prepare_receptor",
         json={"metadata": metadata},
     )
+    assert response.status_code == 200, response.text
+    time.sleep(1)
+
     # Request Server
     response = requests.post(
         f"http://0.0.0.0:{port}/get_reward",
@@ -34,7 +37,7 @@ def test_docking(target, n_generations=16):
     )
 
     assert response.status_code == 200, response.text
-    rewards = response.json()["rewards"]
+    rewards = response.json()["reward_list"]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)

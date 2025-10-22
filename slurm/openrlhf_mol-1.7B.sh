@@ -69,6 +69,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
    --input_key prompt \
+   --label_key metadata \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \
