@@ -27,6 +27,7 @@ def test_docking(target, n_generations=16):
         f"http://0.0.0.0:{port}/prepare_receptor",
         json={"metadata": metadata},
     )
+    assert response.status_code == 200, response.text
     # Request Server
     response = requests.post(
         f"http://0.0.0.0:{port}/get_reward",
@@ -39,3 +40,17 @@ def test_docking(target, n_generations=16):
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
+
+
+response = requests.post(
+    "http://0.0.0.0:5001/prepare_receptor",
+    json={
+        "metadata": [
+            {
+                "properties": ["sample_720217_model_0"],
+                "objectives": ["maximize"],
+                "target": [0],
+            }
+        ]
+    },
+)
