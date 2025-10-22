@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(
         f"Initialized molecular docking verifier lifespan with {server_settings}"
     )
+    print(server_settings)
 
     logger.info("Initializing socket")
 
