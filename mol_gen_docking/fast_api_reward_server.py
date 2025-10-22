@@ -1,4 +1,5 @@
 import argparse
+import json
 
 import numpy as np
 import ray
@@ -7,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from openrlhf.utils.logging_utils import init_logger
 
+from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 logger = init_logger(__name__)
@@ -36,9 +38,15 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--scorer-ncpus",
-        type=float,
+        type=int,
         default=2,
         help="Number of CPUs to use for the scoring computations.",
+    )
+    parser.add_argument(
+        "--docking-oracle",
+        type=str,
+        default="pyscreener",
+        help="The docking oracle.",
     )
     args = parser.parse_args()
     return args
@@ -52,7 +60,9 @@ if __name__ == "__main__":
         parse_whole_completion=False,
         oracle_kwargs=dict(
             exhaustiveness=args.scorer_exhaustivness,
-            ncpu=args.scorer_ncpus,
+            n_cpu=args.scorer_ncpus,
+            docking_oracle=args.docking_oracle,
+            vina_mode="autodock_gpu_256wi",
         ),
     )
     reward_valid_smiles = RewardScorer(
@@ -60,6 +70,12 @@ if __name__ == "__main__":
         reward="valid_smiles",
         parse_whole_completion=False,
     )
+
+    receptor_processor = ReceptorProcess(data_path=args.data_path)
+
+    with open(args.data_path + "/pockets_info.json") as f:
+        pockets_info = json.load(f)
+    receptors = list(pockets_info.keys())
 
     # reward_filters = RemoteRewardScorer.remote(
     #     path_to_mappings=args.data_path,
@@ -73,9 +89,23 @@ if __name__ == "__main__":
     async def get_reward(request: Request) -> JSONResponse:
         data = await request.json()
         queries = data.get("query")
-        prompts = data.get("prompts")
+        prompts = data.get("prompts", None)
         metadata = data.get("metadata", None)
-
+        if prompts is None:
+            assert metadata is not None
+            prompts = []
+            for meta in metadata:
+                assert all([k in meta for k in ["properties", "objectives", "target"]])
+                prompts.append(
+                    "|".join(
+                        [
+                            f"{p}, {o}, {t}"
+                            for p, o, t in zip(
+                                meta["properties"], meta["objectives"], meta["target"]
+                            )
+                        ]
+                    )
+                )
         rewards_job = reward_model.get_score.remote(  # type: ignore
             prompts=prompts, completions=queries, metadata=metadata
         )
@@ -144,5 +174,49 @@ if __name__ == "__main__":
         }
 
         return JSONResponse(result)
+
+    @app.post("/prepare_receptor")  # type: ignore
+    async def prepare_receptor(request: Request) -> JSONResponse:
+        data = await request.json()
+
+        if args.docking_oracle != "soft_docking":
+            # No need to prepare receptors
+            return JSONResponse(
+                {
+                    "status": "No need to prepare receptors for the selected docking oracle."
+                }
+            )
+
+        metadata = data.get("metadata", None)
+        assert all(
+            [
+                "properties" in m and "objectives" in m and "target" in m
+                for m in metadata
+            ]
+        )
+
+        targets = [
+            m["properties"][i]
+            for m in metadata
+            for i in range(len(m["properties"]))
+            if m["properties"][i] in receptors
+        ]
+        targets = list(set(targets))
+        if targets == []:
+            return JSONResponse(
+                {"status": "No need to prepare receptors for the given batch."}
+            )
+        missed_receptors_1, missed_receptors_2 = receptor_processor.process_receptors(
+            receptors=targets, allow_bad_res=True
+        )
+        if len(missed_receptors_2) > 0:
+            # Return error if some receptors could not be processed
+            return JSONResponse(
+                {"status": "Error", "missed_receptors_2": missed_receptors_2}
+            )
+        else:
+            return JSONResponse(
+                {"status": "Success", "missed_receptors_1": missed_receptors_1}
+            )
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

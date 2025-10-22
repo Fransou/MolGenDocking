@@ -1,12 +1,15 @@
 import json
 import os
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import pandas as pd
 
 from mol_gen_docking.reward.property_utils import inverse_rescale_property_values
 
 DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
+SKIP_DOCKING_TEST = (
+    os.system("vina --help") == 32512 or os.environ.get("SKIP_DOCKING", 0) == 1
+)
 
 with open(f"{DATA_PATH}/names_mapping.json") as f:
     PROPERTIES_NAMES_SIMPLE: dict = json.load(f)
@@ -57,3 +60,43 @@ def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], s
         return completion.replace("[SMILES]", smiles_joined)
 
     return fill_completion
+
+
+def fill_df_time(
+    target: str,
+    n_generations: int,
+    t0: float,
+    t1: float,
+    method: str,
+    exhaustiveness: int,
+    scores: float,
+    server: bool = False,
+    t_pre: Optional[float] = None,
+) -> None:
+    # get_current_commit_hash
+    commit_hash = (
+        os.popen("git rev-parse --short HEAD").read().strip()
+        if os.path.exists(".git")
+        else "N/A"
+    )
+    df = pd.DataFrame(
+        {
+            "target": [target],
+            "n_generations": [n_generations],
+            "method": [method],
+            "server": [server],
+            "time_preparation_s": [t0 - t_pre] if t_pre is not None else [0],
+            "time_docking_s": [t1 - t0],
+            "time_per_molecule_s": [(t1 - t0) / n_generations],
+            "scores": [scores],
+            "exhaustiveness": [exhaustiveness],
+            "commit_hash": [commit_hash],
+        }
+    )
+    path = os.path.join("test", "test_docking.csv")
+    df.to_csv(
+        path,
+        mode="a",
+        index=False,
+        header=not os.path.exists(path),
+    )
