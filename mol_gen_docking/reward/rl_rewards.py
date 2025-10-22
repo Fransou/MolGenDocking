@@ -5,14 +5,15 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import ray
-from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
-from tdc.chem_utils.oracle.filter import MolFilter
 
+import ray
+
+# from tdc.chem_utils.oracle.filter import MolFilter
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
+from ray.experimental import tqdm_ray
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -372,23 +373,10 @@ class RewardScorer:
                 for valid_smiles_c in smiles_list_per_completion
             ]
         elif self.reward == "MolFilters":
-            filters = MolFilter(
-                filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
-            )
-            all_smiles = {}
-            for i, valid_smiles_c in enumerate(smiles_list_per_completion):
-                for s in valid_smiles_c:
-                    if s not in all_smiles:
-                        all_smiles[s] = [i]
-                    else:
-                        all_smiles[s].append(i)
-            filter_flags = filters(list(all_smiles.keys()))
-            outputs: List[float] = [0.0 for _ in range(len(smiles_list_per_completion))]
-
-            for s in filter_flags:
-                for idx in all_smiles[s]:
-                    outputs[idx] += 1 / len(smiles_list_per_completion[idx])
-            return outputs
+            # filters = MolFilter(
+            #     filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
+            # )
+            raise NotImplementedError
 
         # objectives: List[Dict[str, Tuple[str, float]]], for each completion dict of the properties to evaluate and the objective ("above", "below", "equal", "maximize", "minimize") and target value
         if metadata is None or not (
