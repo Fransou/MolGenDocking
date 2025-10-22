@@ -11,7 +11,7 @@ dependencies = [
     "ray",
     "selfies",
     "fastapi",
-    "PyTDC",
+    "PyTDC==1.1.14",
     "pytest",
     "hydra-core",
     "pyscreener",
