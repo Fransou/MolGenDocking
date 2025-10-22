@@ -30,7 +30,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(
         f"Initialized molecular docking verifier lifespan with {server_settings}"
     )
-    print(server_settings)
 
     logger.info("Initializing socket")
 
@@ -55,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     app.state.receptor_processor = (
         ReceptorProcess(data_path=server_settings.data_path)
-        if server_settings.docking_oracle != "soft_docking"
+        if server_settings.docking_oracle == "soft_docking"
         else None
     )
 
