@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         parse_whole_completion=False,
         gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
         oracle_kwargs=dict(
-            exhaustiveness=server_settings.scorer_exhaustivness,
+            exhaustiveness=server_settings.scorer_exhaustiveness,
             n_cpu=server_settings.scorer_ncpus,
             docking_oracle=server_settings.docking_oracle,
             vina_mode=server_settings.vina_mode,

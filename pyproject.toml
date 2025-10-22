@@ -10,6 +10,7 @@ dependencies = [
     "datasets",
     "ray",
     "pydantic",
+    "pydantic_settings",
     "selfies",
     "fastapi",
     "PyTDC==1.1.14",
