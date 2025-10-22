@@ -28,7 +28,6 @@ def test_docking(target, n_generations=16):
         json={"metadata": metadata},
     )
     assert response.status_code == 200, response.text
-    print(response.json())
     # Request Server
     response = requests.post(
         f"http://0.0.0.0:{port}/get_reward",
