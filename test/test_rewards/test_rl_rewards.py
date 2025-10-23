@@ -4,9 +4,9 @@ from typing import Callable, List
 
 import numpy as np
 import pytest
-import ray
 import torch
 
+import ray
 from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.dataset import (
     DatasetConfig,
@@ -39,12 +39,6 @@ scorers = {
     "valid_smiles": RewardScorer(
         DATA_PATH,
         "valid_smiles",
-        parse_whole_completion=True,
-        rescale=False,
-    ),
-    "MolFilters": RewardScorer(
-        DATA_PATH,
-        "MolFilters",
         parse_whole_completion=True,
         rescale=False,
     ),
@@ -145,21 +139,9 @@ def valid_smiles_scorer(request):
 
 
 @pytest.fixture(scope="module")
-def filter_smiles_scorer(request):
-    """Fixture to test the function molecular_properties."""
-    return scorers["MolFilters"]
-
-
-@pytest.fixture(scope="module")
 def valid_smiles_filler(valid_smiles_scorer):
     """Fixture to test the function molecular_properties."""
     return get_fill_completions(valid_smiles_scorer.parse_whole_completion)
-
-
-@pytest.fixture(scope="module")
-def filter_smiles_filler(filter_smiles_scorer):
-    """Fixture to test the function molecular_properties."""
-    return get_fill_completions(filter_smiles_scorer.parse_whole_completion)
 
 
 @pytest.fixture(scope="module", params=[True])

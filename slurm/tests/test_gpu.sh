@@ -32,7 +32,9 @@ coverage run -m pytest test/test_rewards/test_docking_API.py --accelerator=gpu
 # Launch server
 export docking_oracle=soft_docking
 export scorer_exhaustiveness=4
-gunicorn mol_gen_docking/fast_api_reward_server.py --bind 0.0.0.0:5001
+export docking_oracle=soft_docking
+gunicorn mol_gen_docking.server:app --bind 0.0.0.0:5001 -k uvicorn.workers.UvicornWorker --log-level info &
+
 
 sleep 10
 

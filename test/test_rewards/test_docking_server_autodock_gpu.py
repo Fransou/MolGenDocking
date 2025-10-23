@@ -35,22 +35,8 @@ def test_docking(target, n_generations=16):
     )
 
     assert response.status_code == 200, response.text
-    rewards = response.json()["rewards"]
+    rewards = response.json()["reward"]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
-
-
-response = requests.post(
-    "http://0.0.0.0:5001/prepare_receptor",
-    json={
-        "metadata": [
-            {
-                "properties": ["sample_720217_model_0"],
-                "objectives": ["maximize"],
-                "target": [0],
-            }
-        ]
-    },
-)
