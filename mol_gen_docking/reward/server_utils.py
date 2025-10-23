@@ -47,7 +47,7 @@ class MolecularVerifierResponse(BaseModel):
     Response model for the VerifierServer.
     """
 
-    reward: float
+    reward: list[float]
     error: str | None = None
-    meta: dict | None = None
+    meta: list[dict] | None = None
     next_turn_feedback: str | None = None
