@@ -10,7 +10,7 @@ from .utils import DOCKING_PROP_LIST, SKIP_DOCKING_TEST, propeties_csv
 
 @pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
-def test_docking(target, n_generations=16):
+def test_docking(target, n_generations=128):
     """Test the reward function runs for vina targets."""
     # Launch the reward server
     port = "5001"
