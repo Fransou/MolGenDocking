@@ -143,6 +143,7 @@ def create_app() -> FastAPI:
 
         response = MolecularVerifierResponse(
             reward=sum(rewards) / len(rewards),
+            reward_list=rewards,
             meta={
                 "property_scores": rewards,
                 "validity": valid_reward,
