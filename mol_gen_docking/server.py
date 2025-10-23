@@ -94,6 +94,11 @@ def create_app() -> FastAPI:
 
     @app.post("/get_reward")  # type: ignore
     async def get_reward(query: MolecularVerifierQuery) -> MolecularVerifierResponse:
+        prepare_res = await prepare_receptor(query)
+        status = prepare_res.get("status", "")
+        if status == "Error":
+            return MolecularVerifierResponse(error="Error in preprocessing")
+
         prompts, queries, metadata = query.prompts, query.query, query.metadata
 
         if prompts is None:

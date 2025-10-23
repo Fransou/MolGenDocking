@@ -696,7 +696,6 @@ class AutoDockGPUDocking(BaseDocking):
         # clean up temp dirs
         ligand_tempdir.cleanup()
         output_tempdir.cleanup()
-
         if self.print_msgs:
             print("Docking complete.")
         return binding_scores
