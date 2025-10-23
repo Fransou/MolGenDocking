@@ -50,5 +50,5 @@ class MolecularVerifierResponse(BaseModel):
     reward: float
     reward_list: list[float]
     error: str | None = None
-    meta: list[dict] | None = None
+    meta: list[dict[str, Any]] | None = None
     next_turn_feedback: str | None = None
