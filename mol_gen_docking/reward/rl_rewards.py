@@ -293,7 +293,6 @@ class RewardScorer:
             else:
                 all_values.append(seq_values[idx_seq])
                 idx_seq += 1
-
         for idx_p, p in enumerate(all_properties):
             values = all_values[idx_p]
             smiles = prop_smiles[p]
@@ -302,6 +301,7 @@ class RewardScorer:
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
                     "value",
                 ] = v
+
         if pbar is not None:
             pbar.close.remote()  # type: ignore
 

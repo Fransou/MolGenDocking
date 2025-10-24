@@ -46,3 +46,4 @@ def test_docking(target, n_generations=128):
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
+    assert not (rewards == 0).all()

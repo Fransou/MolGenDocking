@@ -14,7 +14,7 @@ export WORKING_DIR=$HOME/MolGenDocking
 cd $WORKING_DIR
 
 export PATH=$HOME/qvina:$PATH
-source $HOME/R1ENV/bin/activate
+source $HOME/OpenRLHF/bin/activate
 
 ray start --head --num-cpus 64
 

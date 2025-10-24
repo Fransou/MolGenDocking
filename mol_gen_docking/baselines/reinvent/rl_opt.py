@@ -15,7 +15,7 @@ from transformers import (
     EvalPrediction,
 )
 from trl import GRPOConfig
-
+import requests
 from mol_gen_docking.baselines.reinvent.trainers import VanillaReinventTrainer
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
@@ -26,14 +26,25 @@ os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
 def get_reward_fn(
     metadata: Dict[str, Any], datasets_path: str
 ) -> Callable[[str | List[str]], float | List[float]]:
-    SCORER = RewardScorer(datasets_path, "property", parse_whole_completion=True)
+    response = requests.post(
+        f"http://0.0.0.0:5001/prepare_receptor",
+        json={"metadata": [metadata]},
+    )
+    assert response.status_code == 200, response.text
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            return SCORER([""], [completions], metadata=[metadata], use_pbar=False)[0]
-        return SCORER(
-            [""], completions, metadata=[metadata] * len(completions), use_pbar=False
+            inp = [completions]
+        completions = [f"<answer> {s} </answer>" for s in completions]
+        response = requests.post(
+            f"http://0.0.0.0:5001/get_reward",
+            json={"query": completions, "metadata": [metadata] * len(completions)},
         )
+        assert response.status_code == 200, response.text
+        rewards = response.json()["reward_list"]
+        if isinstance(completions, str):
+            return rewards[0]
+        return rewards
 
     return reward_fn
 
@@ -196,9 +207,10 @@ if __name__ == "__main__":
     id = 0
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
-        if any([prop in docking_targets for prop in metadata["properties"]]):
-            continue
-        print(f" -#-#-#-#  Task : {metadata}")
+        print("=#=#=#=#"*15)
+        print("-#-#-#-#"*5,  f"Task : {metadata}", "-#-#-#-#"*5)
+        print("=#=#=#=#"*15)
+
         if args.id_obj == -1 or args.id_obj == id:
             reward_fn = get_reward_fn(metadata, args.datasets_path)
 
