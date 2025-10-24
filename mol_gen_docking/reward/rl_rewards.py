@@ -1,7 +1,14 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+)
 
 import numpy as np
 import pandas as pd
@@ -54,7 +61,7 @@ class RewardScorer:
         rescale: bool = True,
         parse_whole_completion: bool = False,
         oracle_kwargs: Dict[str, Any] = {},
-        gpu_utilization_gpu_docking: float = 0.05,  # Takes 1Gb on 80Gb we allow 5% of a GPU to keep a margin
+        gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
         if path_to_mappings is not None:
             with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
@@ -166,22 +173,32 @@ class RewardScorer:
                 return valid_smiles_pattern.fullmatch(x) is not None
             return False
 
-        s_poss = [x for x in comp.split() if filter_smiles(x)]
-
         # Finally we remove any string that is not a valid SMILES
-        def test_is_valid(smi: str) -> bool:
-            mol = Chem.MolFromSmiles(smi)
-            if mol is None:
-                return False
-            try:
-                _ = Chem.MolToMolBlock(mol)
-            except Exception as e:
-                print(f"Error in MolToMolBlock for {smi}: {e}")
-                return False
-            return True
+        @ray.remote(num_cpus=1)
+        def test_is_valid_batch(smis: list[str]) -> list[bool]:
+            RDLogger.DisableLog("rdApp.*")
+            results = []
+            for smi in smis:
+                try:
+                    mol = Chem.MolFromSmiles(smi)
+                    if mol is None:
+                        results.append(False)
+                        continue
+                    Chem.MolToMolBlock(mol)
+                    results.append(True)
+                except Exception:
+                    results.append(False)
+            return results
 
+        s_poss = [x for x in comp.split() if filter_smiles(x)]
+        chunk_size = 4
+        tasks = [
+            test_is_valid_batch.remote(s_poss[i : i + chunk_size])
+            for i in range(0, len(s_poss), chunk_size)
+        ]
+        is_valid: List[bool] = sum(ray.get(tasks), [])
         s_spl = [
-            x for x in s_poss if test_is_valid(x)
+            x for (x, val) in zip(s_poss, is_valid) if val
         ]  ### TODO: Maybe do not return the mean if mutliple molecules
         return s_spl
 
@@ -223,7 +240,13 @@ class RewardScorer:
             )
             if prop not in self.oracles:
                 self.oracles[prop] = oracle_fn
-            property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
+            try:
+                property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
+            except Exception as e:
+                print(
+                    f"Error in {smiles}: {[s for s in smiles if Chem.MolFromSmiles(s) is None]}"
+                )
+                raise e
             assert isinstance(property_reward, np.ndarray)
             if pbar is not None:
                 pbar.update.remote(len(property_reward))
@@ -249,18 +272,16 @@ class RewardScorer:
             pbar = None
 
         values_job = []
-        seq_values = []
         for p in all_properties:
             # If the reward is long to compute, use ray
             smiles = prop_smiles[p]
-            if p in self.slow_props:
-                if (
-                    p not in self.docking_target_list
-                    or "gpu" not in self.oracle_kwargs.get("docking_oracle", "")
-                ):
-                    _get_property_remote = _get_property_cpu
-                else:
-                    _get_property_remote = _get_property_gpu
+            if p in self.slow_props and "gpu" in self.oracle_kwargs.get(
+                "docking_oracle", ""
+            ):
+                _get_property_remote = _get_property_cpu
+            else:
+                _get_property_remote = _get_property_gpu
+
                 values_job.append(
                     _get_property_remote.remote(
                         smiles,
@@ -270,29 +291,8 @@ class RewardScorer:
                         pbar=pbar,
                     )
                 )
-            else:  # Otherwise go sequentially
-                seq_values.append(
-                    _get_property(
-                        smiles,
-                        p,
-                        rescale=self.rescale,
-                        kwargs=self.oracle_kwargs,
-                        pbar=pbar,
-                    )
-                )
 
-        all_values_ray = ray.get(values_job)
-        all_values = []
-        idx_ray = 0
-        idx_seq = 0
-        # Merge all_values ray and seq_values
-        for p in all_properties:
-            if p in self.slow_props:
-                all_values.append(all_values_ray[idx_ray])
-                idx_ray += 1
-            else:
-                all_values.append(seq_values[idx_seq])
-                idx_seq += 1
+        all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
             values = all_values[idx_p]
             smiles = prop_smiles[p]
@@ -311,9 +311,13 @@ class RewardScorer:
         mol_prop = row["value"]
         target_value = row["target_value"]
         prop = row["property"]
+        is_docking = prop in self.docking_target_list
+        # Replace 0 docking score by the worst outcome
+        if is_docking and prop == 0.0:
+            return 0.0
         if self.rescale:
             target_value = rescale_property_values(
-                prop, target_value, docking=mol_prop in self.docking_target_list
+                prop, target_value, docking=is_docking
             )
         if obj == "below":
             reward += float(mol_prop <= target_value)
@@ -363,7 +367,6 @@ class RewardScorer:
         """
         Get reward for molecular properties
         """
-
         smiles_list_per_completion = self.get_all_completions_smiles(completions)
         if (
             self.reward == "valid_smiles"

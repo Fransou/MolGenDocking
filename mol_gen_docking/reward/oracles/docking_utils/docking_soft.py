@@ -3,6 +3,7 @@
 # Licensed under the MIT License
 
 import hashlib
+import logging
 import os
 import random
 import re
@@ -108,7 +109,7 @@ class BaseDocking:
         additional_args: Optional[Dict[str, Any]] = None,
         preparator: Optional[Callable[[List[str], List[List[str]]], List[bool]]] = None,
         cwd: Optional[str] = None,
-        gpu_ids: Union[int, List[int]] = 0,
+        gpu_ids: Union[None, str, List[str]] = None,
         docking_attempts: int = 10,
         print_msgs: bool = True,
         print_output: bool = True,
@@ -133,6 +134,9 @@ class BaseDocking:
             - print_output: Show Vina docking output in console (True) or not (False)
             - debug: Profiling the Vina docking process and ligand preparation.
         """
+        self.logger = logging.getLogger(
+            __name__ + "/" + self.__class__.__name__,
+        )
         if not os.path.isfile(receptor_file):
             raise Exception(rf"Receptor file: {receptor_file} not found")
 
@@ -145,8 +149,12 @@ class BaseDocking:
         ) as proc:
             if proc.wait(timeout=timeout_duration) == 0:
                 out = proc.stdout.read().decode("ascii")  # type:ignore
-                pattern = r"GPU (\d+):"
-                available_gpu_ids = [int(x) for x in re.findall(pattern, out)]
+                # First we see if MIG parsing works
+                pattern_mig = r"MIG-[\w-]+"
+                available_gpu_ids = re.findall(pattern_mig, out)
+                if available_gpu_ids == []:
+                    pattern_gpu = r"GPU (\d+):"
+                    available_gpu_ids = [x for x in re.findall(pattern_gpu, out)]
             else:
                 raise Exception(
                     f"Command 'nvidia-smi --list-gpus' returned unsuccessfully: {proc.stderr.read()}"  # type:ignore
@@ -155,7 +163,7 @@ class BaseDocking:
         gpu_ids_list = []
         if gpu_ids is None:
             gpu_ids_list = available_gpu_ids
-        elif type(gpu_ids) is int:
+        elif type(gpu_ids) is str:
             if gpu_ids not in available_gpu_ids:
                 raise Exception(f"Unknown GPU id: {gpu_ids}")
             gpu_ids_list = [gpu_ids]
@@ -178,8 +186,8 @@ class BaseDocking:
         self.additional_args = additional_args
         self.preparator = preparator
         self.cwd = cwd
-        self.gpu_ids: List[int] = gpu_ids_list
-        print(f"Available GPU ids: {gpu_ids_list}")
+        self.gpu_ids: List[str] = gpu_ids_list
+        self.logger.info(f"Available GPU ids: {gpu_ids_list}")
 
         self.docking_attempts = docking_attempts
         self.print_msgs = print_msgs
@@ -191,18 +199,110 @@ class BaseDocking:
             self.docking_profiler = TimedProfiler()
 
     def _prepare_ligands(
-        self, smis: List[str], ligand_paths_by_smiles: List[List[str]]
-    ) -> Any:
+        self, ligand_paths_by_smiles: Dict[str, List[str]]
+    ) -> List[bool]:
         # Perform ligand preparation and save to proper path (tmp/non-tmp ligand dir)
+        smis = list(ligand_paths_by_smiles.keys())
+        ligand_paths = list(ligand_paths_by_smiles.values())
         assert self.preparator is not None
         if self.debug:
-            return self.preparation_profiler.time_it(
-                self.preparator, smis, ligand_paths_by_smiles
+            return self.preparation_profiler.time_it(  # type:ignore
+                self.preparator, smis, ligand_paths
             )
         else:
-            return self.preparator(smis, ligand_paths_by_smiles)
+            return self.preparator(smis, ligand_paths)
+
+    def _batched_prepare_ligands(self, ligand_dir_path: str, smis: List[str]) -> Any:
+        # make different directories to support parallelization across multiple GPUs.
+        for gpu_id in self.gpu_ids:
+            make_dir(f"{ligand_dir_path}/{gpu_id}/", exist_ok=True)
+        # create hashed filename for each unique smiles
+        ligand_path_fn = get_ligand_hashed_fn(
+            ligand_dir_path, n_conformers=self.n_conformers
+        )
+        # not the fastest implementation, but safe if multiple experiments running at same time (with different tmp file paths)
+        ligand_paths = []
+        ligand_paths_by_smiles: Dict[str, List[str]] = {}
+        for i in range(len(smis)):
+            current_ligand_paths = ligand_path_fn(smis[i])
+            ligand_paths_by_smiles[smis[i]] = current_ligand_paths
+        # Prepare ligands that don't have an existing output file (they aren't overlapping)
+        if self.print_msgs:
+            self.logger.info("Preparing ligands...")
+        success_list = self._prepare_ligands(ligand_paths_by_smiles)
+        if not all(success_list):
+            for smi, success in zip(smis, success_list):
+                if not success:
+                    self.logger.warning(
+                        f"Error preparing: {smi} | {ligand_paths_by_smiles[smi]}"
+                    )
+
+                    # Remove unsuccessful Ligands
+                    ligand_paths_by_smiles[smi] = []
+
+        ligand_paths = sum(
+            [lig_paths for lig_paths in ligand_paths_by_smiles.values() if lig_paths],
+            [],
+        )
+
+        # Multi-GPU docking: move ligands to the gpu_id directories
+        split_ligand_paths = split_list(ligand_paths, len(self.gpu_ids))
+
+        ligand_dir = []
+        for gpu_i in range(len(self.gpu_ids)):
+            gpu_id = self.gpu_ids[gpu_i]
+            ligand_dir.append(os.path.abspath(f"{ligand_dir_path}/{gpu_id}/"))
+            for ligand_file in split_ligand_paths[gpu_i]:
+                try:
+                    shutil.copy(
+                        ligand_file,
+                        os.path.abspath(f"{ligand_dir_path}/{gpu_id}/"),
+                    )
+                except FileNotFoundError:
+                    if self.print_msgs:
+                        self.logger.warning(f"Ligand file not found: {ligand_file}")
+
+        return ligand_paths_by_smiles, ligand_dir
 
     def _batched_docking(self, smis: List[str]) -> VINA_DOCKING_OUTPUT:
+        # make temp pdbqt directories.
+        ligand_tempdir = TemporaryDirectory(suffix="_lig")
+        output_tempdir = TemporaryDirectory(suffix="_out")
+
+        ligand_dir_path = ligand_tempdir.name
+        output_dir_path = output_tempdir.name
+
+        make_dir(ligand_dir_path, exist_ok=True)
+        make_dir(output_dir_path, exist_ok=True)
+
+        ligand_paths_by_smiles, ligand_dir = self._batched_prepare_ligands(
+            ligand_dir_path=ligand_dir_path, smis=smis
+        )
+        # Run docking attempts multiple times on each GPU in case of failure.
+        output = self._batched_docking_run(
+            smis,
+            ligand_dir=ligand_dir,
+            ligand_dir_path=ligand_dir_path,
+            ligand_paths_by_smiles=ligand_paths_by_smiles,
+            output_dir_path=output_dir_path,
+        )
+
+        # clean up temp dirs
+        ligand_tempdir.cleanup()
+        output_tempdir.cleanup()
+        if self.print_msgs:
+            self.logger.info("Docking complete.")
+
+        return output
+
+    def _batched_docking_run(
+        self,
+        smis: List[str],
+        ligand_dir: List[str],
+        ligand_dir_path: str,
+        ligand_paths_by_smiles: Dict[str, List[str]],
+        output_dir_path: str,
+    ) -> VINA_DOCKING_OUTPUT:
         raise NotImplementedError
 
     def __call__(self, smi: Union[str, List[str]]) -> VINA_DOCKING_OUTPUT:
@@ -241,7 +341,7 @@ class VinaDocking(BaseDocking):
         additional_args: Optional[Dict[str, Any]] = None,
         preparator: Optional[Callable[[List[str], List[List[str]]], List[bool]]] = None,
         cwd: Optional[str] = None,
-        gpu_ids: Union[int, List[int]] = 0,
+        gpu_ids: Union[None, str, List[str]] = None,
         docking_attempts: int = 10,
         print_msgs: bool = True,
         print_output: bool = True,
@@ -273,28 +373,22 @@ class VinaDocking(BaseDocking):
             debug,
         )
 
-    def _batched_docking(self, smis: List[str]) -> VINA_DOCKING_OUTPUT:
+    def _batched_docking_run(
+        self,
+        smis: List[str],
+        ligand_dir: List[str],
+        ligand_dir_path: str,
+        ligand_paths_by_smiles: Dict[str, List[str]],
+        output_dir_path: str,
+    ) -> VINA_DOCKING_OUTPUT:
         # make temp pdbqt directories.
-        ligand_tempdir = TemporaryDirectory(suffix="_lig")
-        output_tempdir = TemporaryDirectory(suffix="_out")
         config_tempdir = TemporaryDirectory(suffix="_config")
-        ligand_dir_path = ligand_tempdir.name
-        output_dir_path = output_tempdir.name
         config_dir_path = config_tempdir.name
-
-        make_dir(ligand_dir_path, exist_ok=True)
-        make_dir(output_dir_path, exist_ok=True)
         make_dir(config_dir_path, exist_ok=True)
 
         # make different directories to support parallelization across multiple GPUs.
         for gpu_id in self.gpu_ids:
-            make_dir(f"{ligand_dir_path}/{gpu_id}/", exist_ok=True)
             make_dir(f"{output_dir_path}/{gpu_id}/", exist_ok=True)
-
-        # create hashed filename for each unique smiles
-        ligand_path_fn = get_ligand_hashed_fn(
-            ligand_dir_path, n_conformers=self.n_conformers
-        )
 
         # create hashed output filename for each unique smiles
         output_path_fn = get_ligand_hashed_fn(
@@ -302,23 +396,10 @@ class VinaDocking(BaseDocking):
         )
 
         # not the fastest implementation, but safe if multiple experiments running at same time (with different tmp file paths)
-        ligand_paths = []
         output_paths = []
-        ligand_paths_by_smiles = []
-
         for i in range(len(smis)):
-            current_ligand_paths = ligand_path_fn(smis[i])
-            ligand_paths_by_smiles.append(current_ligand_paths)
-            ligand_paths += current_ligand_paths
             output_paths += output_path_fn(smis[i])
 
-        # Prepare ligands that don't have an existing output file (they aren't overlapping)
-        if self.print_msgs:
-            print("Preparing ligands...")
-        self._prepare_ligands(smis, ligand_paths_by_smiles)
-
-        # Multi-GPU docking: move ligands to the gpu_id directories
-        split_ligand_paths = split_list(ligand_paths, len(self.gpu_ids))
         tmp_config_file_paths = []
         for i in range(len(self.gpu_ids)):
             gpu_id = self.gpu_ids[i]
@@ -331,18 +412,10 @@ class VinaDocking(BaseDocking):
                     "output_directory": f"{output_dir_path}/{gpu_id}/",
                 },
             )
-            for ligand_file in split_ligand_paths[i]:
-                try:
-                    shutil.copy(
-                        ligand_file, os.path.abspath(f"{ligand_dir_path}/{gpu_id}/")
-                    )
-                except FileNotFoundError:
-                    if self.print_msgs:
-                        print(f"Ligand file not found: {ligand_file}")
 
         # Perform docking procedure(s)
         if self.print_msgs:
-            print("Ligands prepared. Docking...")
+            self.logger.info("Ligands prepared. Docking...")
 
         cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
         log_paths = [f"log_{i}" for i in range(len(tmp_config_file_paths))]
@@ -366,7 +439,9 @@ class VinaDocking(BaseDocking):
             ):
                 break
 
-            print(f"Docking attempt #{attempt + 1} failed on GPU {self.gpu_ids[i]}.")
+            self.logger.warning(
+                f"Docking attempt #{attempt + 1} failed on GPU {self.gpu_ids[i]}."
+            )
 
         # Move files from temporary to proper directory (or delete if redoing calculation)
         for gpu_id in self.gpu_ids:
@@ -394,12 +469,7 @@ class VinaDocking(BaseDocking):
                 binding_poses = [None] * len(output_paths)
             binding_scores = (binding_scores_list, binding_poses)
 
-        # clean up temp dirs
-        ligand_tempdir.cleanup()
-        output_tempdir.cleanup()
         config_tempdir.cleanup()
-        if self.print_msgs:
-            print("Docking complete.")
         return binding_scores
 
     @staticmethod
@@ -509,7 +579,7 @@ class AutoDockGPUDocking(BaseDocking):
         additional_args: Optional[Dict[str, Any]] = None,
         preparator: Optional[Callable[[List[str], List[List[str]]], List[bool]]] = None,
         cwd: Optional[str] = None,
-        gpu_ids: Union[int, List[int]] = 0,
+        gpu_ids: Union[None, str, List[str]] = None,
         docking_attempts: int = 10,
         print_msgs: bool = True,
         print_output: bool = True,
@@ -520,7 +590,6 @@ class AutoDockGPUDocking(BaseDocking):
         grid_map_file = receptor_file.replace(".pdb", "_ag.maps.fld")
         assert os.path.exists(pdbqt_file), "Receptor file not found"
         assert os.path.exists(grid_map_file), "Grid map file not found"
-
         super().__init__(
             cmd,
             pdbqt_file,
@@ -544,58 +613,17 @@ class AutoDockGPUDocking(BaseDocking):
         self.receptor_map_file = os.path.abspath(grid_map_file)
         self.agg_type = agg_type
 
-    def _batched_docking(self, smis: List[str]) -> VINA_DOCKING_OUTPUT:
-        # make temp pdbqt directories.
-        ligand_tempdir = TemporaryDirectory(suffix="_lig")
-        output_tempdir = TemporaryDirectory(suffix="_out")
-        ligand_dir_path = ligand_tempdir.name
-        output_dir_path = output_tempdir.name
-
-        make_dir(ligand_dir_path, exist_ok=True)
-        make_dir(output_dir_path, exist_ok=True)
-
-        # make different directories to support parallelization across multiple GPUs.
-        for gpu_id in self.gpu_ids:
-            make_dir(f"{ligand_dir_path}/{gpu_id}/", exist_ok=True)
-
-        # create hashed filename for each unique smiles
-        ligand_path_fn = get_ligand_hashed_fn(
-            ligand_dir_path, n_conformers=self.n_conformers
-        )
-
-        # not the fastest implementation, but safe if multiple experiments running at same time (with different tmp file paths)
-        ligand_paths = []
-        ligand_paths_by_smiles = []
-
-        for i in range(len(smis)):
-            current_ligand_paths = ligand_path_fn(smis[i])
-            ligand_paths_by_smiles.append(current_ligand_paths)
-            ligand_paths += current_ligand_paths
-
-        # Prepare ligands that don't have an existing output file (they aren't overlapping)
-        if self.print_msgs:
-            print("Preparing ligands...")
-        self._prepare_ligands(smis, ligand_paths_by_smiles)
-
-        # Multi-GPU docking: move ligands to the gpu_id directories
-        split_ligand_paths = split_list(ligand_paths, len(self.gpu_ids))
-
-        ligand_dir = []
-        for i in range(len(self.gpu_ids)):
-            gpu_id = self.gpu_ids[i]
-            ligand_dir.append(os.path.abspath(f"{ligand_dir_path}/{gpu_id}"))
-            for ligand_file in split_ligand_paths[i]:
-                try:
-                    shutil.copy(
-                        ligand_file, os.path.abspath(f"{ligand_dir_path}/{gpu_id}/")
-                    )
-                except FileNotFoundError:
-                    if self.print_msgs:
-                        print(f"Ligand file not found: {ligand_file}")
-
+    def _batched_docking_run(
+        self,
+        smis: List[str],
+        ligand_dir: List[str],
+        ligand_dir_path: str,
+        ligand_paths_by_smiles: Dict[str, List[str]],
+        output_dir_path: str,
+    ) -> VINA_DOCKING_OUTPUT:
         # Perform docking procedure(s)
         if self.print_msgs:
-            print("Ligands prepared. Docking...")
+            self.logger.info("Ligands prepared. Docking...")
 
         cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
         # Run docking attempts multiple times on each GPU in case of failure.
@@ -613,10 +641,7 @@ class AutoDockGPUDocking(BaseDocking):
                     cmd_prefixes=cmd_prefixes,
                     blocking=False,
                 )
-            if all(
-                len([f for f in os.listdir(lg_dir) if f.endswith(".dlg")]) > 0
-                for lg_dir in ligand_dir
-            ):
+            if self._is_docking_complete(ligand_dir):
                 break
 
         # Move files from temporary to proper directory (or delete if redoing calculation)
@@ -629,75 +654,66 @@ class AutoDockGPUDocking(BaseDocking):
 
         # Something went horribly wrong
         if output_paths == []:
-            raise ValueError
-            binding_scores = None
-        else:
-            # Gather binding scores
-            binding_scores_dict: Dict[str, float | None] = {}
-            # Move all output files to a TempDir
-            move_files_from_dir(
-                ligand_dir_path, output_dir_path, include_only=output_paths
-            )
-            output_paths = [
-                os.path.abspath(f"{output_dir_path}/" + os.path.basename(file))
-                for file in output_paths
-            ]
-            for file in output_paths:
-                ligand_dict = parse_single_dlg(file)
-                identifier = ligand_dict["ligname"]
-                binding_score_val: float | None
-                if self.agg_type == "min":
-                    binding_score_val = min(ligand_dict["scores"])
-                elif self.agg_type == "mean":
-                    binding_score_val = sum(ligand_dict["scores"]) / len(
-                        ligand_dict["scores"]
-                    )
-                elif self.agg_type == "cluster_min":
-                    cluster_sizes: Dict[str, int] = ligand_dict["cluster_sizes"]
-                    largest_cluster = max(cluster_sizes, key=cluster_sizes.get)  # type: ignore
-                    binding_score_val = min(
-                        [
-                            score
-                            for c, score in zip(
-                                ligand_dict["cluster_list"], ligand_dict["scores"]
-                            )
-                            if c == largest_cluster
-                        ]
-                    )
-                # We cap the binding score to a maximum value  of 0.0 kcal/mol
-                binding_score_val = (
-                    min(binding_score_val, 0.0)
-                    if binding_score_val is not None
-                    else None
+            raise ValueError()
+        # Gather binding scores
+        binding_scores_dict: Dict[str, float | None] = {}
+        # Move all output files to a TempDir
+        move_files_from_dir(ligand_dir_path, output_dir_path, include_only=output_paths)
+        output_paths = [
+            os.path.abspath(f"{output_dir_path}/" + os.path.basename(file))
+            for file in output_paths
+        ]
+        for file in output_paths:
+            ligand_dict = parse_single_dlg(file)
+            identifier = ligand_dict["ligname"]
+            binding_score_val: float | None
+            if self.agg_type == "min":
+                binding_score_val = min(ligand_dict["scores"])
+            elif self.agg_type == "mean":
+                binding_score_val = sum(ligand_dict["scores"]) / len(
+                    ligand_dict["scores"]
                 )
-                binding_scores_dict[identifier] = binding_score_val
-
-            if self.get_pose_str:
-                binding_poses = []
-                for i in range(len(output_paths)):
-                    binding_poses.append(self._get_output_pose(output_paths[i]))
-            else:
-                binding_poses = [None] * len(output_paths)
-            binding_scores_per_smi = [
-                [binding_scores_dict.get(os.path.basename(p).split(".")[0],0) for p in paths]
-                for paths in ligand_paths_by_smiles
-            ]
-            binding_scores_list: List[float | None] = []
-            for scores in binding_scores_per_smi:
-                scores = [s for s in scores if s is not None]
-                if len(scores) > 0:
-                    binding_scores_list.append(min(scores))  # type: ignore
-                else:
-                    binding_scores_list.append(None)
-            binding_scores = (
-                binding_scores_list,
-                binding_poses,
+            elif self.agg_type == "cluster_min":
+                cluster_sizes: Dict[str, int] = ligand_dict["cluster_sizes"]
+                largest_cluster = max(cluster_sizes, key=cluster_sizes.get)  # type: ignore
+                binding_score_val = min(
+                    [
+                        score
+                        for c, score in zip(
+                            ligand_dict["cluster_list"], ligand_dict["scores"]
+                        )
+                        if c == largest_cluster
+                    ]
+                )
+            # We cap the binding score to a maximum value  of 0.0 kcal/mol
+            binding_score_val = (
+                min(binding_score_val, 0.0) if binding_score_val is not None else None
             )
-        # clean up temp dirs
-        ligand_tempdir.cleanup()
-        output_tempdir.cleanup()
-        if self.print_msgs:
-            print("Docking complete.")
+            binding_scores_dict[identifier] = binding_score_val
+        if self.get_pose_str:
+            binding_poses = []
+            for i in range(len(output_paths)):
+                binding_poses.append(self._get_output_pose(output_paths[i]))
+        else:
+            binding_poses = [None] * len(output_paths)
+        binding_scores_per_smi = {
+            smi: [
+                binding_scores_dict.get(os.path.basename(p).split(".")[0], 0)
+                for p in paths
+            ]
+            for smi, paths in ligand_paths_by_smiles.items()
+        }
+        binding_scores_: Dict[str, float | None] = {}
+        for smi, scores in binding_scores_per_smi.items():
+            scores = [s for s in scores if s is not None]
+            if len(scores) > 0:
+                binding_scores_[smi] = min(scores)  # type: ignore
+            else:
+                binding_scores_[smi] = None
+        binding_scores = (
+            [binding_scores_.get(smi, 0) for smi in smis],
+            binding_poses,
+        )
         return binding_scores
 
     @staticmethod
@@ -749,3 +765,9 @@ class AutoDockGPUDocking(BaseDocking):
                     proc.wait(timeout=self.timeout_duration)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+
+    def _is_docking_complete(self, ligand_dir: List[str]) -> bool:
+        return all(
+            len([f for f in os.listdir(lg_dir) if f.endswith(".dlg")]) > 0
+            for lg_dir in ligand_dir
+        )

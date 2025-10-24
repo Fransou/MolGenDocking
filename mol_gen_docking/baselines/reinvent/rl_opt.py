@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pandas as pd
+import requests
 import wandb
 from datasets import Dataset, load_from_disk
 from rdkit import Chem
@@ -15,33 +16,32 @@ from transformers import (
     EvalPrediction,
 )
 from trl import GRPOConfig
-import requests
+
 from mol_gen_docking.baselines.reinvent.trainers import VanillaReinventTrainer
-from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 N_REPEAT_TEST = 8
 os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
 
 
 def get_reward_fn(
-    metadata: Dict[str, Any], datasets_path: str
+    metadata: Dict[str, Any], datasets_path: str, remote_rm_url: str
 ) -> Callable[[str | List[str]], float | List[float]]:
     response = requests.post(
-        f"http://0.0.0.0:5001/prepare_receptor",
+        f"{remote_rm_url}/prepare_receptor",
         json={"metadata": [metadata]},
     )
     assert response.status_code == 200, response.text
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            inp = [completions]
+            completions = [completions]
         completions = [f"<answer> {s} </answer>" for s in completions]
         response = requests.post(
-            f"http://0.0.0.0:5001/get_reward",
+            f"{remote_rm_url}/get_reward",
             json={"query": completions, "metadata": [metadata] * len(completions)},
         )
         assert response.status_code == 200, response.text
-        rewards = response.json()["reward_list"]
+        rewards: List[float] = response.json()["reward_list"]
         if isinstance(completions, str):
             return rewards[0]
         return rewards
@@ -185,6 +185,12 @@ def get_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--remote_rm_url",
+        type=str,
+        default="http://0.0.0.0:5001",
+    )
+
+    parser.add_argument(
         "--id_obj",
         type=int,
         default=-1,
@@ -207,12 +213,12 @@ if __name__ == "__main__":
     id = 0
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
-        print("=#=#=#=#"*15)
-        print("-#-#-#-#"*5,  f"Task : {metadata}", "-#-#-#-#"*5)
-        print("=#=#=#=#"*15)
+        print("=#=#=#=#" * 15)
+        print("-#-#-#-#" * 5, f"Task : {metadata}", "-#-#-#-#" * 5)
+        print("=#=#=#=#" * 15)
 
         if args.id_obj == -1 or args.id_obj == id:
-            reward_fn = get_reward_fn(metadata, args.datasets_path)
+            reward_fn = get_reward_fn(metadata, args.datasets_path, args.remote_rm_url)
 
             # Load model and tokenizer
             model = AutoModelForCausalLM.from_pretrained(args.model_name)

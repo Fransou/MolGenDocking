@@ -33,7 +33,7 @@ coverage run -m pytest test/test_rewards/test_docking_API.py --accelerator=gpu
 export docking_oracle=soft_docking
 export scorer_exhaustiveness=4
 export docking_oracle=soft_docking
-uvicorn --host 0.0.0.0 --port 5001 mol_gen_docking.server:app &
+uvicorn --host 0.0.0.0 --port 5001 mol_gen_docking.server:app --log-level critical &
 sleep 10
 
 coverage run -m pytest test/test_rewards/test_docking_server_autodock_gpu.py -x -s

@@ -244,7 +244,11 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
         "--dataset", type=str, default="data/sair_rl/eval_data/eval_prompts"
     )
     parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
-
+    parser.add_argument(
+        "--remote_rm_url",
+        type=str,
+        default="http://0.0.0.0:5001",
+    )
     parser.add_argument(
         "--id_obj",
         type=int,

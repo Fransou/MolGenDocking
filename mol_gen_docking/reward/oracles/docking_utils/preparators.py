@@ -3,13 +3,161 @@
 # Licensed under the MIT License
 
 import abc
+import logging
 import os
-from multiprocessing import Pool
 from typing import Any, List, Optional
 
+from meeko import AtomTyper, MoleculePreparation, PDBQTWriterLegacy, RDKitMoleculeSetup
+from meeko.reactive import assign_reactive_types
+from multiprocess import Pool
 from openbabel import openbabel as ob
 from rdkit import Chem
-from rdkit.Chem import AllChem, rdDistGeom
+from rdkit.Chem import AllChem
+
+
+class RDKitMoleculeSetupNoSym(RDKitMoleculeSetup):
+    @staticmethod
+    def get_symmetries_for_rmsd(mol: Any, max_matches: int = 17) -> tuple:
+        """We remove symmetry computation to reduce the overhead."""
+        return tuple()
+
+
+class MoleculePreparator(MoleculePreparation):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self._classes_setup = {Chem.rdchem.Mol: RDKitMoleculeSetupNoSym}
+
+    def prepare(
+        self,
+        mol: Any,
+        root_atom_index: Optional[int] = None,
+        not_terminal_atoms: Optional[List[int]] = None,
+        delete_ring_bonds: Optional[List[tuple[int, int]]] = None,
+        glue_pseudo_atoms: Optional[dict] = None,
+        conformer_id: int = -1,
+    ) -> RDKitMoleculeSetup:
+        """
+        Create an RDKitMoleculeSetup from an RDKit Mol object.
+
+        Parameters
+        ----------
+        mol: rdkit.Chem.rdchem.Mol
+            An RDKit Mol with explicit hydrogens and 3D coordinates.
+        root_atom_index: int
+            Used to set ROOT of torsion tree instead of searching.
+        not_terminal_atoms: list
+            Makes bonds with terminal atoms rotatable (e.g. C-Alpha carbon in flexres).
+        delete_ring_bonds: list[tuple[int, int]]
+            Bonds deleted for macrocycle flexibility. Each bond is a tuple of two ints (atom 0-indices).
+        glue_pseudo_atoms: dict
+            Mapping from parent atom indices to coordinates.
+        conformer_id: int
+
+        Returns
+        -------
+        setups: list[RDKitMoleculeSetup]
+            Returns a list of generated RDKitMoleculeSetups
+        """
+        if not_terminal_atoms is None:
+            not_terminal_atoms = []
+        if delete_ring_bonds is None:
+            delete_ring_bonds = []
+        if glue_pseudo_atoms is None:
+            glue_pseudo_atoms = {}
+        mol_type = type(mol)
+        if mol_type not in self._classes_setup:
+            raise TypeError(
+                "Molecule is not an instance of supported types: %s" % type(mol)
+            )
+        setup_class = self._classes_setup[mol_type]
+        setup = setup_class.from_mol(
+            mol,
+            keep_chorded_rings=self.keep_chorded_rings,
+            keep_equivalent_rings=self.keep_equivalent_rings,
+            assign_charges=self.charge_model == "gasteiger",
+            conformer_id=conformer_id,
+        )
+
+        self.check_external_ring_break(setup, delete_ring_bonds, glue_pseudo_atoms)
+
+        # 1.  assign atom params
+        AtomTyper.type_everything(
+            setup,
+            self.atom_params,
+            self.charge_model,
+            self.offatom_params,
+            self.dihedral_params,
+        )
+
+        # Convert molecule to graph and apply trained Espaloma model
+        if self.dihedral_model == "espaloma" or self.charge_model == "espaloma":
+            molgraph = self.espaloma_model.get_espaloma_graph(setup)
+
+        # Grab dihedrals from graph node and set them to the molsetup
+        if self.dihedral_model == "espaloma":
+            self.espaloma_model.set_espaloma_dihedrals(setup, molgraph)
+
+        # Grab charges from graph node and set them to the molsetup
+        if self.charge_model == "espaloma":
+            self.espaloma_model.set_espaloma_charges(setup, molgraph)
+
+        # merge hydrogens (or any terminal atoms)
+        indices = set()
+        for atype_to_merge in self.merge_these_atom_types:
+            for atom in setup.atoms:
+                if atom.atom_type == atype_to_merge:
+                    indices.add(atom.index)
+        setup.merge_terminal_atoms(indices)
+
+        # 3.  assign bond types
+        #     - all single bonds rotatable except some amides and SMARTS rigidification
+        #     - macrocycle code breaks rings only at rotatable bonds
+        #     - bonds in rigid rings are set as non-rotatable after the flex_model is built
+        self._bond_typer(
+            setup,
+            self.flexible_amides,
+            self.rigidify_bonds_smarts,
+            self.rigidify_bonds_indices,
+        )
+
+        # 4 . hydrate molecule
+        if self.hydrate:
+            self._water_builder.hydrate(setup)
+
+        self.calc_flex(
+            setup,
+            root_atom_index,
+            not_terminal_atoms,
+            delete_ring_bonds,
+            glue_pseudo_atoms,
+        )
+
+        if self.reactive_smarts is None:
+            setups = [setup]
+        else:
+            reactive_types_dicts = assign_reactive_types(
+                setup,
+                self.reactive_smarts,
+                self.reactive_smarts_idx,
+            )
+
+            if len(reactive_types_dicts) == 0:
+                raise RuntimeError("reactive SMARTS didn't match")
+
+            setups = []
+            for r in reactive_types_dicts:
+                new_setup = setup.copy()
+                # There is no guarantee that the addition order in the dictionary will be the correct order to
+                # create the list in, so first sorts the keys from the dictionary then extracts the values in order
+                # to construct the new atom type list.
+                for idx, atom_type in r.items():
+                    new_setup.atoms[idx].atom_type = atom_type
+                setups.append(new_setup)
+
+        # for a gentle introduction of the new API
+        self.deprecated_setup_access = setups
+
+        return setups
 
 
 class BasePreparator(abc.ABC):
@@ -69,18 +217,22 @@ class MeekoLigandPreparator(BasePreparator):
 
     def __init__(
         self,
-        conformer_attempts: int = 20,
+        conformer_attempts: int = 3,
         n_conformers: int = 1,
         num_cpus: Optional[int] = None,
         pH: float = 7.4,
+        remove_stereo_chemistry_on_fail: bool = True,  # TODO: Check Bredt's rule for bridged bonds
     ):
         super().__init__(conformer_attempts, n_conformers)
-
+        self.logger = logging.getLogger(
+            __name__ + "/" + self.__class__.__name__,
+        )
         if num_cpus is None:
             self.num_cpus = len(os.sched_getaffinity(0))
         else:
             self.num_cpus = num_cpus
         self.pH = pH
+        self.remove_stereo_chemistry_on_fail = remove_stereo_chemistry_on_fail
 
     def _check_install(self) -> None:
         try:
@@ -98,7 +250,7 @@ class MeekoLigandPreparator(BasePreparator):
 
         # Create a multiprocessing pool
         with Pool(self.num_cpus) as pool:
-            results = pool.starmap(
+            results: List[bool] = pool.starmap(
                 self._prepare_ligand,
                 [(smis[i], ligand_paths_by_smiles[i]) for i in range(len(smis))],
             )
@@ -106,35 +258,36 @@ class MeekoLigandPreparator(BasePreparator):
         return results
 
     def _prepare_ligand(self, smi: str, ligand_path: List[str], **kwargs: Any) -> bool:
-        from meeko import MoleculePreparation, PDBQTWriterLegacy
-
         for j in range(0, len(ligand_path), self.n_conformers):
             if any(
                 os.path.exists(path) for path in ligand_path[j : j + self.n_conformers]
             ):
                 return False
 
+        obc = ob.OBConversion()
+        obc.SetInAndOutFormats("smi", "smi")
+        obmol = ob.OBMol()
+        obc.ReadString(obmol, smi)
+        obmol.CorrectForPH(self.pH)
+        new_smi = obc.WriteString(obmol).strip()
+        mol = Chem.MolFromSmiles(new_smi)
+
+        if mol is None:
+            mol = Chem.MolFromSmiles(smi)
+        else:
+            smi = new_smi
         attempt = 0
         while attempt < self.conformer_attempts:
             attempt += 1
-
             try:
-                # get the correct protomer given the pH
-                obc = ob.OBConversion()
-                obc.SetInAndOutFormats("smi", "smi")
-                obmol = ob.OBMol()
-                obc.ReadString(obmol, smi)
-                obmol.CorrectForPH(self.pH)
-                smi = obc.WriteString(obmol)
-
-                # protonate
-                mol = Chem.MolFromSmiles(smi)
+                assert mol is not None, (
+                    f"Error with smiles not caught by scorer : {new_smi, smi}"
+                )
                 mol = Chem.AddHs(mol)
-
                 if self.n_conformers == 1:
-                    AllChem.EmbedMolecule(mol, AllChem.ETKDG())
-                    AllChem.UFFOptimizeMolecule(mol)
-                    preparator = MoleculePreparation()
+                    AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
+                    AllChem.MMFFOptimizeMolecule(mol, maxIters=10_000)
+                    preparator = MoleculePreparator()
                     mol_setups = preparator.prepare(mol)
                     setup = mol_setups[0]
                     pdbqt_string, _, _ = PDBQTWriterLegacy.write_string(setup)
@@ -143,7 +296,7 @@ class MeekoLigandPreparator(BasePreparator):
 
                 else:
                     AllChem.EmbedMultipleConfs(
-                        mol, self.n_conformers, rdDistGeom.ETKDGv3()
+                        mol, self.n_conformers, AllChem.ETKDGv3()
                     )
 
                     if mol.GetNumConformers() == 0:
@@ -159,9 +312,25 @@ class MeekoLigandPreparator(BasePreparator):
                         pdbqt_string, _, _ = PDBQTWriterLegacy.write_string(setup)
                         with open(ligand_path[i], "w") as file:
                             file.write(pdbqt_string)
-                return True
+            except Exception:
+                if attempt == 1:
+                    self.logger.warning(f"Error when preparing ligand: {smi}")
+                    if self.remove_stereo_chemistry_on_fail:
+                        old_smi = smi
+                        mol = Chem.RemoveHs(mol)
+                        Chem.RemoveStereochemistry(mol)
+                        smi = Chem.MolToSmiles(mol, canonical=True)
+                        self.logger.warning(
+                            f"Removing stereo chemistry in: {old_smi} | results: {smi}"
+                        )
+                else:
+                    self.logger.error(
+                        f"[attempt: {attempt}/{self.conformer_attempts}] Error when preparing ligand: {smi}"
+                    )
+                continue
+            return True
 
-            except Exception as e:
-                print(f"Failed embedding attempt #{attempt} with error: '{e}'.")
+            # except Exception as e:
+            #     print(f"Failed embedding attempt #{attempt} with error: '{e}'.")
 
         return False

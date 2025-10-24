@@ -1,4 +1,5 @@
 #!/bin/bash
+#!/bin/bash
 #SBATCH --job-name=orz_mol
 #SBATCH --account=def-ibenayed
 #SBATCH --time=00:30:00
@@ -28,9 +29,6 @@ ray start --head --node-ip-address 0.0.0.0
 export docking_oracle=soft_docking
 export scorer_exhaustiveness=4
 export docking_oracle=soft_docking
-uvicorn --host 0.0.0.0 --port 5001 mol_gen_docking.server:app --log-level critical &
-
-sleep 3
 
 wandb offline
 #export DEBUG_MODE=1
@@ -43,4 +41,5 @@ HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
   --num_train_epochs 500 \
   --generation_config '{"num_beams": 2}' \
   --train_on_beams 0 \
-  --id_obj 2
+  --id_obj 2 \
+  --remote_rm_url http://$1:5001
