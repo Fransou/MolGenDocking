@@ -679,7 +679,7 @@ class AutoDockGPUDocking(BaseDocking):
             else:
                 binding_poses = [None] * len(output_paths)
             binding_scores_per_smi = [
-                [binding_scores_dict[os.path.basename(p).split(".")[0]] for p in paths]
+                [binding_scores_dict.get(os.path.basename(p).split(".")[0],0) for p in paths]
                 for paths in ligand_paths_by_smiles
             ]
             binding_scores_list: List[float | None] = []
