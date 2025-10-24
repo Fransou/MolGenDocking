@@ -18,7 +18,7 @@ dependencies = [
     "pytest",
     "hydra-core",
     "pyscreener",
-    "meeko",
+    "meeko==0.6.1",
     "scikit-learn==1.2.2",
     "biopython"
 ]
