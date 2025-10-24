@@ -3,7 +3,7 @@ import json
 import logging
 import os
 
-from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping
+from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping, fetch_uniprot_id_from_pdbid
 
 logger = logging.getLogger(__name__)
 # Set up logging to INFO level
@@ -20,6 +20,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--fill-missing-targets", action="store_true")
     args = parser.parse_args()
+
+    # Add prot_id (uniprot) to the pockets_info.json
+    with open(os.path.join(args.data_path, "pockets_info.json"), "r") as f:
+        pockets_info=json.load(f)
+    for pdb_id in pockets_info:
+        pockets_info[pdb_id]["prot_id"] = fetch_uniprot_id_from_pdbid(pdb_id)
+    with open(os.path.join(args.data_path, "pockets_info.json"), "w") as f:
+        json.dump(pockets_info, f, indent=4)
+
 
     # Generate names mapping and get sequences
     if not os.path.exists(os.path.join(args.data_path, "names_mapping.json")):
