@@ -9,13 +9,14 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /tmp/*
 
 
-COPY docker_environment.yml pyproject.toml constraints_github_action.txt ./
+COPY docker_environment.yml pyproject.toml ./
 COPY mol_gen_docking ./mol_gen_docking
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba install -y -n base -f docker_environment.yml \
-    && pip install . -c ./constraints_github_action.txt \
+    && pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install . \
     && rm -rf /root/.cache/pip \
     && micromamba clean --all --yes
 

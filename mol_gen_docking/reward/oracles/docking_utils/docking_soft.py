@@ -4,6 +4,7 @@
 
 import hashlib
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -24,8 +25,10 @@ def make_dir(rel_path: str, *args: Any, **kwargs: Any) -> None:
 def sanitize_smi_name_for_file(smi: str) -> str:
     """
     Sanitization for file names. Replacement values cannot be part of valid SMILES.
+    Add a random value at the end.
     """
-    return hashlib.sha224(smi.encode()).hexdigest()
+    full_hash = hashlib.sha224(smi.encode()).hexdigest()[::3]
+    return full_hash + str(int(10**6 * random.random())).zfill(6)
 
 
 def move_files_from_dir(

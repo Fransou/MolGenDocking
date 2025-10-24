@@ -31,7 +31,7 @@ def test_docking(target, n_generations=16):
     )
 
     assert response.status_code == 200, response.text
-    rewards = response.json()["rewards"]
+    rewards = response.json()["reward_list"]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)

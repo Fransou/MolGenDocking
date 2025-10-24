@@ -1,4 +1,0 @@
-tiledbsoma==0
-scikit-learn==1.2.2
-seaborn==0
-cellxgene-census==0

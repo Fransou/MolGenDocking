@@ -10,7 +10,7 @@ from .utils import DOCKING_PROP_LIST, SKIP_DOCKING_TEST, propeties_csv
 
 @pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
-def test_docking(target, n_generations=16):
+def test_docking(target, n_generations=128):
     """Test the reward function runs for vina targets."""
     # Launch the reward server
     port = "5001"
@@ -27,6 +27,9 @@ def test_docking(target, n_generations=16):
         f"http://0.0.0.0:{port}/prepare_receptor",
         json={"metadata": metadata},
     )
+    assert response.status_code == 200, response.text
+    time.sleep(1)
+
     # Request Server
     response = requests.post(
         f"http://0.0.0.0:{port}/get_reward",
@@ -34,7 +37,7 @@ def test_docking(target, n_generations=16):
     )
 
     assert response.status_code == 200, response.text
-    rewards = response.json()["rewards"]
+    rewards = response.json()["reward_list"]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
