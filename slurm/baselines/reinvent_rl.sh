@@ -40,6 +40,7 @@ HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
   --datasets-path $DATA_PATH \
   --batch_size 512 \
   --sigma 1 \
-  --num_train_epochs 20 \
+  --num_train_epochs 500 \
   --generation_config '{"num_beams": 2}' \
-  --train_on_beams 0
+  --train_on_beams 0 \
+  --id_obj 2
