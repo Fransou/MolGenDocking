@@ -25,7 +25,7 @@ def get_pockets_info(data_path: str) -> dict:
             pocket_coordinates = np.concatenate(ligand_pocket["pocket_coordinates"])
             break
         file = os.path.join(
-            data_path, "result_structures", uni_prot_id, dir + "_rmW.pdb"
+            data_path, "result_structures", uni_prot_id, "PDB_" + dir, dir + "_rmW.pdb"
         )
         shutil.move(file, os.path.join(data_path, "pdb_files", file))
 
