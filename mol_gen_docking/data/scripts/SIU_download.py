@@ -29,8 +29,17 @@ def get_pockets_info(data_path: str) -> dict:
         )
         shutil.move(file, os.path.join(data_path, "pdb_files", file))
 
-        average_pIC50 = np.mean(
-            [ligand_pocket["label"]["ic50"] for ligand_pocket in siu_data[uni_prot_id]]
+        average_pIC50 = np.nanmean(
+            [
+                ligand_pocket["label"].get("ic50", np.nan)
+                for ligand_pocket in siu_data[uni_prot_id]
+            ]
+        )
+        average_pKd = np.nanmean(
+            [
+                ligand_pocket["label"].get("kd", np.nan)
+                for ligand_pocket in siu_data[uni_prot_id]
+            ]
         )
         pocket_size = (
             pocket_coordinates.max(axis=0) - pocket_coordinates.min(axis=0)
@@ -38,19 +47,24 @@ def get_pockets_info(data_path: str) -> dict:
         pocket_center = (
             (pocket_coordinates.max(axis=0) + pocket_coordinates.min(axis=0)) / 2
         ).tolist()
+        metadata = {
+            "size": pocket_size,
+            "center": pocket_center,
+            "sequence": "",
+            "prot_id": uni_prot_id,
+            "origin": "SIU",
+        }
+        if not np.isnan(average_pIC50):
+            metadata["avg_pIC50"] = average_pIC50
+        if not np.isnan(average_pKd):
+            metadata["avg_pKd"] = average_pKd
 
         pockets_info[dir + "_rmW"] = {
             "size": pocket_size,
             "center": pocket_center,
-            "metadata": {
-                "size": pocket_size,
-                "center": pocket_center,
-                "sequence": "",
-                "avg_pIC50": average_pIC50,
-                "prot_id": uni_prot_id,
-                "origin": "SIU",
-            },
+            "metadata": metadata,
         }
+
     return pockets_info
 
 
