@@ -9,8 +9,9 @@ import subprocess as sp
 from typing import Any, Dict, Tuple
 
 import numpy as np
-import ray
 from Bio.PDB import PDBParser
+
+import ray
 from ray.experimental import tqdm_ray
 
 

@@ -1,9 +1,10 @@
 import re
 from multiprocessing import Pool
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from tqdm import tqdm
 
+import ray
 from mol_gen_docking.data.pdb_uniprot.api_requests import (
     fetch_uniprot_id_from_pdbid,
     fetch_uniprot_info,
@@ -11,6 +12,7 @@ from mol_gen_docking.data.pdb_uniprot.api_requests import (
 from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
+from ray.experimental import tqdm_ray
 
 
 def clean_protein_name(name: str) -> str:
@@ -33,15 +35,19 @@ def get_pdb_description(pdb_id: str) -> str | None:
         return None
 
 
-def get_unip_description(uniprot_id: str) -> str | None:
+@ray.remote(num_cpus=16)
+def get_unip_description(uniprot_id: str, pbar: None | Any = None) -> str | None:
     try:
         assert isinstance(uniprot_id, str)
         description = fetch_uniprot_info(uniprot_id)
+        if pbar is not None:
+            pbar.update.remote(1)
         return clean_protein_name(description)
     except Exception as e:
         print(f"[Warning] UniProt fallback: {e}")
         print(f"[Warning]: uniprot_id: {uniprot_id}")
-
+        if pbar is not None:
+            pbar.update.remote(1)
         return None
 
 
@@ -52,16 +58,18 @@ def get_names_mapping_uniprot(
         "If names_override is provided, it must match the length of docking_targets"
     )
     names_mapping: Dict[str, str] = {}
-    pool = Pool(16)
-    docking_desc = list(
-        tqdm(
-            pool.imap(get_unip_description, docking_targets),
-            total=len(docking_targets),
-            desc="Adding descriptions to docking targets",
-        )
-    )
+    remote_tqdm = ray.remote(tqdm_ray.tqdm)
+    pbar = remote_tqdm.remote(
+        total=len(docking_targets), desc="Querying Uniprot for textual description: "
+    )  # type: ignore
 
-    pool.close()
+    docking_desc = ray.get(
+        [
+            get_unip_description.remote(uniprot_id=prot_id, pbar=pbar)
+            for prot_id in docking_targets
+        ]
+    )
+    pbar.close.remote()  # type:ignore
 
     if len(names_override) == 0:
         for uniprot_id, desc in zip(docking_targets, docking_desc):
