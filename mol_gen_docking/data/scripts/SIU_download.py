@@ -36,7 +36,7 @@ def get_pockets_info(data_path: str) -> dict:
             )
             break
 
-        shutil.move(file, os.path.join(data_path, "pdb_files", file))
+        shutil.move(file, os.path.join(data_path, "pdb_files"))
 
         average_pIC50 = np.nanmean(
             [
