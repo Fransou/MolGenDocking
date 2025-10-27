@@ -37,7 +37,8 @@ def get_pockets_info(data_path: str) -> dict:
             )
             file_name = f"{dir}.pdb"
             break
-
+        if not os.path.exists(file):
+            continue
         shutil.move(file, os.path.join(data_path, "pdb_files", file_name))
 
         average_pIC50 = np.nanmean(
@@ -95,3 +96,5 @@ if __name__ == "__main__":
 
     with open(os.path.join(args.data_path, "pockets_info.json"), "w") as f:
         json.dump(pockets_info, f, indent=4)
+
+    print(len(pockets_info), " prots extracted.")
