@@ -21,7 +21,7 @@ def get_pockets_info(data_path: str) -> dict:
     os.makedirs(os.path.join(data_path, "pdb_files"), exist_ok=True)
     for uni_prot_id in tqdm(siu_data.keys()):
         for ligand_pocket in siu_data[uni_prot_id]:
-            dir = ligand_pocket["source_data"][1]
+            dir = ligand_pocket["source_data"].split(",")[1]
             pocket_coordinates = np.concatenate(ligand_pocket["pocket_coordinates"])
             break
         file = os.path.join(
