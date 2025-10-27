@@ -32,7 +32,7 @@ def get_pockets_info(data_path: str) -> dict:
             if not os.path.exists(file):
                 continue
             pocket_coordinates = np.concatenate(
-                [pocket.reshape(1, 3) for pocket in ligand_pocket["pocket"]]
+                [pocket.reshape(1, 3) for pocket in ligand_pocket["pocket_coordinates"]]
             )
             break
 
