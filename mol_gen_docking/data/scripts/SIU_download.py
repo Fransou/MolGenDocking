@@ -39,7 +39,7 @@ def get_pockets_info(data_path: str) -> dict:
             (pocket_coordinates.max(axis=0) + pocket_coordinates.min(axis=0)) / 2
         ).tolist()
 
-        pockets_info[file.replace(".pdb", "")] = {
+        pockets_info[dir + "_rmW"] = {
             "size": pocket_size,
             "center": pocket_center,
             "metadata": {
