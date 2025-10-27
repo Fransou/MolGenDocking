@@ -31,12 +31,14 @@ def get_pockets_info(data_path: str) -> dict:
             )
             if not os.path.exists(file):
                 continue
+
             pocket_coordinates = np.concatenate(
                 [pocket.reshape(1, 3) for pocket in ligand_pocket["pocket_coordinates"]]
             )
+            file_name = f"{dir}.pdb"
             break
 
-        shutil.move(file, os.path.join(data_path, "pdb_files"))
+        shutil.move(file, os.path.join(data_path, "pdb_files", file_name))
 
         average_pIC50 = np.nanmean(
             [
@@ -68,7 +70,7 @@ def get_pockets_info(data_path: str) -> dict:
         if not np.isnan(average_pKd):
             metadata["avg_pKd"] = average_pKd
 
-        pockets_info[dir + "_rmW"] = {
+        pockets_info[dir] = {
             "size": pocket_size,
             "center": pocket_center,
             "metadata": metadata,
