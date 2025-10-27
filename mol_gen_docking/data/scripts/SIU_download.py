@@ -22,11 +22,18 @@ def get_pockets_info(data_path: str) -> dict:
     for uni_prot_id in tqdm(siu_data.keys()):
         for ligand_pocket in siu_data[uni_prot_id]:
             dir = ligand_pocket["source_data"].split(",")[1]
+            file = os.path.join(
+                data_path,
+                "result_structures",
+                uni_prot_id,
+                "PDB_" + dir,
+                dir + "_rmW.pdb",
+            )
+            if not os.path.exists(file):
+                continue
             pocket_coordinates = np.concatenate(ligand_pocket["pocket_coordinates"])
             break
-        file = os.path.join(
-            data_path, "result_structures", uni_prot_id, "PDB_" + dir, dir + "_rmW.pdb"
-        )
+
         shutil.move(file, os.path.join(data_path, "pdb_files", file))
 
         average_pIC50 = np.nanmean(
