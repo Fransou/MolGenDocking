@@ -58,6 +58,7 @@ class RuleSet:
         """
         n_props = metadata["n_props"]
         properties = metadata["properties"]
+        max_occ = self.max_occ if n_props > 0 else self.max_occ // 2
 
         if n_props not in self.n_occ_prop:
             self.n_occ_prop[n_props] = {}
@@ -71,11 +72,9 @@ class RuleSet:
             if prop not in self.n_occ_prop[n_props]:
                 self.n_occ_prop[n_props][prop] = 0
             if (
-                self.n_occ_prop[n_props][prop] >= self.max_occ
+                self.n_occ_prop[n_props][prop] >= max_occ
             ):  # Too many occurrences of this property
-                logger.info(
-                    "Property %s has too many occurrences: %d", prop, self.max_occ
-                )
+                logger.info("Property %s has too many occurrences: %d", prop, max_occ)
                 return False
         # Update occurrences
         self.prompt_ids[n_props].append(metadata["prompt_id"])
@@ -84,8 +83,7 @@ class RuleSet:
             if prop in CLASSICAL_PROPERTIES_NAMES.values():
                 continue
             self.n_occ_prop[n_props][prop] += 1
-            if self.n_occ_prop[n_props][prop] >= self.max_docking_per_prompt:
-                # If we have too many docking properties, we prohibit this property for this n_props
+            if self.n_occ_prop[n_props][prop] >= max_occ:
                 if n_props not in self.prohibited_props_at_n:
                     self.prohibited_props_at_n[n_props] = []
                 self.prohibited_props_at_n[n_props].append(prop)
@@ -112,7 +110,7 @@ class DatasetConfig:
     vina: bool = False
     split_docking: List[float] = field(default_factory=lambda: [1])
     probs_docking_targets: float = 0.5
-    max_occ: int = 10
+    max_occ: int = 4
     max_docking_per_prompt: int = 2
     min_n_pocket_infos: int = -1
     chat_template: Dict[str, str] = field(
@@ -184,6 +182,7 @@ class MolGenerationInstructionsDatasetGenerator:
             max_occ=config.max_occ,
             max_docking_per_prompt=config.max_docking_per_prompt,
         )
+        self.needs_dock = False  # Only for ood
 
     @staticmethod
     def _get_allowed_props(
@@ -362,11 +361,24 @@ class MolGenerationInstructionsDatasetGenerator:
                 min(self.rule_set.max_docking_per_prompt, len(allowed_docking_props)),
                 replace=False,
             ).tolist()
-            probas = [
-                (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
-            ] * len(allowed_std_props) + [
-                self.rule_set.probs_docking_targets / len(allowed_docking_props)
-            ] * len(allowed_docking_props)
+            if n_props == 1 and self.needs_dock:
+                allowed_std_props = []
+            elif self.needs_dock:
+                allowed_std_props = np.random.choice(
+                    allowed_std_props, n_props - 1
+                ).tolist()
+
+            probas = np.array(
+                [
+                    (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
+                    for _ in range(len(allowed_std_props))
+                ]
+                + [
+                    self.rule_set.probs_docking_targets / len(allowed_docking_props)
+                    for _ in range(len(allowed_docking_props))
+                ]
+            )
+            probas = probas / probas.sum()
 
         property_list = allowed_std_props + allowed_docking_props
 
@@ -486,7 +498,6 @@ class MolGenerationInstructionsDatasetGenerator:
             )
             n_props_probs = n_props_probs / n_props_probs.sum()
             possible_n = np.arange(1, self.max_n_props + 1)
-
             n_props: int = int(np.random.choice(possible_n, p=n_props_probs))
             properties = self._sample_properties(n_props, docking_properties_list)
             objectives = self.get_obj_from_prop(properties)
