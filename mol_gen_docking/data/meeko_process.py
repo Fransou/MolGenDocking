@@ -74,12 +74,13 @@ class ReceptorProcess:
 
         with open(os.path.join(data_path, "pockets_info.json")) as f:
             self.pockets: Dict[str, Dict[str, Any]] = json.load(f)
+
         self.cmd = "mk_prepare_receptor.py -i {INPUT} -o {OUTPUT} -p -g --box_size {BOX_SIZE} --box_center {BOX_CENTER}"
 
     def _run_meeko(
         self, input_path: str, receptor: str, bad_res: bool = False
     ) -> Tuple[str, int, str]:
-        output_path = input_path.replace(".pdb", "_ag")
+        output_path = input_path.replace(".pdb", "")
 
         box_center = " ".join([str(x) for x in self.pockets[receptor]["center"]])
         box_size = " ".join([str(x) for x in self.pockets[receptor]["size"]])
@@ -195,7 +196,7 @@ class ReceptorProcess:
             return result
 
         if receptors == []:
-            receptors = list(self.pockets.keys())
+            receptors = list(self.pockets.keys())[:10]
         else:
             assert all(r in self.pockets for r in receptors), (
                 "Some receptors are not in pockets_info.json"
