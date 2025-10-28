@@ -1,38 +1,20 @@
 #!/bin/bash
-#!/bin/bash
-#SBATCH --job-name=orz_mol
-#SBATCH --account=def-ibenayed
-#SBATCH --time=00:30:00
-#SBATCH --gpus=h100_1g.10gb:1
-#SBATCH --mem=80G
-#SBATCH --cpus-per-task=8
-#SBATCH --tasks-per-node=1
-#SBATCH --nodes=1
-#SBATCH --output=logs/%x-%j.out
-#SBATCH --error=logs/%x-%j.err
 
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
-export DATASET=sair_processed_meeko
+export DATASET=molgendata
+export NCCL_ASYNC_ERROR_HANDLING=1
 
-cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
+cp $SCRATCH/MolGenData/$DATASET_prompts.tar.gz $SLURM_TMPDIR
 cd $SLURM_TMPDIR
 tar -xzf $DATASET.tar.gz
 cd $WORKING_DIR
 
-export PATH=$HOME/autodock_vina_1_1_2_linux_x86/bin/vina:$PATH
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
-
-ray start --head --node-ip-address 0.0.0.0
-
-export docking_oracle=soft_docking
-export scorer_exhaustiveness=4
-export docking_oracle=soft_docking
-
 wandb offline
-#export DEBUG_MODE=1
-HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
+
+HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
   --model_name reinvent_10M_prior \
   --dataset $DATA_PATH/eval_data/eval_prompts \
   --datasets-path $DATA_PATH \

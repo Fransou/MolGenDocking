@@ -53,6 +53,23 @@ def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, 
     return pattern_list
 
 
+def has_bridged_bond(mol: Chem.Mol) -> bool:
+    """
+    Returns True if the molecule contains a bridged ring system.
+    A bridged system is defined as two rings sharing more than two atoms.
+    """
+    ri = mol.GetRingInfo()
+    atom_rings = ri.AtomRings()
+
+    # Compare all ring pairs
+    for i in range(len(atom_rings)):
+        for j in range(i + 1, len(atom_rings)):
+            shared_atoms = set(atom_rings[i]) & set(atom_rings[j])
+            if len(shared_atoms) > 2:  # more than 2 shared atoms → bridged
+                return True
+    return False
+
+
 class RewardScorer:
     def __init__(
         self,
@@ -184,6 +201,9 @@ class RewardScorer:
                     if mol is None:
                         results.append(False)
                         continue
+                    if has_bridged_bond(mol):  ### WE REMOVE BRIDGED MOLS
+                        results.append(False)
+                        continue
                     Chem.MolToMolBlock(mol)
                     results.append(True)
                 except Exception:
@@ -278,9 +298,9 @@ class RewardScorer:
             if p in self.slow_props and "gpu" in self.oracle_kwargs.get(
                 "docking_oracle", ""
             ):
-                _get_property_remote = _get_property_cpu
-            else:
                 _get_property_remote = _get_property_gpu
+            else:
+                _get_property_remote = _get_property_cpu
 
                 values_job.append(
                     _get_property_remote.remote(

@@ -23,20 +23,17 @@ fi
 # Run the reward server only on the head node
 if [ "$2" == "head" ]; then
     export WORKING_DIR=$HOME/MolGenDocking
-    export DATASET=sair_processed_meeko
+    export DATASET=molgendata
 
     cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
     cd $SLURM_TMPDIR
     tar -xzf $DATASET.tar.gz
-
     cd $WORKING_DIR
     cp data/properties.csv $SLURM_TMPDIR
-
-    export PATH=$HOME/autodock_vina_1_1_2_linux_x86/bin/vina:$PATH
     export DATA_PATH=$SLURM_TMPDIR/$DATASET
 
     export docking_oracle=soft_docking
     export scorer_exhaustiveness=4
     export docking_oracle=soft_docking
-    uvicorn --host $1 --port 5001 mol_gen_docking.server:app --log-level critical &
+    uvicorn --host $1 --port 5001 mol_gen_docking.server:app --log-level critical
 fi

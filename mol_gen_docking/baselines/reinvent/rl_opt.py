@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
             training_args = GRPOConfig(
                 output_dir=args.output_dir,
-                num_train_epochs=args.num_train_epochs,
+                max_steps=args.num_train_epochs,
                 logging_strategy="steps",
                 eval_steps=10,
                 logging_steps=10,
@@ -254,7 +254,9 @@ if __name__ == "__main__":
                 generation_kwargs=generation_config,
                 batch_eval_metrics=False,
             )
-            train_dataset = Dataset.from_dict({"prompt": ["<s>"]})
+            train_dataset = Dataset.from_dict(
+                {"prompt": ["<s>"] * args.num_train_epochs}
+            )
 
             trainer = VanillaReinventTrainer(
                 model=model,

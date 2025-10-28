@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=test
 #SBATCH --account=def-ibenayed
-#SBATCH --time=06:00:00
+#SBATCH --time=12:00:00
+#SBATCH --mem=300G
 #SBATCH --cpus-per-task=192
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
@@ -10,7 +11,7 @@
 
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
-export DATASET=sair_processed_meeko
+export DATASET=molgendata
 
 cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
 cd $SLURM_TMPDIR
