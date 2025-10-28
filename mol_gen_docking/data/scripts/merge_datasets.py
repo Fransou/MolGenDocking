@@ -16,12 +16,28 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(args.output_dir, "pdb_files"), exist_ok=True)
 
     pockets_info = {}
+    docking_targets = {}
+    final_docking_targets = []
+    names_mapping = {}
+    final_names_mapping = {}
     for existing_dataset in os.listdir(args.input_dir):
         with open(
             os.path.join(args.input_dir, existing_dataset, "pockets_info.json")
         ) as f:
             json_data = json.load(f)
         pockets_info[existing_dataset] = json_data
+    for existing_dataset in os.listdir(args.input_dir):
+        with open(
+            os.path.join(args.input_dir, existing_dataset, "docking_targets.json")
+        ) as f:
+            json_data = json.load(f)
+        docking_targets[existing_dataset] = json_data
+    for existing_dataset in os.listdir(args.input_dir):
+        with open(
+            os.path.join(args.input_dir, existing_dataset, "names_mapping.json")
+        ) as f:
+            json_data = json.load(f)
+        names_mapping[existing_dataset] = json_data
 
     # Merge pocket infos
     final_pockets_info: Dict[str, Any] = {}
@@ -29,6 +45,8 @@ if __name__ == "__main__":
     n_overlap = 0
     for existing_dataset in pockets_info:
         for key in pockets_info[existing_dataset]:
+            if key not in docking_targets[existing_dataset]:
+                continue
             prot_id = pockets_info[existing_dataset][key]["metadata"]["prot_id"]
             if prot_id in prot_ids_to_dataset_key:
                 print(f"Protein already in dataset: {prot_id}")
@@ -44,14 +62,6 @@ if __name__ == "__main__":
         pockets_info[key] = pockets_info[dataset][key]
 
     # Merge docking targets
-    docking_targets = {}
-    final_docking_targets = []
-    for existing_dataset in os.listdir(args.input_dir):
-        with open(
-            os.path.join(args.input_dir, existing_dataset, "docking_targets.json")
-        ) as f:
-            json_data = json.load(f)
-        docking_targets[existing_dataset] = json_data
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
         if key in docking_targets[dataset]:
@@ -62,14 +72,6 @@ if __name__ == "__main__":
             )
 
     # Merge name mappings
-    names_mapping = {}
-    final_names_mapping = {}
-    for existing_dataset in os.listdir(args.input_dir):
-        with open(
-            os.path.join(args.input_dir, existing_dataset, "names_mapping.json")
-        ) as f:
-            json_data = json.load(f)
-        names_mapping[existing_dataset] = json_data
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
         if key in final_docking_targets:
