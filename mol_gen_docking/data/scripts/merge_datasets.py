@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     pockets_info = {}
     docking_targets = {}
-    final_docking_targets = []
+    final_docking_targets: list[str] = []
     names_mapping = {}
     final_names_mapping = {}
     for existing_dataset in os.listdir(args.input_dir):
@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 or existing_dataset == args.preference
             ):
                 prot_ids_to_dataset_key[prot_id] = (existing_dataset, key)
-    print(f"Total overlap: {n_overlap} (/{len(pockets_info)})")
+    print(f"Total overlap: {n_overlap} (/{len(final_docking_targets)})")
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
         pockets_info[key] = pockets_info[dataset][key]
