@@ -29,7 +29,7 @@ if __name__ == "__main__":
     n_overlap = 0
     for existing_dataset in pockets_info:
         for key in pockets_info[existing_dataset]:
-            prot_id = pockets_info[existing_dataset]["metadata"]["prot_id"]
+            prot_id = pockets_info[existing_dataset][key]["metadata"]["prot_id"]
             if prot_id in prot_ids_to_dataset_key:
                 print(f"Protein already in dataset: {prot_id}")
                 n_overlap += 1
