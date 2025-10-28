@@ -165,21 +165,8 @@ if __name__ == "__main__":
         "7l11_docking",
     ]
 
-    json.dump(
-        pocket_info,
-        open(os.path.join(data_path, "pockets_info.json"), "w"),
-        indent=4,
-    )
-
-    json.dump(
-        docking_targets,
-        open(os.path.join(data_path, "docking_targets.json"), "w"),
-        indent=4,
-    )
-
-    json.dump(
-        names_mapping_uniprot,
-        open(os.path.join(data_path, "names_mapping.json"), "w"),
-        indent=4,
-    )
+    with open(os.path.join(data_path, "docking_targets.json"), "w") as f:
+        json.dump(docking_targets, f, indent=4)
+    with open(os.path.join(data_path, "names_mapping.json"), "w") as f:
+        json.dump(names_mapping_uniprot, f, indent=4)
     print(f"Kept {len(kept_pockets)} pockets after filtering.")
