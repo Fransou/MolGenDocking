@@ -10,6 +10,8 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 from Bio.PDB import PDBParser
+from openmm.app import PDBFile
+from pdbfixer import PDBFixer
 
 import ray
 from ray.experimental import tqdm_ray
@@ -116,7 +118,6 @@ class ReceptorProcess:
         stderr_text, returncode, output_path = self._run_meeko(
             input_path, receptor, allow_bad_res
         )
-
         if returncode != 0:
             # Check if failing resiudes are inside the docking box
             failed_residues = set()
@@ -150,10 +151,8 @@ class ReceptorProcess:
                 )
         return 0, output_path
 
-        self.logger.info(f"Successfully processed {receptor} to {output_path}")
-        return output_path
-
     def _run_autogrid(self, path: str) -> None:
+        path = os.path.basename(path)
         grid_command = f"autogrid4 -p {path}.gpf -l {path}.glg -d"
         self.logger.info(f"Running command: {grid_command}")
         process = sp.Popen(
@@ -171,11 +170,19 @@ class ReceptorProcess:
             raise RuntimeError(f"AutoGrid failed for {path}")
         self.logger.info(f"Successfully ran AutoGrid on {path}")
 
+    def remove_heterogenous(self, receptor: str) -> None:
+        pdb_file = os.path.join(self.receptor_path, f"{receptor}.pdb")
+
+        fixer = PDBFixer(filename=pdb_file)
+        fixer.removeHeterogens(True)
+
+        PDBFile.writeFile(fixer.topology, fixer.positions, open(pdb_file, "w"))
+
     def process_receptors(
         self, receptors: list[str] = [], allow_bad_res: bool = False
     ) -> Tuple[list[str], list[str]]:
         @ray.remote(num_cpus=4)
-        def process_receptors(
+        def process_receptor(
             receptor: str, pbar: Any, allow_bad_res: bool = False
         ) -> int:
             """
@@ -185,11 +192,13 @@ class ReceptorProcess:
             2: Other errors (critical)
             """
             try:
+                self.remove_heterogenous(receptor)
                 result, processed_path = self.meeko_process(receptor, allow_bad_res)
-                self._run_autogrid(processed_path)
+                if result <= 1:
+                    self._run_autogrid(processed_path)
                 pbar.update.remote(1)
             except Exception as e:
-                self.logger.error(f"Error processing {receptor}: {e}")
+                self.logger.error(f"Error processing {receptor}:\n {e}")
                 pbar.update.remote(1)
                 return 2
             return result
@@ -223,7 +232,7 @@ class ReceptorProcess:
 
         self.logger.info(f"Processing {len(receptors_to_process)} receptors.")
         futures = [
-            process_receptors.remote(receptor, pbar, allow_bad_res)
+            process_receptor.remote(receptor, pbar, allow_bad_res)
             for receptor in receptors_to_process
         ]
         results = ray.get(futures)
@@ -255,7 +264,11 @@ if __name__ == "__main__":
 
     processor = ReceptorProcess(data_path=args.data_path)
     missed_receptors_1, missed_receptors_2 = processor.process_receptors()
-    print("###########\n Missed receptors with critical errors: \n", missed_receptors_2)
+    print(
+        "###########\n Missed receptors with critical errors: \n",
+        len(missed_receptors_2),
+    )
+    print(missed_receptors_2)
 
     # Remove receptors with critical errors from pockets_info.json and docking_targets.json
     if len(missed_receptors_2) > 0:

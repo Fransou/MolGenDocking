@@ -42,7 +42,10 @@ def check_and_copy(
     pbar: Any,
     do_copy: bool = False,
 ) -> str | None:
-    pdb_path = os.path.join(args.data_path, "pdb_files", f"{structure}.pdb")
+    if do_copy:
+        pdb_path = os.path.join(args.data_path_csv, "pdb_files", f"{structure}.pdb")
+    else:
+        pdb_path = os.path.join(args.data_path, "pdb_files", f"{structure}.pdb")
     if not check_pdb_file(pdb_path):
         print(f"[Warning] {structure} could not be processed by prepare_receptor.")
         return None
@@ -51,7 +54,7 @@ def check_and_copy(
     # Copy pdb file to the new location (pdb_path)
     if do_copy:
         os.system(
-            f"cp {pdb_path} {os.path.join(data_pdb_path, f'{structure}_processed.pdb')}"
+            f"cp {pdb_path} {os.path.join(args.data_path, f'{structure}_processed.pdb')}"
         )
     if pbar is not None:
         pbar.update.remote(1)
@@ -126,6 +129,8 @@ if __name__ == "__main__":
 
     if args.data_path_csv != "":
         pocket_info = get_final_df_and_pocket_info(args.data_path_csv)
+        with open(os.path.join(data_path, "pockets_info.json"), "w") as f:
+            json.dump(pocket_info, f)
     else:
         with open(os.path.join(data_path, "pockets_info.json")) as f:
             pocket_info = json.load(f)
