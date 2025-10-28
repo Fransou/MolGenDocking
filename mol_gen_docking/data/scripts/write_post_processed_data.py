@@ -42,7 +42,7 @@ def check_and_copy(
     pbar: Any,
     do_copy: bool = False,
 ) -> str | None:
-    pdb_path = os.path.join(args.sair_path, "pdb_files", f"{structure}.pdb")
+    pdb_path = os.path.join(args.data_path, "pdb_files", f"{structure}.pdb")
     if not check_pdb_file(pdb_path):
         print(f"[Warning] {structure} could not be processed by prepare_receptor.")
         return None
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     if args.data_path_csv != "":
         pocket_info = get_final_df_and_pocket_info(args.data_path_csv)
     else:
-        with open(os.path.join(data_path, "pocket_info.json")) as f:
+        with open(os.path.join(data_path, "pockets_info.json")) as f:
             pocket_info = json.load(f)
 
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     kept_pockets_uniprots = [
         pocket_info[p]["metadata"]["prot_id"] for p in kept_pockets
     ]
-    print(kept_pockets)
+    print(f"Number of pockets kept {len(kept_pockets)}")
     names_mapping_uniprot = get_names_mapping_uniprot(
         kept_pockets_uniprots, names_override=kept_pockets
     )

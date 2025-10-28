@@ -52,7 +52,7 @@ def get_names_mapping_uniprot(
         "If names_override is provided, it must match the length of docking_targets"
     )
     names_mapping: Dict[str, str] = {}
-    pool = Pool(16)
+    pool = Pool(64)
     docking_desc = list(
         tqdm(
             pool.imap(get_unip_description, docking_targets),
