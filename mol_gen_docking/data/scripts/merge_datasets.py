@@ -57,9 +57,10 @@ if __name__ == "__main__":
             ):
                 prot_ids_to_dataset_key[prot_id] = (existing_dataset, key)
     print(f"Total overlap: {n_overlap} (/{len(prot_ids_to_dataset_key)})")
+
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
-        pockets_info[key] = pockets_info[dataset][key]
+        final_pockets_info[key] = pockets_info[dataset][key]
 
     # Merge docking targets
     for prot_id in prot_ids_to_dataset_key:
