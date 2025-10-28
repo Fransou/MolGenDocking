@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 or existing_dataset == args.preference
             ):
                 prot_ids_to_dataset_key[prot_id] = (existing_dataset, key)
-    print("Total overlap: {}".format(n_overlap))
+    print(f"Total overlap: {n_overlap} (/{len(pockets_info)})")
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
         pockets_info[key] = pockets_info[dataset][key]
