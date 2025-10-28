@@ -44,9 +44,7 @@ if __name__ == "__main__":
     prot_ids_to_dataset_key: Dict[str, Tuple[str, str]] = {}
     n_overlap = 0
     for existing_dataset in pockets_info:
-        for key in pockets_info[existing_dataset]:
-            if key not in docking_targets[existing_dataset]:
-                continue
+        for key in docking_targets[existing_dataset]:
             prot_id = pockets_info[existing_dataset][key]["metadata"]["prot_id"]
             if prot_id in prot_ids_to_dataset_key:
                 print(f"Protein already in dataset: {prot_id}")
