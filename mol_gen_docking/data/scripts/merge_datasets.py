@@ -45,6 +45,8 @@ if __name__ == "__main__":
     n_overlap = 0
     for existing_dataset in pockets_info:
         for key in docking_targets[existing_dataset]:
+            if key.endswith("_docking"):
+                continue
             prot_id = pockets_info[existing_dataset][key]["metadata"]["prot_id"]
             if prot_id in prot_ids_to_dataset_key:
                 print(f"Protein already in dataset: {prot_id}")
@@ -68,6 +70,17 @@ if __name__ == "__main__":
                 os.path.join(args.input_dir, dataset, "pdb_files", key + ".pdb"),
                 os.path.join(args.output_dir, "pdb_files", key + ".pdb"),
             )
+    final_docking_targets = final_docking_targets + [
+        "3pbl_docking",
+        "1iep_docking",
+        "2rgp_docking",
+        "3eml_docking",
+        "3ny8_docking",
+        "4rlu_docking",
+        "4unn_docking",
+        "5mo4_docking",
+        "7l11_docking",
+    ]
 
     # Merge name mappings
     for prot_id in prot_ids_to_dataset_key:
