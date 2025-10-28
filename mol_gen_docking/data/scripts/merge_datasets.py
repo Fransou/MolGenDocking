@@ -38,7 +38,7 @@ if __name__ == "__main__":
         ) as f:
             json_data = json.load(f)
         names_mapping[existing_dataset] = json_data
-
+    print(names_mapping)
     # Merge pocket infos
     final_pockets_info: Dict[str, Any] = {}
     prot_ids_to_dataset_key: Dict[str, Tuple[str, str]] = {}
