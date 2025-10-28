@@ -20,7 +20,11 @@ def test_docking(target, n_generations=128):
         for smi in propeties_csv.iloc[:n_generations]["smiles"].tolist()
     ]
     metadata = [
-        {"properties": [target], "objectives": ["maximize"], "target": [0]}
+        {
+            "properties": [target, "CalcPhi"],
+            "objectives": ["maximize", "maximize"],
+            "target": [0, 0],
+        }
         for k in range(n_generations)
     ]
     response = requests.post(

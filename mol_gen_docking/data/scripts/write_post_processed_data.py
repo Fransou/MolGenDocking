@@ -5,10 +5,10 @@ from subprocess import DEVNULL, STDOUT, check_call
 from typing import Any
 
 import pandas as pd
-import ray
-from ray.experimental import tqdm_ray
 
+import ray
 from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping_uniprot
+from ray.experimental import tqdm_ray
 
 # After all structures have been downloaded, and the pockets have been extracted, performs the last steps of the data processing:
 # 1. Ensures all pdb files can be read byt the prepare_receptor script from AutoDockTools
@@ -36,31 +36,39 @@ def check_pdb_file(path: str) -> bool:
 
 @ray.remote(num_cpus=1)
 def check_and_copy(
-    structure: str, args: argparse.Namespace, pocket_info: dict, pbar: Any
+    structure: str,
+    args: argparse.Namespace,
+    pocket_info: dict,
+    pbar: Any,
+    do_copy: bool = False,
 ) -> str | None:
-    pdb_path = os.path.join(args.sair_path, "pdb_files", f"{structure}.pdb")
+    if do_copy:
+        pdb_path = os.path.join(args.data_path_csv, "pdb_files", f"{structure}.pdb")
+    else:
+        pdb_path = os.path.join(args.data_path, "pdb_files", f"{structure}.pdb")
     if not check_pdb_file(pdb_path):
         print(f"[Warning] {structure} could not be processed by prepare_receptor.")
         return None
     pocket_info[structure]["pdb_path"] = pdb_path
 
     # Copy pdb file to the new location (pdb_path)
-    os.system(
-        f"cp {pdb_path} {os.path.join(data_pdb_path, f'{structure}_processed.pdb')}"
-    )
+    if do_copy:
+        os.system(
+            f"cp {pdb_path} {os.path.join(args.data_path, f'{structure}_processed.pdb')}"
+        )
     if pbar is not None:
         pbar.update.remote(1)
 
     return structure
 
 
-def get_final_df__and_pocket_info(
-    sair_path: str,
-) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
+def get_final_df_and_pocket_info(
+    data_path_csv: str,
+) -> dict[str, dict[str, Any]]:
     final_df = pd.concat(
         [
-            pd.read_csv(os.path.join(sair_path, f))
-            for f in os.listdir(sair_path)
+            pd.read_csv(os.path.join(data_path_csv, f))
+            for f in os.listdir(data_path_csv)
             if f.endswith(".csv") and f.startswith("sair_pockets")
         ],
         ignore_index=True,
@@ -88,7 +96,7 @@ def get_final_df__and_pocket_info(
                 "avg_confidence": float(row["avg_confidence"]),
             },
         }
-    return final_df, pocket_info
+    return pocket_info
 
 
 if __name__ == "__main__":
@@ -101,20 +109,32 @@ if __name__ == "__main__":
         "--data-path", type=str, default="data/sair_rl", help="Path to the dataset"
     )
     parser.add_argument(
-        "--sair-path",
+        "--data_path_csv",
         type=str,
-        default="data/sair_pockets",
-        help="Path to the SAIR raw data",
+        default="",
+        help="Path to the csv data extracted (if necessary).",
+    )
+    parser.add_argument(
+        "--do_copy",
+        action="store_true",
     )
 
     args = parser.parse_args()
 
     data_path = args.data_path
     data_pdb_path = os.path.join(data_path, "pdb_files")
+
     os.makedirs(data_path, exist_ok=True)
     os.makedirs(data_pdb_path, exist_ok=True)
 
-    final_df, pocket_info = get_final_df__and_pocket_info(args.sair_path)
+    if args.data_path_csv != "":
+        pocket_info = get_final_df_and_pocket_info(args.data_path_csv)
+        with open(os.path.join(data_path, "pockets_info.json"), "w") as f:
+            json.dump(pocket_info, f)
+    else:
+        with open(os.path.join(data_path, "pockets_info.json")) as f:
+            pocket_info = json.load(f)
+
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
     pbar = remote_tqdm.remote(total=len(pocket_info))  # type: ignore
 
@@ -122,7 +142,7 @@ if __name__ == "__main__":
 
     for structure in pocket_info:
         kept_pockets_jobs.append(
-            check_and_copy.remote(structure, args, pocket_info, pbar)
+            check_and_copy.remote(structure, args, pocket_info, pbar, args.do_copy)
         )
 
     kept_pockets = ray.get(kept_pockets_jobs)
@@ -133,7 +153,7 @@ if __name__ == "__main__":
     kept_pockets_uniprots = [
         pocket_info[p]["metadata"]["prot_id"] for p in kept_pockets
     ]
-    print(kept_pockets)
+    print(f"Number of pockets kept {len(kept_pockets)}")
     names_mapping_uniprot = get_names_mapping_uniprot(
         kept_pockets_uniprots, names_override=kept_pockets
     )
@@ -150,21 +170,8 @@ if __name__ == "__main__":
         "7l11_docking",
     ]
 
-    json.dump(
-        pocket_info,
-        open(os.path.join(data_path, "pockets_info.json"), "w"),
-        indent=4,
-    )
-
-    json.dump(
-        docking_targets,
-        open(os.path.join(data_path, "docking_targets.json"), "w"),
-        indent=4,
-    )
-
-    json.dump(
-        names_mapping_uniprot,
-        open(os.path.join(data_path, "names_mapping.json"), "w"),
-        indent=4,
-    )
+    with open(os.path.join(data_path, "docking_targets.json"), "w") as f:
+        json.dump(docking_targets, f, indent=4)
+    with open(os.path.join(data_path, "names_mapping.json"), "w") as f:
+        json.dump(names_mapping_uniprot, f, indent=4)
     print(f"Kept {len(kept_pockets)} pockets after filtering.")

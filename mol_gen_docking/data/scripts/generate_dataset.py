@@ -19,18 +19,21 @@ logging.basicConfig()
 def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
     dataset = MolGenerationInstructionsDatasetGenerator(config)
 
-    n_valid_prompts = int(args.n_prompts / 0.7 * 0.1)  # 10% of the training set
-    n_test_prompts = int(args.n_prompts / 0.7 * 0.2)  # 20% of the training set
+    n_train_prompts = int(args.n_prompts * 0.85)
+    n_valid_prompts = int(args.n_prompts * 0.05)  # 10% of the training set
+    n_test_prompts = int(args.n_prompts * 0.05)  # 20% of the training set
 
     variables = [
-        ["train_prompts", 0, args.n_prompts],
-        ["eval_data/eval_prompts", 0, n_valid_prompts],
-        ["eval_data/eval_prompts_ood", 1, n_valid_prompts],
-        ["test_data/test_prompts", 0, n_test_prompts],
-        ["test_data/test_prompts_ood", 2, n_test_prompts],
+        ("train_prompts", 0, n_train_prompts),
+        ("eval_data/eval_prompts", 0, n_valid_prompts),
+        ("test_data/test_prompts", 0, n_test_prompts),
+        ("eval_data/eval_prompts_ood", 1, n_valid_prompts * 2),
+        ("test_data/test_prompts_ood", 2, n_test_prompts * 2),
     ]
 
     for name, docking_split, n_prompts in variables:
+        if "ood" in name:
+            dataset.needs_dock = True
         data_dict = dataset.generate_dataset(n_prompts, docking_split=docking_split)
         pydantic_dataset = data_dict_to_pydantic(data_dict)  # Validate the data
         write_jsonl(
@@ -79,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--split-docking",
         nargs="+",
-        default=[0.7, 0.1, 0.2],
+        default=[0.8, 0.1, 0.1],
     )
     args = parser.parse_args()
 
