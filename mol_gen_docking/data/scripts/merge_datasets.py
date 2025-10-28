@@ -26,14 +26,19 @@ if __name__ == "__main__":
     # Merge pocket infos
     final_pockets_info: Dict[str, Any] = {}
     prot_ids_to_dataset_key: Dict[str, Tuple[str, str]] = {}
+    n_overlap = 0
     for existing_dataset in pockets_info:
         for key in pockets_info[existing_dataset]:
             prot_id = pockets_info[existing_dataset]["metadata"]["prot_id"]
+            if prot_id in prot_ids_to_dataset_key:
+                print(f"Protein already in dataset: {prot_id}")
+                n_overlap += 1
             if (
                 prot_id not in prot_ids_to_dataset_key
                 or existing_dataset == args.preference
             ):
                 prot_ids_to_dataset_key[prot_id] = (existing_dataset, key)
+    print("Total overlap: {}".format(n_overlap))
     for prot_id in prot_ids_to_dataset_key:
         dataset, key = prot_ids_to_dataset_key[prot_id]
         pockets_info[key] = pockets_info[dataset][key]
