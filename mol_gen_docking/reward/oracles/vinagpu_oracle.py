@@ -39,13 +39,13 @@ class DockingMoleculeGpuOracle:
         size: Optional[List[float]] = None,
         print_msgs: bool = True,
         failed_score: float = 0.0,
-        conformer_attempts: int = 20,
+        conformer_attempts: int = 1,
         n_conformers: int = 1,
         docking_attempts: int = 10,
-        docking_batch_size: int = 25,
+        docking_batch_size: int = 128,
         exhaustiveness: int = 8000,
         n_gpu: int = 1,
-        gpu_ids: Optional[List[int]] = None,
+        gpu_ids: Optional[List[str]] = None,
         n_cpu: Optional[int] = None,
     ):
         """
@@ -150,7 +150,7 @@ class DockingMoleculeGpuOracle:
                 debug=False,
                 print_msgs=self.print_msgs,
                 print_output=False,
-                gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
+                gpu_ids=gpu_ids,
                 docking_attempts=self.docking_attempts,
                 additional_args={
                     "thread": self.exhaustiveness,
@@ -158,6 +158,7 @@ class DockingMoleculeGpuOracle:
                     "num_modes": 1,
                 },
             )
+            raise NotImplementedError
         else:
             self.docking_module_gpu = AutoDockGPUDocking(
                 self.vina_mode,
@@ -167,10 +168,10 @@ class DockingMoleculeGpuOracle:
                 get_pose_str=False,
                 preparator=self.preparator,
                 timeout_duration=None,
-                debug=False,
+                debug=True,
                 print_msgs=self.print_msgs,
                 print_output=False,
-                gpu_ids=list(range(self.n_gpu)) if gpu_ids is None else gpu_ids,
+                gpu_ids=gpu_ids,
                 docking_attempts=self.docking_attempts,
                 additional_args={
                     "--nrun": self.exhaustiveness,
@@ -200,6 +201,7 @@ class DockingMoleculeGpuOracle:
         if output is None:
             raise ValueError("Failed to compute docking score")
         scores, docked_pdbqts = output
+        assert len(scores) == len(smiles)
 
         if self.n_conformers == 1 or (not scores or not docked_pdbqts):
             return scores, docked_pdbqts
@@ -250,5 +252,4 @@ class DockingMoleculeGpuOracle:
                 scores += scores_chunk_float
             else:
                 scores += [self.failed_score] * len(chunk)
-
         return scores

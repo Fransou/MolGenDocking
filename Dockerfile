@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------------------------------------
-FROM mambaorg/micromamba:latest AS base
+FROM mambaorg/micromamba:jammy-cuda-12.1.0 AS base
 
 USER root
 
@@ -30,3 +30,9 @@ RUN wget -O /tmp/ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038/ \
     && tar -xzf /tmp/vina.tgz -C /opt/ \
     && mv /opt/autodock_vina_1_1_2_linux_x86/bin/* /usr/local/bin/ \
     && rm -rf /tmp/vina.tgz /opt/autodock_vina_1_1_2_linux_x86
+
+RUN apt-get update && apt-get install -y git \
+    && git clone https://github.com/ccsb-scripps/AutoDock-GPU.git \
+    && export GPU_INCLUDE_PATH=/usr/include \
+    && export GPU_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu \
+    && make DEVICE=GPU && make DEVICE=CUDA

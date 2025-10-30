@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List
 
 import numpy as np
 import pandas as pd
+import requests
 import wandb
 from datasets import load_from_disk
 from rdkit import Chem
@@ -11,26 +12,33 @@ from tdc import Evaluator
 
 from mol_gen_docking.baselines.GFlownets.args import get_config
 from mol_gen_docking.baselines.GFlownets.trainer import MakeCustomTaskTrainer
-from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 N_REPEAT_TEST = 8
 os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
 
 
 def get_reward_fn(
-    metadata: Dict[str, Any], datasets_path: str
+    metadata: Dict[str, Any], datasets_path: str, remote_rm_url: str
 ) -> Callable[[str | List[str]], float | List[float]]:
-    SCORER = RewardScorer(datasets_path, "property", parse_whole_completion=True)
+    response = requests.post(
+        f"{remote_rm_url}/prepare_receptor",
+        json={"metadata": [metadata]},
+    )
+    assert response.status_code == 200, response.text
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            return SCORER([""], [completions], metadata=[metadata], use_pbar=False)[0]
-        return SCORER(  # typing: ignore
-            [""],
-            completions,
-            metadata=[metadata] * len(completions),
-            use_pbar=False,
+            completions = [completions]
+        completions = [f"<answer> {s} </answer>" for s in completions]
+        response = requests.post(
+            f"{remote_rm_url}/get_reward",
+            json={"query": completions, "metadata": [metadata] * len(completions)},
         )
+        assert response.status_code == 200, response.text
+        rewards: List[float] = response.json()["reward_list"]
+        if isinstance(completions, str):
+            return rewards[0]
+        return rewards
 
     return reward_fn
 
@@ -79,7 +87,7 @@ if __name__ == "__main__":
             continue
         print(f" -#-#-#-#  Task : {metadata}")
         if args.id_obj == -1 or args.id_obj == id:
-            reward_fn = get_reward_fn(metadata, args.datasets_path)
+            reward_fn = get_reward_fn(metadata, args.datasets_path, args.remote_rm_url)
             evaluator = EvalMolMetrics(reward_fn)
             wandb.init(
                 project="GFlowNets-RL",

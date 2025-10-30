@@ -9,11 +9,8 @@ import subprocess as sp
 from typing import Any, Dict, Tuple
 
 import numpy as np
-from Bio.PDB import PDBParser
-from openmm.app import PDBFile
-from pdbfixer import PDBFixer
-
 import ray
+from Bio.PDB import PDBParser
 from ray.experimental import tqdm_ray
 
 
@@ -59,8 +56,9 @@ def check_failed_residues_in_box(
 
 
 class ReceptorProcess:
-    def __init__(self, data_path: str) -> None:
+    def __init__(self, data_path: str, pre_process_receptors: bool = False) -> None:
         self.data_path: str = data_path
+        self.pre_process_receptors: bool = pre_process_receptors
         self.logger = logging.getLogger(
             __name__ + "/" + self.__class__.__name__,
         )
@@ -171,6 +169,9 @@ class ReceptorProcess:
         self.logger.info(f"Successfully ran AutoGrid on {path}")
 
     def remove_heterogenous(self, receptor: str) -> None:
+        from openmm.app import PDBFile
+        from pdbfixer import PDBFixer
+
         pdb_file = os.path.join(self.receptor_path, f"{receptor}.pdb")
 
         fixer = PDBFixer(filename=pdb_file)
@@ -179,11 +180,16 @@ class ReceptorProcess:
         PDBFile.writeFile(fixer.topology, fixer.positions, open(pdb_file, "w"))
 
     def process_receptors(
-        self, receptors: list[str] = [], allow_bad_res: bool = False
+        self,
+        receptors: list[str] = [],
+        allow_bad_res: bool = False,
+        use_pbar: bool = False,
     ) -> Tuple[list[str], list[str]]:
         @ray.remote(num_cpus=4)
         def process_receptor(
-            receptor: str, pbar: Any, allow_bad_res: bool = False
+            receptor: str,
+            pbar: Any,
+            allow_bad_res: bool = False,
         ) -> int:
             """
             Outputs the level of the error:
@@ -192,14 +198,17 @@ class ReceptorProcess:
             2: Other errors (critical)
             """
             try:
-                self.remove_heterogenous(receptor)
+                if self.pre_process_receptors:
+                    self.remove_heterogenous(receptor)
                 result, processed_path = self.meeko_process(receptor, allow_bad_res)
                 if result <= 1:
                     self._run_autogrid(processed_path)
-                pbar.update.remote(1)
+                if pbar is not None:
+                    pbar.update.remote(1)
             except Exception as e:
-                self.logger.error(f"Error processing {receptor}:\n {e}")
-                pbar.update.remote(1)
+                self.logger.error(f"Error processing {receptor}: {e}")
+                if pbar is not None:
+                    pbar.update.remote(1)
                 return 2
             return result
 
@@ -211,8 +220,10 @@ class ReceptorProcess:
             )
 
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
-        pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")  # type: ignore
-
+        if use_pbar:
+            pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")  # type: ignore
+        else:
+            pbar = None
         # Find receptors that already have a _ag.pdbqt and_ag.maps.fld file
         receptors_to_process = []
         for receptor in receptors:
@@ -224,10 +235,12 @@ class ReceptorProcess:
                 receptors_to_process.append(receptor)
             else:
                 self.logger.info(f"Receptor {receptor} already processed. Skipping.")
-                pbar.update.remote(1)  # type: ignore
+                if use_pbar:
+                    pbar.update.remote(1)  # type: ignore
         if len(receptors_to_process) == 0:
             self.logger.info("All receptors already processed.")
-            pbar.close.remote()  # type: ignore
+            if use_pbar:
+                pbar.close.remote()  # type: ignore
             return [], []
 
         self.logger.info(f"Processing {len(receptors_to_process)} receptors.")
@@ -262,7 +275,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    processor = ReceptorProcess(data_path=args.data_path)
+    processor = ReceptorProcess(data_path=args.data_path, pre_process_receptors=True)
     missed_receptors_1, missed_receptors_2 = processor.process_receptors()
     print(
         "###########\n Missed receptors with critical errors: \n",

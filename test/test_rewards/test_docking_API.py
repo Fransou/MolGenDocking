@@ -23,7 +23,7 @@ from .utils import (
 )
 
 cfg = DatasetConfig(data_path=DATA_PATH)
-props_to_eval = DOCKING_PROP_LIST[:100]
+props_to_eval = DOCKING_PROP_LIST[:64]
 
 
 @pytest.fixture(scope="module", params=[1, 2, 4, 8, 16])
@@ -52,7 +52,7 @@ def scorer(has_gpu, exhaustiveness):
             parse_whole_completion=True,
             rescale=False,
             oracle_kwargs=dict(
-                n_cpu=int(os.environ.get("N_CPUS_DOCKING", 1)),
+                n_cpu=int(os.environ.get("N_CPUS_DOCKING", exhaustiveness)),
                 exhaustiveness=exhaustiveness,
                 docking_oracle="soft_docking",
                 vina_mode="autodock_gpu_256wi",

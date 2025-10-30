@@ -164,7 +164,7 @@ def create_app() -> FastAPI:
         }
         max_per_prompt = [max_per_prompt_dict[p] for p in prompts]
         response = MolecularVerifierResponse(
-            reward=sum(rewards) / len(rewards),
+            reward=0.0 if len(rewards) == 0 else sum(rewards) / len(rewards),
             reward_list=rewards,
             meta={
                 "property_scores": rewards,

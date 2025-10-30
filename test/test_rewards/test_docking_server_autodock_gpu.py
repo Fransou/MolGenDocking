@@ -22,8 +22,8 @@ def test_docking(target, n_generations=128):
     metadata = [
         {
             "properties": [target, "CalcPhi"],
-            "objectives": ["maximize", "maximize"],
-            "target": [0, 0],
+            "objectives": ["maximize"] * 2,
+            "target": [0] * 2,
         }
         for k in range(n_generations)
     ]
@@ -46,3 +46,4 @@ def test_docking(target, n_generations=128):
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
+    assert not (rewards == 0).all()
