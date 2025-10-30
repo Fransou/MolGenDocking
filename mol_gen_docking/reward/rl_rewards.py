@@ -479,12 +479,50 @@ class RewardScorer:
             return [float(isinstance(y, float)) for y in parsed_answer]
         rewards = []
         for meta, y in zip(metadata, parsed_answer):
-            if meta["objectives"][0] == "regression":
-                rewards.append(1 - np.clip((y - meta["target"][0]) ** 2, 0, 3) / 3)
-            elif meta["objectives"][0] == "classification":
-                rewards.append(float(y == meta["target"][0]))
+            if y is None:
+                rewards.append(0.0)
             else:
-                raise NotImplementedError
+                if meta["objectives"][0] == "regression":
+                    rewards.append(1 - np.clip((y - meta["target"][0]) ** 2, 0, 3) / 3)
+                elif meta["objectives"][0] == "classification":
+                    rewards.append(float(y == meta["target"][0]))
+                else:
+                    raise NotImplementedError
+        return rewards
+
+    def _get_reaction_score(
+        self,
+        prompts: List[Any],
+        completions: List[Any],
+        metadata: List[Dict[str, Any]],
+        debug: bool = False,
+        use_pbar: bool = False,
+    ) -> List[float]:
+        def is_same(y: str, y_true: str) -> float:
+            mol_y = [
+                Chem.MolFromSmiles(smi)
+                for smi in y.strip().replace(",", "+").split("+")
+            ]
+            if any([m is None for m in mol_y]):
+                return 0.0
+            mol_y_true = [Chem.MolFromSmiles(smi) for smi in y_true.strip().split("+")]
+            assert not any([m is None for m in mol_y_true])
+
+            smi_y = sorted([Chem.MolToSmiles(m, canonical=True) for m in mol_y])
+            smi_y_true = sorted(
+                [Chem.MolToSmiles(m, canonical=True) for m in mol_y_true]
+            )
+            return float(smi_y == smi_y_true) * 0.9 + 0.1
+
+        rewards = []
+        for meta, answer in zip(metadata, completions):
+            matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
+            if len(matches) != 1:
+                rewards.append(0.0)
+            else:
+                rewards.append(float(is_same(matches[0], meta["target"][0])))
+        if self.reward == "valid_smiles":
+            return [float(r > 0.0) for r in rewards]
         return rewards
 
     def get_score(
@@ -503,13 +541,23 @@ class RewardScorer:
         ] = {
             "docking": self._get_docking_score,
             "prop_pred": self._get_prop_pred_score,
+            "reaction": self._get_reaction_score,
         }
-        idxs: Dict[str, List[int]] = {"docking": [], "prop_pred": []}
-        prompts_per_obj: Dict[str, List[str]] = {"docking": [], "prop_pred": []}
-        completions_per_obj: Dict[str, List[str]] = {"docking": [], "prop_pred": []}
+        idxs: Dict[str, List[int]] = {"docking": [], "prop_pred": [], "reaction": []}
+        prompts_per_obj: Dict[str, List[str]] = {
+            "docking": [],
+            "prop_pred": [],
+            "reaction": [],
+        }
+        completions_per_obj: Dict[str, List[str]] = {
+            "docking": [],
+            "prop_pred": [],
+            "reaction": [],
+        }
         metadata_per_obj: Dict[str, List[Dict[str, Any]]] = {
             "docking": [],
             "prop_pred": [],
+            "reaction": [],
         }
 
         for i, meta in enumerate(metadata):
@@ -518,6 +566,16 @@ class RewardScorer:
                 prompts_per_obj["prop_pred"].append(prompts[i])
                 completions_per_obj["prop_pred"].append(completions[i])
                 metadata_per_obj["prop_pred"].append(meta)
+            elif meta["objectives"][0] in [
+                "product",
+                "product_full",
+                "reactant",
+                "reactant_full",
+            ]:
+                idxs["reaction"].append(i)
+                prompts_per_obj["reaction"].append(prompts[i])
+                completions_per_obj["reaction"].append(completions[i])
+                metadata_per_obj["reaction"].append(meta)
             elif meta["objectives"][0] in [
                 "maximize",
                 "minimize",

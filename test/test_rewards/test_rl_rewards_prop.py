@@ -1,9 +1,6 @@
 import numpy as np
 import ray
 
-from mol_gen_docking.data.dataset import (
-    DatasetConfig,
-)
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
@@ -16,8 +13,6 @@ except Exception:
     ray.init()
 
 
-cfg = DatasetConfig(data_path=DATA_PATH)
-
 property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)
 
 
@@ -25,8 +20,8 @@ def test_regression():
     target = np.random.random()
     completions = [
         "<answer> {} </answer>".format(v * np.sign(np.random.random() - 0.5) + target)
-        for v in [0, 0.01, 0.5, 1, 10]
-    ]
+        for v in [0, 0.01, 0.5, 1]
+    ] + ["ksdjgf"]
     metadata = [
         {"objectives": ["regression"], "properties": [""], "target": [target]}
     ] * 5
@@ -37,7 +32,9 @@ def test_regression():
 
 
 def test_classification():
-    completions = ["<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]]
+    completions = [
+        "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, "bbfhdsbfsj"]
+    ]
     metadata = [
         {"objectives": ["classification"], "properties": [""], "target": [1]}
     ] * 5
@@ -52,7 +49,7 @@ def test_classification():
     rewards = property_scorer(
         [""] * len(completions), completions, metadata, use_pbar=False
     )
-    assert rewards == [0.0, 0.0, 1.0, 1.0, 1.0]
+    assert rewards == [0.0, 0.0, 1.0, 1.0, 0.0]
 
 
 def test_with_generation():
