@@ -1,16 +1,12 @@
-import time
 from itertools import product
-from typing import Callable, List
 
 import numpy as np
 import pytest
+import ray
 import torch
 
-import ray
-from mol_gen_docking.baselines.reward_fn import get_reward_fn
 from mol_gen_docking.data.dataset import (
     DatasetConfig,
-    MolGenerationInstructionsDatasetGenerator,
 )
 from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.rl_rewards import RewardScorer
@@ -86,35 +82,6 @@ def build_metada_pocket(request):
     return wrapped_fn
 
 
-@pytest.fixture(scope="module", params=[True])
-def build_prompt(request, build_metada_pocket):
-    def build_prompt_from_dataset(
-        property: str | List[str], obj: str = "maximize"
-    ) -> str:
-        if isinstance(property, str):
-            properties = [property]
-        else:
-            properties = property
-        dummy = MolGenerationInstructionsDatasetGenerator(cfg)
-        prompt, _ = dummy.fill_prompt(properties, [obj] * len(properties))
-        return prompt
-
-    def build_prompt_from_string(
-        property: str | List[str], obj: str = "maximize"
-    ) -> str:
-        prefix = """A conversation between User and Assistant. The User asks a question,
-             and the Assistant solves it. The Assistant first thinks about the reasoning process in the mind and then provides the User with the answer. The reasoning p
-            rocess is enclosed within <think> </think> and answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think
-            > <answer> answer here </answer>. User: You must put your answer inside <answer> </answer> tags, i.e., <answer> answer here </answer>.\nThis is the problem:
-            \n"""
-        return prefix + " " + build_prompt_from_dataset(property, obj)
-
-    if request.param:
-        return build_prompt_from_dataset
-    else:
-        return build_prompt_from_string
-
-
 def is_reward_valid(rewards, smiles, properties):
     """Check if the reward is valid."""
     # Remove "FAKE" from smiles
@@ -178,8 +145,13 @@ def completions_smiles(request, property_filler):
 def test_valid_smiles(completion, smiles, valid_smiles_scorer, valid_smiles_filler):
     """Test the function molecular_properties."""
     completions = [valid_smiles_filler(smiles, completion)]
-    prompts = [""] * len(completions)
-    rewards = np.array(valid_smiles_scorer(prompts, completions))
+    rewards = np.array(
+        valid_smiles_scorer(
+            [""] * len(completions),
+            completions,
+            metadata=[{"objectives": ["maximize"]}],
+        )
+    )
     assert rewards.sum() == float(
         "[SMILES]" in completion and not ("FAKE" in smiles and len(smiles) == 1)
     )
@@ -197,20 +169,23 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     property2,
     property_scorer,
     property_filler,
-    build_prompt,
     n_generations=4,
 ):
     """Test the reward function for a set of 2 prompts and multiple generations."""
     completion = "Here is a molecule: [SMILES] what are its properties?"
-    prompts = [build_prompt(property1)] * n_generations + [
-        build_prompt(property2)
+    metadata = [
+        {"properties": [property1], "objectives": ["maximize"], "target": [0]}
+    ] * n_generations + [
+        {"properties": [property2], "objectives": ["maximize"], "target": [0]}
     ] * n_generations
     smiles = [
         propeties_csv.sample(np.random.randint(1, 8))["smiles"].tolist()
         for k in range(n_generations * 2)
     ]
     completions = [property_filler(s, completion) for s in smiles]
-    rewards = property_scorer(prompts, completions, use_pbar=False)
+    rewards = property_scorer(
+        [""] * len(completions), completions, metadata, use_pbar=False
+    )
 
     for i in range(n_generations * 2):
         if smiles != []:
@@ -232,18 +207,18 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
         )
     ),
 )
-def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_prompt):
+def test_all_prompts(prop, obj, smiles, property_scorer, property_filler):
     """
     Test the reward function with the optimization of one property.
     Assumes the value of the reward function when using maximise is correct.
     """
-    t0 = time.time()
-    obj = get_unscaled_obj(obj, prop)
+    obj, target = get_unscaled_obj(obj, prop)
     n_generations = len(smiles)
-    prompts = [build_prompt(prop, obj)] * n_generations + [
-        build_prompt(prop, "maximize")
+    metadata = [
+        {"properties": [prop], "objectives": [obj], "target": [target]}
+    ] * n_generations + [
+        {"properties": [prop], "objectives": ["maximize"], "target": [target]}
     ] * n_generations
-
     smiles = smiles * 2
     completions = [
         property_filler(
@@ -252,7 +227,9 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
         for s in smiles
     ]
     property_scorer.rescale = True
-    rewards = property_scorer(prompts, completions, debug=True, use_pbar=False)
+    rewards = property_scorer(
+        [""] * len(completions), completions, metadata, debug=True, use_pbar=False
+    )
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
@@ -265,7 +242,7 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
     elif objective == "minimize":
         val = 1 - rewards_max
     else:
-        target = rescale_property_values(prop, float(obj.split()[1]), False)
+        target = rescale_property_values(prop, target, False)
         if objective == "below":
             val = (rewards_max <= target).float()
         elif objective == "above":
@@ -274,13 +251,3 @@ def test_all_prompts(prop, obj, smiles, property_scorer, property_filler, build_
             val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
     assert torch.isclose(rewards_prop, val, atol=1e-4).all()
     property_scorer.rescale = False
-    print(f" --- [{prop}] - {time.time() - t0}s")
-
-
-@pytest.mark.parametrize("smiles, property", product(SMILES, PROP_LIST))
-def test_baseline_reward_fn(smiles: str, property: str, build_prompt: Callable):
-    prompt = build_prompt([property])
-    reward_fn = get_reward_fn(prompt, DATA_PATH)
-    s = smiles[0]
-    reward = reward_fn(s)
-    assert isinstance(reward, float)

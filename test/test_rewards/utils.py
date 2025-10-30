@@ -40,14 +40,13 @@ OBJECTIVES_TO_TEST: List[str] = [
 ]
 
 
-def get_unscaled_obj(obj: str, prop: str) -> str:
+def get_unscaled_obj(obj: str, prop: str) -> tuple[str, float]:
     if len(obj.split()) == 1:
-        return obj
+        return obj, 0
     func = obj.split()[0]
     val = float(obj.split()[1])
-
     val = inverse_rescale_property_values(prop, val, prop in DOCKING_PROP_LIST)
-    return f"{func} {val:.2f}"
+    return func, val
 
 
 def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:
