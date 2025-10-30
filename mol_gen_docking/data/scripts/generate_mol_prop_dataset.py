@@ -182,9 +182,9 @@ if __name__ == "__main__":
                 },
             ]
             data_dict["prompt"].append(prompt)
-            data_dict["properties"].append(property_dataset)
-            data_dict["objectives"].append(obj)
-            data_dict["target"].append(y)
+            data_dict["properties"].append([property_dataset])
+            data_dict["objectives"].append([obj])
+            data_dict["target"].append([y])
             data_dict["prompt_id"].append(
                 f"{property_dataset.replace('/', ':')}_train_{i}"
             )

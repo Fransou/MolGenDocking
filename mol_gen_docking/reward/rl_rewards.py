@@ -1,26 +1,18 @@
 import json
 import os
 import re
-from typing import (
-    Any,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-)
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from rdkit import Chem, RDLogger
-
 import ray
+from ray.experimental import tqdm_ray
+from rdkit import Chem, RDLogger
 
 # from tdc.chem_utils.oracle.filter import MolFilter
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.property_utils import rescale_property_values
 from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
-from ray.experimental import tqdm_ray
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -376,12 +368,12 @@ class RewardScorer:
         )
         return df_properties
 
-    def get_score(
+    def _get_docking_score(
         self,
         prompts: List[Any],
         completions: List[Any],
+        metadata: List[Dict[str, Any]],
         debug: bool = False,
-        metadata: Optional[List[Dict[str, Any]]] = None,
         use_pbar: bool = False,
     ) -> List[float]:
         """
@@ -458,12 +450,108 @@ class RewardScorer:
             rewards.append(float(reward))
         return rewards
 
+    def _get_prop_pred_score(
+        self,
+        prompts: List[Any],
+        completions: List[Any],
+        metadata: List[Dict[str, Any]],
+        debug: bool = False,
+        use_pbar: bool = False,
+    ) -> List[float]:
+        parsed_answer = []
+        for answer in completions:
+            matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
+            if len(matches) == 1:
+                try:
+                    y = matches[0]
+                    if y.lower() in ["true", "yes"]:
+                        y = 1
+                    elif y.lower() in ["false", "no"]:
+                        y = 0
+                    else:
+                        y = float(y)
+                    parsed_answer.append(y)
+                except ValueError:
+                    parsed_answer.append(None)
+            else:
+                parsed_answer.append(None)
+        if self.reward == "valid_smiles":
+            return [float(isinstance(y, float)) for y in parsed_answer]
+        rewards = []
+        for meta, y in zip(metadata, parsed_answer):
+            if meta["objectives"][0] == "regression":
+                rewards.append(1 - np.clip((y - meta["target"][0]) ** 2, 0, 3) / 3)
+            elif meta["objectives"][0] == "classification":
+                rewards.append(float(y == meta["target"][0]))
+            else:
+                raise NotImplementedError
+        return rewards
+
+    def get_score(
+        self,
+        prompts: List[Any],
+        completions: List[Any],
+        metadata: List[Dict[str, Any]],
+        debug: bool = False,
+        use_pbar: bool = False,
+    ) -> List[float]:
+        obj_to_fn: Dict[
+            str,
+            Callable[
+                [list[Any], List[Any], List[dict[str, Any]], bool, bool], List[float]
+            ],
+        ] = {
+            "docking": self._get_docking_score,
+            "prop_pred": self._get_prop_pred_score,
+        }
+        idxs: Dict[str, List[int]] = {"docking": [], "prop_pred": []}
+        prompts_per_obj: Dict[str, List[str]] = {"docking": [], "prop_pred": []}
+        completions_per_obj: Dict[str, List[str]] = {"docking": [], "prop_pred": []}
+        metadata_per_obj: Dict[str, List[Dict[str, Any]]] = {
+            "docking": [],
+            "prop_pred": [],
+        }
+
+        for i, meta in enumerate(metadata):
+            if meta["objectives"][0] in ["regression", "classification"]:
+                idxs["prop_pred"].append(i)
+                prompts_per_obj["prop_pred"].append(prompts[i])
+                completions_per_obj["prop_pred"].append(completions[i])
+                metadata_per_obj["prop_pred"].append(meta)
+            elif meta["objectives"][0] in [
+                "maximize",
+                "minimize",
+                "above",
+                "below",
+                "equal",
+            ]:
+                idxs["docking"].append(i)
+                prompts_per_obj["docking"].append(prompts[i])
+                completions_per_obj["docking"].append(completions[i])
+                metadata_per_obj["docking"].append(meta)
+            else:
+                raise NotImplementedError(
+                    "Unrecognized objective: {}".format(meta["objectives"])
+                )
+        rewards = [0.0 for _ in range(len(prompts))]
+        for key, fn in obj_to_fn.items():
+            rewards_obj = fn(
+                prompts_per_obj[key],
+                completions_per_obj[key],
+                metadata_per_obj[key],
+                debug,
+                use_pbar,
+            )
+            for i, r in zip(idxs[key], rewards_obj):
+                rewards[i] = r
+        return rewards
+
     def __call__(
         self,
         prompts: List[Any],
         completions: List[Any],
+        metadata: List[Dict[str, Any]],
         debug: bool = False,
-        metadata: Optional[List[Dict[str, Any]]] = None,
         use_pbar: bool = False,
     ) -> List[float]:
         """
