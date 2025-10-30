@@ -136,9 +136,9 @@ if __name__ == "__main__":
                 },
             ]
             data_dict["prompt"].append(prompt)
-            data_dict["properties"].append(obj)
-            data_dict["objectives"].append(label)
-            data_dict["target"].append(0)
+            data_dict["properties"].append([""])
+            data_dict["objectives"].append([obj])
+            data_dict["target"].append([label])
             data_dict["prompt_id"].append(f"uspto_{split}_{i}")
         pydantic_dataset = data_dict_to_pydantic(data_dict)
         print(f"Generated {split} with {len(data_dict['prompt'])} reactions")
