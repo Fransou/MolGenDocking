@@ -54,7 +54,7 @@ def scorer(has_gpu, exhaustiveness):
             oracle_kwargs=dict(
                 n_cpu=int(os.environ.get("N_CPUS_DOCKING", exhaustiveness)),
                 exhaustiveness=exhaustiveness,
-                docking_oracle="soft_docking",
+                docking_oracle="autodock_gpu",
                 vina_mode="autodock_gpu_256wi",
             ),
         )

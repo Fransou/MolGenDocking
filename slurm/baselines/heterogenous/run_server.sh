@@ -32,8 +32,8 @@ if [ "$2" == "head" ]; then
     cp data/properties.csv $SLURM_TMPDIR
     export DATA_PATH=$SLURM_TMPDIR/$DATASET
 
-    export docking_oracle=soft_docking
+    export docking_oracle=autodock_gpu
     export scorer_exhaustiveness=4
-    export docking_oracle=soft_docking
+    export docking_oracle=autodock_gpu
     uvicorn --host $1 --port 5001 mol_gen_docking.server:app --log-level critical
 fi
