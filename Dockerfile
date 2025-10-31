@@ -33,6 +33,7 @@ RUN wget -O /tmp/ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038/ \
 
 RUN apt-get update && apt-get install -y git \
     && git clone https://github.com/ccsb-scripps/AutoDock-GPU.git \
+    && cd AutoDock-GPU \
     && export GPU_INCLUDE_PATH=/usr/include \
     && export GPU_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu \
     && make DEVICE=GPU && make DEVICE=CUDA
