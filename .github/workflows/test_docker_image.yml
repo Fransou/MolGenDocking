@@ -6,11 +6,12 @@ on:
 jobs:
   test-python:
     runs-on: ubuntu-latest
-    permissions: # Job-level permissions configuration starts here
-      contents: write           # 'write' access to repository contents
+    permissions:
+      contents: write
       pull-requests: write
+
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
       with:
         ref: ${{ github.head_ref }}
@@ -20,12 +21,8 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Build
-      uses: docker/build-push-action@v6
-      with:
-        push: false
-        tags: fransou/reward:latest
-        file: Dockerfile
+    - name: Pull Docker image
+      run: docker pull fransou/molgen:latest
 
     - name: Get branch name
       run: echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_ENV
@@ -33,4 +30,4 @@ jobs:
     - name: Test with pytest
       run: |
         rm -rf .coverage
-        docker run -v ${PWD}:/tmp fransou/reward bash /tmp/run_docker_test.sh
+        docker run -v ${PWD}:/tmp fransou/reward:latest bash /tmp/run_docker_test.sh
