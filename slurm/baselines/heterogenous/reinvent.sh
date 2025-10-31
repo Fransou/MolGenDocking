@@ -6,9 +6,11 @@
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
-#SBATCH --gpus=h100_3g.40gb:2
+#SBATCH --gpus=h100:1
+#SBATCH --array=0-3
 
 set -x
+i=$SLURM_ARRAY_TASK_ID
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines/heterogenous
 # Split nodes
@@ -31,7 +33,7 @@ done
 
 export HEAD_NODE_PORT=34567
 sleep 15
-srun --overlap $SLURM_SCRIPTS_DIR/run_training.sh $HEAD_NODE_IP $1 $2
+srun --overlap $SLURM_SCRIPTS_DIR/run_training.sh $HEAD_NODE_IP $1 $2 $i
 
 wait
 

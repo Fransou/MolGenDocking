@@ -23,5 +23,5 @@ HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
   --num_train_epochs 500 \
   --generation_config '{"num_beams": 2}' \
   --train_on_beams 0 \
-  --id_obj 2 \
+  --id_obj $3 \
   --remote_rm_url http://$1:5001
