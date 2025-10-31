@@ -265,9 +265,12 @@ class RewardScorer:
 
             return [float(p) for p in property_reward]
 
-        _get_property_cpu = ray.remote(num_cpus=1)(_get_property)
-        _get_property_gpu = ray.remote(
-            num_cpus=1, num_gpus=self.gpu_utilization_gpu_docking
+        _get_property_fast = ray.remote(num_cpus=0)(_get_property)
+        _get_property_long = ray.remote(
+            num_cpus=1,
+            num_gpus=self.gpu_utilization_gpu_docking
+            if "gpu" in self.oracle_kwargs.get("docking_oracle", "")
+            else 0,
         )(_get_property)
 
         all_properties = df_properties["property"].unique().tolist()
@@ -287,12 +290,10 @@ class RewardScorer:
         for p in all_properties:
             # If the reward is long to compute, use ray
             smiles = prop_smiles[p]
-            if p in self.slow_props and "gpu" in self.oracle_kwargs.get(
-                "docking_oracle", ""
-            ):
-                _get_property_remote = _get_property_gpu
+            if p in self.slow_props:
+                _get_property_remote = _get_property_long
             else:
-                _get_property_remote = _get_property_cpu
+                _get_property_remote = _get_property_fast
 
                 values_job.append(
                     _get_property_remote.remote(
