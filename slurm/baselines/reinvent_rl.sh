@@ -25,9 +25,9 @@ source $HOME/OpenRLHF/bin/activate
 
 ray start --head --node-ip-address 0.0.0.0
 
-export docking_oracle=soft_docking
+export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
-export docking_oracle=soft_docking
+export docking_oracle=autodock_gpu
 uvicorn --host 0.0.0.0 --port 5001 mol_gen_docking.server:app --log-level critical &
 
 sleep 3

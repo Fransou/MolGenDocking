@@ -107,7 +107,7 @@ class DatasetConfig:
     data_path: str
     max_n_props: int = 3
     props_prob: List[float] = field(default_factory=lambda: [0.5, 0.3, 0.2])
-    vina: bool = False
+    vina: bool = True
     split_docking: List[float] = field(default_factory=lambda: [1])
     probs_docking_targets: float = 0.5
     max_occ: int = 4

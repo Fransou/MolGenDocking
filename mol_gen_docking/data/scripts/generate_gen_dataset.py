@@ -57,10 +57,6 @@ if __name__ == "__main__":
         default=512,
         help="The number of prompts to generate",
     )
-    parser.add_argument("--vina", action="store_true", dest="vina")
-    parser.add_argument("--no-vina", action="store_false", dest="vina")
-
-    parser.add_argument("--min-n-pocket-infos", type=int, default=-1)
     parser.add_argument(
         "--max-dock-prop-per-prompt",
         type=int,
@@ -90,10 +86,8 @@ if __name__ == "__main__":
         data_path=args.data_path,
         max_n_props=len(args.n_props_probs),
         props_prob=args.n_props_probs,
-        vina=args.vina,
         split_docking=args.split_docking,
         max_docking_per_prompt=args.max_dock_prop_per_prompt,
-        min_n_pocket_infos=args.min_n_pocket_infos,
         chat_template={"user": "role", "content": "content"},
     )
 

@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict
 
 import numpy as np
+import ray
 from fastapi import FastAPI
 from tdc import Evaluator
 
-import ray
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import (
     RewardScorer,
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     app.state.receptor_processor = (
         ReceptorProcess(data_path=server_settings.data_path)
-        if server_settings.docking_oracle == "soft_docking"
+        if server_settings.docking_oracle == "autodock_gpu"
         else None
     )
 
