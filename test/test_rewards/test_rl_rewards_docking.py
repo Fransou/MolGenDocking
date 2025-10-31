@@ -23,10 +23,8 @@ from .utils import (
     propeties_csv,
 )
 
-try:
+if not ray.is_initialized():
     ray.init(num_cpus=16)
-except Exception:
-    ray.init()
 
 
 cfg = DatasetConfig(data_path=DATA_PATH)
