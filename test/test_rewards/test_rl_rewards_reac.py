@@ -6,10 +6,8 @@ from .utils import (
     DATA_PATH,
 )
 
-try:
+if not ray.is_initialized():
     ray.init(num_cpus=16)
-except Exception:
-    ray.init()
 
 
 property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)

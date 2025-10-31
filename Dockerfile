@@ -1,38 +1,76 @@
 # ------------------------------------------------------------------------------------------------------------
-FROM mambaorg/micromamba:jammy-cuda-12.1.0 AS base
+# Base stage — environment setup with caching optimization
+# ------------------------------------------------------------------------------------------------------------
+FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS base
 
 USER root
 
-RUN apt-get update \
-    && apt-get install -y wget make g++ libboost-filesystem-dev libboost-system-dev \
-       xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb \
-    && rm -rf /var/lib/apt/lists/* /tmp/*
+# Install system dependencies (split to preserve caching)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        wget make g++ libboost-filesystem-dev libboost-system-dev \
+        xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb python3 python3-pip && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    pip install --upgrade pip && \
+    rm -rf /var/lib/apt/lists/*
 
-
-COPY docker_environment.yml pyproject.toml ./
+# Copy environment-related files first (for caching)
+COPY pyproject.toml ./
 COPY mol_gen_docking ./mol_gen_docking
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir .
 
-RUN --mount=type=cache,target=/opt/conda/pkgs \
-    micromamba install -y -n base -f docker_environment.yml \
-    && pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu \
-    && pip install . \
-    && rm -rf /root/.cache/pip \
-    && micromamba clean --all --yes
+# ------------------------------------------------------------------------------------------------------------
+# Builder stage — build AutoDock-GPU efficiently
+# ------------------------------------------------------------------------------------------------------------
+FROM base AS autodock-builder
+USER root
 
-RUN wget -O /tmp/ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038/ \
-    && tar -xzf /tmp/ADFRsuite.tar.gz -C /opt/ \
-    && cd /opt/ADFRsuite_* \
-    && echo "Y" | ./install.sh -d . -c 0 \
-    && cd / \
-    && rm -rf /tmp/ADFRsuite.tar.gz \
-    && wget -O /tmp/vina.tgz --no-check-certificate https://vina.scripps.edu/wp-content/uploads/sites/55/2020/12/autodock_vina_1_1_2_linux_x86.tgz \
-    && tar -xzf /tmp/vina.tgz -C /opt/ \
-    && mv /opt/autodock_vina_1_1_2_linux_x86/bin/* /usr/local/bin/ \
-    && rm -rf /tmp/vina.tgz /opt/autodock_vina_1_1_2_linux_x86
+# Install build dependencies (cacheable)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential git && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y git \
-    && git clone https://github.com/ccsb-scripps/AutoDock-GPU.git \
-    && export GPU_INCLUDE_PATH=/usr/include \
-    && export GPU_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu \
-    && make DEVICE=GPU && make DEVICE=CUDA
+WORKDIR /opt/build
+RUN git clone --depth 1 https://github.com/ccsb-scripps/AutoDock-GPU.git
+
+ENV GPU_INCLUDE_PATH=/usr/local/cuda/include
+ENV GPU_LIBRARY_PATH=/usr/local/cuda/lib64
+RUN cd AutoDock-GPU && make DEVICE=CUDA
+
+# Store compiled binaries in a well-defined location
+RUN cp -r AutoDock-GPU /opt/AutoDock-GPU
+
+# ------------------------------------------------------------------------------------------------------------
+# Final runtime image
+# ------------------------------------------------------------------------------------------------------------
+FROM base AS final
+USER root
+
+# Copy built binaries
+COPY --from=autodock-builder /opt/AutoDock-GPU /opt/AutoDock-GPU
+ENV PATH="/opt/AutoDock-GPU/bin:${PATH}"
+
+
+RUN set -eux; \
+    # ADFRsuite
+    wget -O /tmp/ADFRsuite.tar.gz https://ccsb.scripps.edu/adfr/download/1038/; \
+    tar -xzf /tmp/ADFRsuite.tar.gz -C /opt/; \
+    AD_DIR=$(ls -d /opt/ADFRsuite_* 2>/dev/null || true); \
+    if [ -n "$AD_DIR" ]; then mv "$AD_DIR" /opt/ADFRsuite; fi; \
+    if [ -d /opt/ADFRsuite ]; then cd /opt/ADFRsuite && echo "Y" | ./install.sh -d . -c 0; fi; \
+    rm -rf /tmp/ADFRsuite.tar.gz; \
+    # Vina
+    wget -O /tmp/vina.tgz --no-check-certificate https://vina.scripps.edu/wp-content/uploads/sites/55/2020/12/autodock_vina_1_1_2_linux_x86.tgz; \
+    tar -xzf /tmp/vina.tgz -C /opt/; \
+    mv /opt/autodock_vina_1_1_2_linux_x86/bin/* /usr/local/bin/ || true; \
+    rm -rf /tmp/vina.tgz /opt/autodock_vina_1_1_2_linux_x86
+
+# expose ADFRsuite bin (if present) and common lib path (some ADFR tools use their own libs)
+ENV PATH="/opt/ADFRsuite/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/ADFRsuite/lib:${LD_LIBRARY_PATH:-}"
+
+WORKDIR /data
+CMD ["/bin/bash"]

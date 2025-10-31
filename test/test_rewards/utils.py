@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 import pandas as pd
 
@@ -28,7 +28,7 @@ SMILES: List[List[str]] = (
     + [propeties_csv.sample(1)["smiles"].tolist() + ["FAKE"]]
 )
 COMPLETIONS: List[str] = [
-    "Here is a molecule: [SMILES] what are its properties?",
+    "Here is a molecule: {SMILES} what are its properties?",
     "This is an empty completion.",
 ]
 OBJECTIVES_TO_TEST: List[str] = [
@@ -49,16 +49,10 @@ def get_unscaled_obj(obj: str, prop: str) -> tuple[str, float]:
     return func, val
 
 
-def get_fill_completions(no_flags: bool = False) -> Callable[[List[str], str], str]:
-    def fill_completion(smiles: List[str], completion: str) -> str:
-        """Fill the completion with the smiles."""
-        if no_flags:
-            smiles_joined = " ".join(smiles)
-
-        smiles_joined: str = "<answer> " + " ".join(smiles) + " </answer>"
-        return completion.replace("[SMILES]", smiles_joined)
-
-    return fill_completion
+def fill_completion(smiles: List[str], completion: str) -> str:
+    """Fill the completion with the smiles."""
+    smiles_joined: str = "<answer> " + " ".join(smiles) + " </answer>"
+    return completion.replace("[SMILES]", smiles_joined)
 
 
 def fill_df_time(
