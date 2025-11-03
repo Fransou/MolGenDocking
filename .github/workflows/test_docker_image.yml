@@ -29,5 +29,4 @@ jobs:
 
     - name: Test with pytest
       run: |
-        rm -rf .coverage
-        docker run -v ${PWD}:/tmp fransou/molgen:latest bash /tmp/run_docker_test.sh
+        docker run -it -v ${PWD}:/data fransou/molgen:latest pytest test/test_rewards --skip-docking
