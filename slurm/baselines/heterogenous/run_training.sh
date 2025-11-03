@@ -13,7 +13,6 @@ cd $WORKING_DIR
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
 wandb offline
-
 HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
   --model_name reinvent_10M_prior \
   --dataset $DATA_PATH/eval_data/eval_prompts \
@@ -23,5 +22,5 @@ HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
   --num_train_epochs 500 \
   --generation_config '{"num_beams": 2}' \
   --train_on_beams 0 \
-  --id_obj $3 \
+  --id_obj $2 \
   --remote_rm_url http://$1:5001

@@ -11,7 +11,7 @@ def get_reward_fn(
     def reward_fn(smiles: str | List[str]) -> float | List[float]:
         if isinstance(smiles, str):
             smiles = [smiles]
-            return SCORER([""], [smiles], metadata=[metadata])[0]
-        return SCORER([""], smiles, metadata=[metadata] * len(smiles))
+            return SCORER([smiles], metadata=[metadata])[0]
+        return SCORER(smiles, metadata=[metadata] * len(smiles))
 
     return reward_fn

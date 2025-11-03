@@ -12,7 +12,6 @@ from rdkit import Chem, RDLogger
 # from tdc.chem_utils.oracle.filter import MolFilter
 from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
 from mol_gen_docking.reward.property_utils import rescale_property_values
-from mol_gen_docking.reward.utils import OBJECTIVES_TEMPLATES
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -93,71 +92,8 @@ class RewardScorer:
 
         self.oracles: Dict[str, OracleWrapper] = {}
 
-        self.search_patterns = generate_regex_patterns(OBJECTIVES_TEMPLATES)
         if not ray.is_initialized():
             ray.init()
-
-    @staticmethod
-    def get_mol_props_from_prompt(
-        prompts: List[Any], search_templates: List[Tuple[str, str]]
-    ) -> List[Dict[str, Tuple[str, float]]]:
-        """
-        Get molecular properties from prompt.
-
-        Returns: List of Dict[property -> (objective, target_value)]
-        """
-        objectives: List[Dict[str, Tuple[Any, Any]]] = []
-        for prompt in prompts:
-            if isinstance(prompt, list):
-                if len(prompt) == 1:
-                    prompt = prompt[0]
-                else:
-                    prompt = [
-                        p
-                        for p in prompt
-                        if ("role" in p and p["role"] == "user")
-                        or ("from" in p and p["from"] == "human")
-                    ]
-                    if len(prompt) == 1:
-                        prompt = prompt[0]
-                    else:
-                        raise ValueError("Prompt not found correctly.")
-            if isinstance(prompt, dict):
-                if "content" in prompt:
-                    prompt = prompt["content"]
-                elif "value" in prompt:
-                    prompt = prompt["value"]
-                else:
-                    raise ValueError("Prompt not found correctly.")
-            assert isinstance(prompt, str), "Prompt not found correctly."
-
-            prompt = prompt.split("user: ")[-1].split("assistant: ")[0]
-            if prompt.endswith(".") or prompt.endswith("?"):
-                prompt = prompt[:-1]
-
-            props = {}
-            clauses = re.split(r";", prompt)
-            for clause in clauses:
-                if clause == "":
-                    continue
-                clause = clause.strip()
-                if not clause:
-                    continue
-                for pattern, obj_type in search_templates:
-                    match = re.search(pattern, clause, re.IGNORECASE)
-                    if match:
-                        prop = match.group("prop").strip()
-                        if obj_type in ["above", "below", "equal"]:
-                            val = match.group("val").strip()
-                            assert f"{float(val):.2f}" == val, "Value is not a number"
-                            val = float(val)
-                        else:
-                            val = 0.0
-                        props[prop] = (obj_type, val)
-                        break
-
-            objectives.append(props)
-        return objectives
 
     def get_smiles_from_completion(self, comp: str) -> List[str]:
         """
@@ -371,7 +307,6 @@ class RewardScorer:
 
     def _get_docking_score(
         self,
-        prompts: List[Any],
         completions: List[Any],
         metadata: List[Dict[str, Any]],
         debug: bool = False,
@@ -395,7 +330,7 @@ class RewardScorer:
             raise NotImplementedError
 
         # objectives: List[Dict[str, Tuple[str, float]]], for each completion dict of the properties to evaluate and the objective ("above", "below", "equal", "maximize", "minimize") and target value
-        if metadata is None or not (
+        assert metadata is not None and (
             all(
                 [
                     p in m
@@ -403,17 +338,13 @@ class RewardScorer:
                     for p in ["properties", "objectives", "target"]
                 ]
             )
-        ):
-            objectives = self.get_mol_props_from_prompt(prompts, self.search_patterns)
-        else:
-            objectives = []
-            for m in metadata:
-                props = {}
-                for p, obj, target in zip(
-                    m["properties"], m["objectives"], m["target"]
-                ):
-                    props[p] = (obj, float(target))
-                objectives.append(props)
+        )
+        objectives = []
+        for m in metadata:
+            props = {}
+            for p, obj, target in zip(m["properties"], m["objectives"], m["target"]):
+                props[p] = (obj, float(target))
+            objectives.append(props)
 
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_list_per_completion, objectives
@@ -453,7 +384,6 @@ class RewardScorer:
 
     def _get_prop_pred_score(
         self,
-        prompts: List[Any],
         completions: List[Any],
         metadata: List[Dict[str, Any]],
         debug: bool = False,
@@ -493,7 +423,6 @@ class RewardScorer:
 
     def _get_reaction_score(
         self,
-        prompts: List[Any],
         completions: List[Any],
         metadata: List[Dict[str, Any]],
         debug: bool = False,
@@ -528,7 +457,6 @@ class RewardScorer:
 
     def get_score(
         self,
-        prompts: List[Any],
         completions: List[Any],
         metadata: List[Dict[str, Any]],
         debug: bool = False,
@@ -536,20 +464,13 @@ class RewardScorer:
     ) -> List[float]:
         obj_to_fn: Dict[
             str,
-            Callable[
-                [list[Any], List[Any], List[dict[str, Any]], bool, bool], List[float]
-            ],
+            Callable[[List[Any], List[dict[str, Any]], bool, bool], List[float]],
         ] = {
             "docking": self._get_docking_score,
             "prop_pred": self._get_prop_pred_score,
             "reaction": self._get_reaction_score,
         }
         idxs: Dict[str, List[int]] = {"docking": [], "prop_pred": [], "reaction": []}
-        prompts_per_obj: Dict[str, List[str]] = {
-            "docking": [],
-            "prop_pred": [],
-            "reaction": [],
-        }
         completions_per_obj: Dict[str, List[str]] = {
             "docking": [],
             "prop_pred": [],
@@ -560,11 +481,10 @@ class RewardScorer:
             "prop_pred": [],
             "reaction": [],
         }
-
+        print(metadata)
         for i, meta in enumerate(metadata):
             if meta["objectives"][0] in ["regression", "classification"]:
                 idxs["prop_pred"].append(i)
-                prompts_per_obj["prop_pred"].append(prompts[i])
                 completions_per_obj["prop_pred"].append(completions[i])
                 metadata_per_obj["prop_pred"].append(meta)
             elif meta["objectives"][0] in [
@@ -574,7 +494,6 @@ class RewardScorer:
                 "reactant_full",
             ]:
                 idxs["reaction"].append(i)
-                prompts_per_obj["reaction"].append(prompts[i])
                 completions_per_obj["reaction"].append(completions[i])
                 metadata_per_obj["reaction"].append(meta)
             elif meta["objectives"][0] in [
@@ -585,17 +504,15 @@ class RewardScorer:
                 "equal",
             ]:
                 idxs["docking"].append(i)
-                prompts_per_obj["docking"].append(prompts[i])
                 completions_per_obj["docking"].append(completions[i])
                 metadata_per_obj["docking"].append(meta)
             else:
                 raise NotImplementedError(
                     "Unrecognized objective: {}".format(meta["objectives"])
                 )
-        rewards = [0.0 for _ in range(len(prompts))]
+        rewards = [0.0 for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
             rewards_obj = fn(
-                prompts_per_obj[key],
                 completions_per_obj[key],
                 metadata_per_obj[key],
                 debug,
@@ -607,7 +524,6 @@ class RewardScorer:
 
     def __call__(
         self,
-        prompts: List[Any],
         completions: List[Any],
         metadata: List[Dict[str, Any]],
         debug: bool = False,
@@ -617,5 +533,5 @@ class RewardScorer:
         Call the scorer to get the rewards.
         """
         return self.get_score(
-            prompts, completions, debug=debug, metadata=metadata, use_pbar=use_pbar
+            completions=completions, metadata=metadata, debug=debug, use_pbar=use_pbar
         )

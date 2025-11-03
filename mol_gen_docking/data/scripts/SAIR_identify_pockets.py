@@ -5,13 +5,12 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import ray
 from Bio.PDB import PDBIO, MMCIFParser, Superimposer
+from ray.experimental import tqdm_ray
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
 from tqdm import tqdm
-
-import ray
-from ray.experimental import tqdm_ray
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)

@@ -5,12 +5,11 @@ from itertools import chain
 from typing import Any, List
 
 import pyscreener as ps
+import ray
 from pyscreener.docking import DockingVirtualScreen, get_runner
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 from tqdm import tqdm
-
-import ray
 
 
 class DockingVirtualScreenWithTimeout(DockingVirtualScreen):

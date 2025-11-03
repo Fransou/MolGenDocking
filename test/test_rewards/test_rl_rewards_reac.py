@@ -31,7 +31,5 @@ def test_reaction():
         for obj in ["product", "product_full", "reactant", "reactant_full"]
         for _ in range(5)
     ]
-    rewards = property_scorer(
-        [""] * len(completions), completions, metadata, use_pbar=False
-    )
+    rewards = property_scorer(completions, metadata, use_pbar=False)
     assert rewards == [1.0, 1.0, 1.0, 0.1, 0] * 4

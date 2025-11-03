@@ -26,14 +26,9 @@ HEAD_NODE_IP=$(srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-add
 # Launch head server
 srun  --overlap --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP head &
 
-# Launch workers
-for node in $WORKER_NODES; do
-    srun --overlap --nodes 1 --nodelist=$node --ntasks=1 $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP worker &
-done
-
 export HEAD_NODE_PORT=34567
 sleep 15
-srun --overlap $SLURM_SCRIPTS_DIR/run_training.sh $HEAD_NODE_IP $1 $2 $i
+srun --overlap $SLURM_SCRIPTS_DIR/run_training.sh $HEAD_NODE_IP $i
 
 wait
 
