@@ -91,7 +91,7 @@ class MakeCustomTaskTrainer(StandardOnlineTrainer):
 
         with open(precomputed_bb_masks_path, "rb") as f:
             precomputed_bb_masks = pickle.load(f)
-
+        print(self.cfg)
         self.ctx = ReactionTemplateEnvContext(
             atoms=ATOMS,
             num_cond_dim=self.task.num_cond_dim,

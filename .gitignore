@@ -171,27 +171,10 @@ cython_debug/
 .pypirc
 
 SFT*
-/data/SIU/*
-/data/mol_orz/*.zip
 
-/data/*.zip
-/data/*.tab
-/data/*.jsonl
-/data/*.arrow
-/data/*.arrow
-/data/*.tar.gz
-
-/data/mol_orz/eval_data/*
-/data/mol_orz/test_data/*
-/data/mol_orz/train_prompts/*
-/data/mol_orz/pdb_files
-/data/mol_orz/pockets_embeddings
-
-/data/sair_rl/eval_data/*
-/data/sair_rl/test_data/*
-/data/sair_rl/train_prompts/*
-/data/sair_rl/pdb_files
-/data/sair_rl/pockets_embeddings
+/data/*
+/results/*
+test_docking.csv
 
 external_libraries/*
 oracle

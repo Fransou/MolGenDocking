@@ -6,7 +6,7 @@ import pandas as pd
 
 from mol_gen_docking.reward.property_utils import inverse_rescale_property_values
 
-DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
+DATA_PATH = os.environ.get("DATA_PATH", "data/molgendata")
 
 
 with open(f"{DATA_PATH}/names_mapping.json") as f:

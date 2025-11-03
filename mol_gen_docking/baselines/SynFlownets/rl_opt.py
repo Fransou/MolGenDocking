@@ -24,9 +24,8 @@ def get_reward_fn(
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            return SCORER([""], [completions], metadata=[metadata], use_pbar=False)[0]
+            return SCORER([completions], metadata=[metadata], use_pbar=False)[0]
         return SCORER(  # typing: ignore
-            [""],
             completions,
             metadata=[metadata] * len(completions),
             use_pbar=False,
@@ -76,12 +75,15 @@ if __name__ == "__main__":
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
         has_docking = any([prop in docking_targets for prop in metadata["properties"]])
-
         if args.rewards_to_pick == "std_only" and has_docking:
             continue
         elif args.rewards_to_pick == "docking_only" and not has_docking:
             continue
-        print(f" -#-#-#-#  Task : {metadata}")
+
+        print("=#=#=#=#" * 15)
+        print("-#-#-#-#" * 5, f"[{id}] Task : {metadata}", "-#-#-#-#" * 5)
+        print("=#=#=#=#" * 15)
+
         if args.id_obj == -1 or args.id_obj == id:
             reward_fn = get_reward_fn(metadata, args.datasets_path)
             evaluator = EvalMolMetrics(reward_fn)

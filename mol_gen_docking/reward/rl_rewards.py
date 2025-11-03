@@ -231,16 +231,15 @@ class RewardScorer:
             else:
                 _get_property_remote = _get_property_fast
 
-                values_job.append(
-                    _get_property_remote.remote(
-                        smiles,
-                        p,
-                        rescale=self.rescale,
-                        kwargs=self.oracle_kwargs,
-                        pbar=pbar,
-                    )
+            values_job.append(
+                _get_property_remote.remote(
+                    smiles,
+                    p,
+                    rescale=self.rescale,
+                    kwargs=self.oracle_kwargs,
+                    pbar=pbar,
                 )
-
+            )
         all_values = ray.get(values_job)
         for idx_p, p in enumerate(all_properties):
             values = all_values[idx_p]
@@ -414,7 +413,14 @@ class RewardScorer:
                 rewards.append(0.0)
             else:
                 if meta["objectives"][0] == "regression":
-                    rewards.append(1 - np.clip((y - meta["target"][0]) ** 2, 0, 3) / 3)
+                    std = meta.get("norm_var", 1.0)
+                    rewards.append(
+                        np.clip(
+                            1 - ((y - meta["target"][0]) / std) ** 2,
+                            a_min=0.0,
+                            a_max=1.0,
+                        )
+                    )
                 elif meta["objectives"][0] == "classification":
                     rewards.append(float(y == meta["target"][0]))
                 else:
@@ -442,7 +448,7 @@ class RewardScorer:
             smi_y_true = sorted(
                 [Chem.MolToSmiles(m, canonical=True) for m in mol_y_true]
             )
-            return float(smi_y == smi_y_true) * 0.9 + 0.1
+            return float(smi_y == smi_y_true) * 0.9 + 0.1  # TODO:  use the IOU ?
 
         rewards = []
         for meta, answer in zip(metadata, completions):
@@ -462,6 +468,7 @@ class RewardScorer:
         debug: bool = False,
         use_pbar: bool = False,
     ) -> List[float]:
+        assert len(completions) == len(metadata)
         obj_to_fn: Dict[
             str,
             Callable[[List[Any], List[dict[str, Any]], bool, bool], List[float]],
@@ -481,7 +488,6 @@ class RewardScorer:
             "prop_pred": [],
             "reaction": [],
         }
-        print(metadata)
         for i, meta in enumerate(metadata):
             if meta["objectives"][0] in ["regression", "classification"]:
                 idxs["prop_pred"].append(i)
@@ -492,6 +498,9 @@ class RewardScorer:
                 "product_full",
                 "reactant",
                 "reactant_full",
+                "product_no_solvent",
+                "reactant_no_solvent",
+                "solvent",
             ]:
                 idxs["reaction"].append(i)
                 completions_per_obj["reaction"].append(completions[i])

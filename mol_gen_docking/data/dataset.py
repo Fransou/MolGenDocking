@@ -48,6 +48,22 @@ class RuleSet:
     max_occ: int = field(
         default=10
     )  # Maximum number of occurrences of a property per n_props
+    max_occ_exceptions: List[str] = field(
+        default_factory=lambda: [
+            "SA",
+            "QED",
+            "CalcExactMolWt",
+            "CalcNumAromaticRings",
+            "CalcNumHBA",
+            "CalcNumHBD",
+            "CalcNumRotatableBonds",
+            "CalcFractionCSP3",
+            "CalcTPSA",
+            "CalcHallKierAlpha",
+            "CalcPhi",
+            "logP",
+        ]
+    )
     max_docking_per_prompt: int = field(default=2)
     prohibited_props_at_n: Dict[int, List[str]] = field(default_factory=dict)
 
@@ -68,6 +84,7 @@ class RuleSet:
             metadata["prompt_id"] in self.prompt_ids[n_props]
         ):  # Already generated this prompt
             return False
+
         for prop in properties:
             if prop not in self.n_occ_prop[n_props]:
                 self.n_occ_prop[n_props][prop] = 0
@@ -76,11 +93,23 @@ class RuleSet:
             ):  # Too many occurrences of this property
                 logger.info("Property %s has too many occurrences: %d", prop, max_occ)
                 return False
+
+        self.update_occurence(n_props, metadata, max_occ, properties)
+
+        return True
+
+    def update_occurence(
+        self,
+        n_props: int,
+        metadata: Dict[str, Any],
+        max_occ: int,
+        properties: List[str],
+    ) -> None:
         # Update occurrences
         self.prompt_ids[n_props].append(metadata["prompt_id"])
         for prop in properties:
             # Only account for docking targets
-            if prop in CLASSICAL_PROPERTIES_NAMES.values():
+            if prop in self.max_occ_exceptions and n_props > 1:
                 continue
             self.n_occ_prop[n_props][prop] += 1
             if self.n_occ_prop[n_props][prop] >= max_occ:
@@ -92,7 +121,6 @@ class RuleSet:
                     prop,
                     n_props,
                 )
-        return True
 
     def partial_reset(self) -> None:
         """Reinitialize the rule set, keeping the prompt_ids"""
@@ -409,13 +437,13 @@ class MolGenerationInstructionsDatasetGenerator:
 
     def get_obj_from_prop(self, properties: List[str]) -> List[str]:
         objectives: List[str] = []
-        n_dock_props = len(
-            [p for p in properties if self.prop_name_mapping[p] in self.docking_targets]
-        )
+
+        solo_docking = True  # First docking property sees its values taken from DOCKING_SOLO_OBJECTIVES
         for prop in properties:
             short_prop = self.prop_name_mapping[prop]
-            if n_dock_props == 1 and short_prop in self.docking_targets:
+            if solo_docking and short_prop in self.docking_targets:
                 obj = random.choice(DOCKING_SOLO_OBJECTIVES)
+                solo_docking = False
             elif short_prop in self.docking_targets:
                 obj = random.choice(DOCKING_OBJECTIVES)
             else:

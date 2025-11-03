@@ -149,7 +149,7 @@ def add_algo_config(
     group.add_argument(
         "--train_random_action_prob",
         type=float,
-        default=0.1,
+        default=0.05,
         help="The probability of taking a random action during training",
     )
 
@@ -329,7 +329,7 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
         print_every=1,
         validate_every=50,
         num_validation_gen_steps=4,
-        pickle_mp_messages=True,
+        pickle_mp_messages=False,
         algo=algo_config,
         model=model_config,
         opt=opt_config,
@@ -343,5 +343,10 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
             )
         ),
     )
-
+    config.algo.max_nodes = 9
+    config.model.graph_transformer.fingerprint_type = "morgan_1024"
+    config.algo.strict_forward_policy = False
+    config.algo.strict_bck_masking = False
+    config.algo.tb.do_correct_idempotent = False
+    config.algo.tb.do_parameterize_p_b = True
     return config, args

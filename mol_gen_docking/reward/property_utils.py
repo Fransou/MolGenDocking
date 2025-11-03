@@ -47,13 +47,13 @@ INTEGER_PROPS = [
 ]
 
 PROPERTY_ALLOWED_OBJECTIVES = {
-    "GSK3B": ["maximize"],
-    "JNK3": ["maximize"],
-    "DRD2": ["maximize"],
-    "SA": ["maximize"],
+    "GSK3B": ["maximize", "above"],
+    "JNK3": ["maximize", "above"],
+    "DRD2": ["maximize", "above"],
+    "SA": ["maximize", "above"],
     "QED": ["maximize", "above"],
     "CalcExactMolWt": ["above", "below"],
-    "CalcNumAromaticRings": ["above", "below"],
+    "CalcNumAromaticRings": ["above", "below", "minimize"],
     "CalcNumHBA": ["above", "below"],
     "CalcNumHBD": ["above", "below"],
     "CalcNumRotatableBonds": ["above", "below"],
