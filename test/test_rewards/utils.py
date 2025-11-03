@@ -7,9 +7,7 @@ import pandas as pd
 from mol_gen_docking.reward.property_utils import inverse_rescale_property_values
 
 DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
-SKIP_DOCKING_TEST = (
-    os.system("vina --help") == 32512 or os.environ.get("SKIP_DOCKING", 0) == 1
-)
+
 
 with open(f"{DATA_PATH}/names_mapping.json") as f:
     PROPERTIES_NAMES_SIMPLE: dict = json.load(f)

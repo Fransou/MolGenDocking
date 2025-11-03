@@ -15,6 +15,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         choices=["cpu", "gpu"],
         help="Select the hardware accelerator to use for tests (cpu or gpu).",
     )
+    parser.addoption(
+        "--skip-docking",
+        action="store_true",
+        default=False,
+        help="Skip docking tests when set.",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -28,6 +34,8 @@ def accelerator(request: pytest.FixtureRequest) -> AcceleratorType:
                 ...
     """
     accel: str = request.config.getoption("--accelerator")
+    if bool(request.config.getoption("--skip-docking")):
+        pytest.skip("Skipping docking tests")
     assert accel in ("cpu", "gpu")
     return accel
 

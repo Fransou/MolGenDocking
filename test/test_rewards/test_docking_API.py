@@ -16,7 +16,6 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 from .utils import (
     DATA_PATH,
     DOCKING_PROP_LIST,
-    SKIP_DOCKING_TEST,
     fill_completion,
     fill_df_time,
     propeties_csv,
@@ -87,8 +86,7 @@ def build_prompt(property: str | List[str], obj: str = "maximize") -> str:
     return prompt
 
 
-@pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
-def test_receptor_process(receptor_process):
+def test_receptor_process(receptor_process, has_gpu):
     """Test receptor processing."""
     _, missed_targets = receptor_process(props_to_eval)
     assert len(missed_targets) == 0, (
@@ -96,7 +94,6 @@ def test_receptor_process(receptor_process):
     )
 
 
-@pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
 @pytest.mark.parametrize("target", props_to_eval)
 def test_docking_props(target, scorer, receptor_process, n_generations=4):
     """Test the reward function runs for vina targets."""
@@ -124,7 +121,6 @@ def test_docking_props(target, scorer, receptor_process, n_generations=4):
     )
 
 
-@pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
 @pytest.mark.parametrize(
     "targets", [props_to_eval[i * 5 : (i + 1) * 5] for i in range(4)]
 )

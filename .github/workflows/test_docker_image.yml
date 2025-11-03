@@ -30,4 +30,4 @@ jobs:
     - name: Test with pytest
       run: |
         rm -rf .coverage
-        docker run -v ${PWD}:/tmp fransou/reward:latest bash /tmp/run_docker_test.sh
+        docker run -v ${PWD}:/tmp fransou/molgen:latest bash /tmp/run_docker_test.sh
