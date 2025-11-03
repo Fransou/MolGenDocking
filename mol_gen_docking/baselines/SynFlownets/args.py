@@ -2,7 +2,7 @@ import argparse
 from typing import Any, Dict, Tuple
 
 import torch
-from gflownet.algo.config import (
+from synflownet.algo.config import (
     AlgoConfig,
     Backward,
     FMConfig,
@@ -11,10 +11,14 @@ from gflownet.algo.config import (
     TBConfig,
     TBVariant,
 )
-from gflownet.config import Config, OptimizerConfig
-from gflownet.data.config import ReplayConfig
-from gflownet.models.config import ModelConfig
-from gflownet.utils.config import ConditionalsConfig
+from synflownet.config import (
+    ConditionalsConfig,
+    Config,
+    ModelConfig,
+    OptimizerConfig,
+    ReplayConfig,
+)
+from synflownet.tasks.config import ReactionTaskConfig, TasksConfig
 
 
 def add_TB_config(parser: argparse.ArgumentParser) -> argparse._ArgumentGroup:
@@ -204,6 +208,22 @@ def add_replay_config(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_task_config(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--templates_filename", type=str, default="data/synflownet/templates/hb.txt"
+    )
+    parser.add_argument(
+        "--building_blocks_filename",
+        type=str,
+        default="data/synflownet/enamine_bbs.txt",
+    )
+    parser.add_argument(
+        "--precomputed_bb_masks_filename",
+        type=str,
+        default="data/synflownet/precomputed_bb_masks_enamine_bbs.pkl",
+    )
+
+
 def process_algo_args(
     args: argparse.Namespace, group_dict: Dict[str, argparse._ArgumentGroup]
 ) -> Dict[str, Dict[str, Any]]:
@@ -245,11 +265,6 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
     )
     parser.add_argument("--datasets-path", type=str, default="data/molgendata")
     parser.add_argument(
-        "--remote_rm_url",
-        type=str,
-        default="http://0.0.0.0:5001",
-    )
-    parser.add_argument(
         "--rewards_to_pick",
         type=str,  # Literal["docking_only", "std_only", "all"]
         default="all",
@@ -279,6 +294,8 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
     add_replay_config(parser)
 
     # ConditionalsConfig
+
+    add_task_config(parser)
 
     args = parser.parse_args()
 
@@ -318,6 +335,13 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
         opt=opt_config,
         replay=replay_config,
         cond=cond_config,
+        task=TasksConfig(
+            ReactionTaskConfig(
+                templates_filename=args.templates_filename,
+                building_blocks_filename=args.building_blocks_filename,
+                precomputed_bb_masks_filename=args.precomputed_bb_masks_filename,
+            )
+        ),
     )
 
     return config, args
