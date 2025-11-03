@@ -5,14 +5,15 @@ import pytest
 import requests
 import torch
 
-from .utils import DOCKING_PROP_LIST, SKIP_DOCKING_TEST, propeties_csv
+from .utils import DOCKING_PROP_LIST, propeties_csv
 
 
-@pytest.mark.skipif(SKIP_DOCKING_TEST, reason="No docking software installed")
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
-def test_docking(target, n_generations=128):
+def test_docking(target, has_gpu, n_generations=128):
     """Test the reward function runs for vina targets."""
     # Launch the reward server
+    if not has_gpu:
+        pytest.skip("Skipping test for gpu docking")
     port = "5001"
 
     smiles = [
