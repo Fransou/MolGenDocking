@@ -261,10 +261,14 @@ def get_config() -> Tuple[Config, argparse.Namespace]:
         "--base-dataset", type=str, default="jarod0411/zinc10M", help="Dataset name"
     )
     parser.add_argument(
-        "--dataset", type=str, default="data/sair_rl/eval_data/eval_prompts"
+        "--dataset", type=str, default="data/molgendata/eval_data/eval_prompts"
     )
-    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
-
+    parser.add_argument("--datasets-path", type=str, default="data/molgendata")
+    parser.add_argument(
+        "--rewards_to_pick",
+        type=str,  # Literal["docking_only", "std_only", "all"]
+        default="all",
+    )
     parser.add_argument(
         "--id_obj",
         type=int,

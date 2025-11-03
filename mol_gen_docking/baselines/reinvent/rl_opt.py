@@ -107,10 +107,10 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="data/sair_rl/eval_data/eval_prompts",
+        default="data/molgendata/eval_data/eval_prompts",
         help="Dataset name",
     )
-    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
+    parser.add_argument("--datasets-path", type=str, default="data/molgendata")
 
     parser.add_argument(
         "--model_name",
@@ -191,6 +191,11 @@ def get_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--rewards_to_pick",
+        type=str,  # Literal["docking_only", "std_only", "all"]
+        default="all",
+    )
+    parser.add_argument(
         "--id_obj",
         type=int,
         default=-1,
@@ -216,6 +221,12 @@ if __name__ == "__main__":
         print("=#=#=#=#" * 15)
         print("-#-#-#-#" * 5, f"Task : {metadata}", "-#-#-#-#" * 5)
         print("=#=#=#=#" * 15)
+        has_docking = any([prop in docking_targets for prop in metadata["properties"]])
+
+        if args.rewards_to_pick == "std_only" and has_docking:
+            continue
+        elif args.rewards_to_pick == "docking_only" and not has_docking:
+            continue
 
         if args.id_obj == -1 or args.id_obj == id:
             reward_fn = get_reward_fn(metadata, args.datasets_path, args.remote_rm_url)

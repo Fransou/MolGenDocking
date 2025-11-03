@@ -75,7 +75,11 @@ if __name__ == "__main__":
     id = 0
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
-        if any([prop in docking_targets for prop in metadata["properties"]]):
+        has_docking = any([prop in docking_targets for prop in metadata["properties"]])
+
+        if args.rewards_to_pick == "std_only" and has_docking:
+            continue
+        elif args.rewards_to_pick == "docking_only" and not has_docking:
             continue
         print(f" -#-#-#-#  Task : {metadata}")
         if args.id_obj == -1 or args.id_obj == id:

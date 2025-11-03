@@ -203,9 +203,9 @@ if __name__ == "__main__":
     )
     BaselineConfig.add_arguments(parser)
     parser.add_argument(
-        "--data-path", type=str, default="data/sair_rl/eval_data/eval_prompts"
+        "--data-path", type=str, default="data/molgendata/eval_data/eval_prompts"
     )
-    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
+    parser.add_argument("--datasets-path", type=str, default="data/molgendata")
     args = parser.parse_args()
 
     config = BaselineConfig.from_args(args)
