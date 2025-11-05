@@ -7,7 +7,7 @@
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus=h100:1
-#SBATCH --array=0-108:12%1
+#SBATCH --array=0-108:12
 
 set -x
 STRIDE=12
