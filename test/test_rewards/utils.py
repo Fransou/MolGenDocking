@@ -4,9 +4,12 @@ from typing import List, Optional
 
 import pandas as pd
 
-from mol_gen_docking.reward.property_utils import inverse_rescale_property_values
+from mol_gen_docking.reward.property_utils import (
+    CLASSICAL_PROPERTIES_NAMES,
+    inverse_rescale_property_values,
+)
 
-DATA_PATH = os.environ.get("DATA_PATH", "data/mol_orz")
+DATA_PATH = os.environ.get("DATA_PATH", "data/molgendata")
 
 
 with open(f"{DATA_PATH}/names_mapping.json") as f:
@@ -15,8 +18,11 @@ with open(f"{DATA_PATH}/docking_targets.json") as f:
     DOCKING_PROP_LIST: List[str] = json.load(f)
 
 PROP_LIST: List[str] = [
-    k for k in PROPERTIES_NAMES_SIMPLE.values() if k not in DOCKING_PROP_LIST
+    k
+    for k in PROPERTIES_NAMES_SIMPLE.values()
+    if k not in DOCKING_PROP_LIST and k in CLASSICAL_PROPERTIES_NAMES
 ]
+print(PROP_LIST)
 
 
 propeties_csv = pd.read_csv("data/properties.csv", index_col=0)

@@ -276,7 +276,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     processor = ReceptorProcess(data_path=args.data_path, pre_process_receptors=True)
-    missed_receptors_1, missed_receptors_2 = processor.process_receptors()
+    missed_receptors_1, missed_receptors_2 = processor.process_receptors(use_pbar=True)
     print(
         "###########\n Missed receptors with critical errors: \n",
         len(missed_receptors_2),

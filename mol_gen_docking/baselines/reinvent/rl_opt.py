@@ -107,10 +107,10 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="data/sair_rl/eval_data/eval_prompts",
+        default="data/molgendata/eval_data/eval_prompts",
         help="Dataset name",
     )
-    parser.add_argument("--datasets-path", type=str, default="data/sair_rl")
+    parser.add_argument("--datasets-path", type=str, default="data/molgendata")
 
     parser.add_argument(
         "--model_name",
@@ -179,6 +179,11 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument("--train_on_beams", type=int, default=0)
     parser.add_argument(
+        "--num_beams",
+        type=int,
+        default=-1,
+    )
+    parser.add_argument(
         "--generation_config",
         type=json.loads,
         default={},
@@ -190,6 +195,11 @@ def get_args() -> argparse.Namespace:
         default="http://0.0.0.0:5001",
     )
 
+    parser.add_argument(
+        "--rewards_to_pick",
+        type=str,  # Literal["docking_only", "std_only", "all"]
+        default="all",
+    )
     parser.add_argument(
         "--id_obj",
         type=int,
@@ -206,6 +216,11 @@ def get_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = get_args()
+    if args.num_beams >= 0:
+        if args.num_beams == 0:
+            args.generation_config = {}
+        else:
+            args.generation_config["num_beams"] = args.num_beams
     dataset = load_from_disk(args.dataset)
     with open(os.path.join(args.datasets_path, "docking_targets.json")) as f:
         docking_targets = json.load(f)
@@ -213,8 +228,14 @@ if __name__ == "__main__":
     id = 0
     for row in dataset:
         metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
+        has_docking = any([prop in docking_targets for prop in metadata["properties"]])
+        if args.rewards_to_pick == "std_only" and has_docking:
+            continue
+        elif args.rewards_to_pick == "docking_only" and not has_docking:
+            continue
+
         print("=#=#=#=#" * 15)
-        print("-#-#-#-#" * 5, f"Task : {metadata}", "-#-#-#-#" * 5)
+        print("-#-#-#-#" * 5, f"[{id}] Task : {metadata}", "-#-#-#-#" * 5)
         print("=#=#=#=#" * 15)
 
         if args.id_obj == -1 or args.id_obj == id:
@@ -253,6 +274,7 @@ if __name__ == "__main__":
                 beta=args.sigma,
                 generation_kwargs=generation_config,
                 batch_eval_metrics=False,
+                log_completions=True,
             )
             train_dataset = Dataset.from_dict(
                 {"prompt": ["<s>"] * args.num_train_epochs}

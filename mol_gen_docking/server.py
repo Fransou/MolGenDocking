@@ -99,29 +99,28 @@ def create_app() -> FastAPI:
         if status == "Error":
             return MolecularVerifierResponse(error="Error in preprocessing")
 
-        prompts, queries, metadata = query.prompts, query.query, query.metadata
+        queries, metadata = query.query, query.metadata
 
-        if prompts is None:
-            assert metadata is not None
-            prompts = []
-            for meta in metadata:
-                assert all([k in meta for k in ["properties", "objectives", "target"]])
-                prompts.append(
-                    "|".join(
-                        [
-                            f"{p}, {o}, {t}"
-                            for p, o, t in zip(
-                                meta["properties"], meta["objectives"], meta["target"]
-                            )
-                        ]
-                    )
+        assert metadata is not None
+        prompts = []
+        for meta in metadata:
+            assert all([k in meta for k in ["properties", "objectives", "target"]])
+            prompts.append(
+                "|".join(
+                    [
+                        f"{p}, {o}, {t}"
+                        for p, o, t in zip(
+                            meta["properties"], meta["objectives"], meta["target"]
+                        )
+                    ]
                 )
+            )
 
         rewards_job = app.state.reward_model.get_score.remote(
-            prompts=prompts, completions=queries, metadata=metadata
+            completions=queries, metadata=metadata
         )
         valid_reward = app.state.reward_valid_smiles.get_score(
-            prompts=prompts, completions=queries
+            completions=queries, metadata=metadata
         )
         final_smiles = app.state.reward_valid_smiles.get_all_completions_smiles(
             completions=queries

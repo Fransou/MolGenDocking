@@ -5,10 +5,10 @@ from subprocess import DEVNULL, STDOUT, check_call
 from typing import Any
 
 import pandas as pd
-
 import ray
-from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping_uniprot
 from ray.experimental import tqdm_ray
+
+from mol_gen_docking.data.pdb_uniprot.target_naming import get_names_mapping_uniprot
 
 # After all structures have been downloaded, and the pockets have been extracted, performs the last steps of the data processing:
 # 1. Ensures all pdb files can be read byt the prepare_receptor script from AutoDockTools

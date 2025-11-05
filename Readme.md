@@ -188,10 +188,11 @@ Reaction tasks use specific objective types:
 - **reactant**: Identify missing reactants in a reaction
 - **reactant_full**: Predict all reactants needed for a given set of products
 - **product_full**: Predict all products from a given set of reactants
+- **solvent**:
 
 ### Dataset
 
-Reaction tasks utilize the USPTO (United States Patent and Trademark Office) dataset, processed from the Hugging Face chenxran/uspto_full dataset. The dataset contains chemical reactions with SMILES representations of reactants and products.
+Reaction tasks utilize the USPTO-llm dataset ([see documentation](https://github.com/GONGSHUKAI/USPTO_LLM)). The dataset contains chemical reactions with SMILES representations of reactants and products, and informations on the solvent.
 
 ### Evaluation
 

@@ -2,9 +2,10 @@ import re
 from multiprocessing import Pool
 from typing import Any, Dict, List
 
+import ray
+from ray.experimental import tqdm_ray
 from tqdm import tqdm
 
-import ray
 from mol_gen_docking.data.pdb_uniprot.api_requests import (
     fetch_uniprot_id_from_pdbid,
     fetch_uniprot_info,
@@ -12,7 +13,6 @@ from mol_gen_docking.data.pdb_uniprot.api_requests import (
 from mol_gen_docking.reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
-from ray.experimental import tqdm_ray
 
 
 def clean_protein_name(name: str) -> str:

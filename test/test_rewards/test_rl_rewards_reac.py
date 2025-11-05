@@ -1,5 +1,6 @@
 import ray
 
+from mol_gen_docking.data.scripts.generate_reaction_dataset import PROMPT_TEMPLATES
 from mol_gen_docking.reward.rl_rewards import RewardScorer
 
 from .utils import (
@@ -24,14 +25,12 @@ def test_reaction():
             "Nc1ccccc1C=O, CCC",
             "ksdjgf",
         ]
-    ] * 4
+    ] * len(PROMPT_TEMPLATES)
 
     metadata = [
         {"objectives": [obj], "properties": [""], "target": [target]}
-        for obj in ["product", "product_full", "reactant", "reactant_full"]
+        for obj in PROMPT_TEMPLATES.keys()
         for _ in range(5)
     ]
-    rewards = property_scorer(
-        [""] * len(completions), completions, metadata, use_pbar=False
-    )
-    assert rewards == [1.0, 1.0, 1.0, 0.1, 0] * 4
+    rewards = property_scorer(completions, metadata, use_pbar=False)
+    assert rewards == [1.0, 1.0, 1.0, 0.1, 0] * len(PROMPT_TEMPLATES)
