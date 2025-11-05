@@ -216,7 +216,6 @@ if __name__ == "__main__":
     length = {}
     for property_dataset_k in args.property_dataset:
         property_dataset_k_split = property_dataset_k.split("|")
-        print(property_dataset_k_split)
         data_dict: Dict[str, Any] = {
             "prompt": [],
             "properties": [],
@@ -227,6 +226,8 @@ if __name__ == "__main__":
         }
 
         final_ys = []
+        smiles_key: None | str = None
+        key: str | None = None
         dataset_type: Literal["benchmark", "dataset"] = "dataset"
         if len(property_dataset_k_split) == 1:
             property_dataset = property_dataset_k
@@ -316,7 +317,9 @@ if __name__ == "__main__":
         for p in property_dataset.split("/"):
             os.makedirs(os.path.join(data_path, p), exist_ok=True)
             data_path = os.path.join(data_path, p)
-
+        if key is not None:
+            data_path = os.path.join(data_path, key)
+            os.makedirs(data_path, exist_ok=True)
         write_jsonl(
             Path(os.path.join(data_path, "train.jsonl")),
             train_dataset,
