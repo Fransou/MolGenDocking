@@ -23,7 +23,7 @@ HEAD_NODE_IP=$(srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-add
 srun  --overlap --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP head &
 
 export HEAD_NODE_PORT=34567
-sleep 15
+sleep 30
 
 START_IDX=$SLURM_ARRAY_TASK_ID
 END_IDX=$((START_IDX + STRIDE - 1))

@@ -5,9 +5,9 @@ export WORKING_DIR=$HOME/MolGenDocking
 export DATASET=molgendata
 export NCCL_ASYNC_ERROR_HANDLING=1
 
-cp $SCRATCH/MolGenData/$DATASET_prompts.tar.gz $SLURM_TMPDIR
-cd $SLURM_TMPDIR
-tar -xzf $DATASET.tar.gz
+#cp $SCRATCH/MolGenData/$DATASET_prompts.tar.gz $SLURM_TMPDIR
+#cd $SLURM_TMPDIR
+#tar -xzf $DATASET.tar.gz
 cd $WORKING_DIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
