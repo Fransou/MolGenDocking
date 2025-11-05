@@ -389,9 +389,7 @@ class MolGenerationInstructionsDatasetGenerator:
                 min(self.rule_set.max_docking_per_prompt, len(allowed_docking_props)),
                 replace=False,
             ).tolist()
-            if n_props == 1 and self.needs_dock:
-                allowed_std_props = []
-            elif self.needs_dock:
+            if self.needs_dock:
                 allowed_std_props = np.random.choice(
                     allowed_std_props, n_props - 1
                 ).tolist()

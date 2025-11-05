@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=reinvent-heterogenous
 #SBATCH --account=def-ibenayed
-#SBATCH --time=0-06:00:00
+#SBATCH --time=0-03:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus=h100:1
-#SBATCH --array=0-108:12
+#SBATCH --array=0-42:14
 
 set -x
-STRIDE=12
+STRIDE=14
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines
 
@@ -33,10 +33,7 @@ for i in $(seq $START_IDX $END_IDX); do
     echo "N_BEAMS: $2"
     echo "TRAIN_ON_BEAMS: $3"
     echo "BATCH_SIZE: $4"
-    srun --overlap $SLURM_SCRIPTS_DIR/reinvent/run_training.sh \
-      $HEAD_NODE_IP \
-      $i \
-      std_only \
+    srun --overlap $SLURM_SCRIPTS_DIR/reinvent/run_training.sh $HEAD_NODE_IP $i std_only \
       $1 \
       $2 \
       $3 \

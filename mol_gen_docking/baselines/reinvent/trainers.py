@@ -1,13 +1,99 @@
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import requests
 import torch
 import torch.utils.data
 from accelerate.utils import gather_object
 from datasets import Dataset
+from rdkit import Chem
 from tdc import Evaluator
 from torch.utils.data import Sampler
+from transformers import AutoTokenizer, EvalPrediction
 from trl import GRPOTrainer
 from trl.trainer.utils import RepeatSampler, nanmax, nanmin, nanstd, pad
+
+N_REPEAT_TEST = 8
+
+
+def get_reward_fn(
+    metadata: Dict[str, Any], datasets_path: str, remote_rm_url: str
+) -> Callable[[str | List[str]], float | List[float]]:
+    response = requests.post(
+        f"{remote_rm_url}/prepare_receptor",
+        json={"metadata": [metadata]},
+    )
+    assert response.status_code == 200, response.text
+
+    def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
+        if isinstance(completions, str):
+            completions = [completions]
+        completions = [f"<answer> {s} </answer>" for s in completions]
+        response = requests.post(
+            f"{remote_rm_url}/get_reward",
+            json={"query": completions, "metadata": [metadata] * len(completions)},
+        )
+        assert response.status_code == 200, response.text
+        rewards: List[float] = response.json()["reward_list"]
+        if isinstance(completions, str):
+            return rewards[0]
+        return rewards
+
+    return reward_fn
+
+
+class EvalMolMetrics:
+    def __init__(
+        self,
+        tokenizer: AutoTokenizer,
+        reward_fn: Callable[[str | List[str]], float | List[float]],
+    ):
+        self.tokenizer = tokenizer
+        self.reward_fn = reward_fn
+        self.mol_evaluators = {
+            name: Evaluator(name=name)
+            for name in ["Validity", "Uniqueness", "Diversity"]
+        }
+
+    def __call__(self, preds: EvalPrediction) -> Dict[str, float]:
+        metrics_sub: Dict[str, List[float]] = {
+            eval_name: [] for eval_name in self.mol_evaluators.keys()
+        }
+        metrics_sub["reward"] = []
+
+        for i in range(0, len(preds.label_ids), len(preds.label_ids) // N_REPEAT_TEST):
+            sub_label_ids = preds.label_ids[i : i + N_REPEAT_TEST]
+            sub_label_ids[sub_label_ids == -100] = self.tokenizer.pad_token_id
+            completions_text = self.tokenizer.batch_decode(
+                sub_label_ids, skip_special_tokens=True
+            )
+            # We generate 4x the number of generations for the reward completions, but the
+            # Validity, Uniqueness and Diversity are computed on the top-n elements
+            n = len(completions_text) // 4
+            for eval_name in self.mol_evaluators:
+                metrics_sub[eval_name].append(
+                    self.mol_evaluators[eval_name](completions_text[:n])
+                )
+
+            # for the reward, we remove duplicates and keep the top-n after this processing
+            mols = [Chem.MolFromSmiles(smi) for smi in completions_text]
+            smiles = []
+            for mol in mols:
+                if mol is not None:
+                    smi = Chem.MolToSmiles(mol)
+                    if smi not in smiles:
+                        smiles.append(smi)
+                if len(smiles) == n:
+                    break
+            smiles = np.unique(smiles)
+            metrics_sub["reward"].append(
+                float(
+                    np.mean(self.reward_fn(smiles)) * len(smiles) / n
+                )  # Scale for non-generated smiles
+            )
+
+        metrics = {k: float(np.mean(m)) for k, m in metrics_sub.items()}
+        return metrics
 
 
 class VanillaReinventTrainer(GRPOTrainer):
