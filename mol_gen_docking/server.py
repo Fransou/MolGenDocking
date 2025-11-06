@@ -35,6 +35,7 @@ def get_or_create_reward_actor() -> Any:
             path_to_mappings=server_settings.data_path,
             parse_whole_completion=False,
             gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
+            reaction_matix_path=server_settings.reaction_matix_path,
             oracle_kwargs=dict(
                 exhaustiveness=server_settings.scorer_exhaustiveness,
                 n_cpu=server_settings.scorer_ncpus,
@@ -172,7 +173,6 @@ def create_app() -> FastAPI:
                 "diversity": diversity_score,
                 "pass_at_n": max_per_prompt,
                 "rewards": rewards,
-                # "mol_filters": filter_reward,
             },
             error=None,
         )

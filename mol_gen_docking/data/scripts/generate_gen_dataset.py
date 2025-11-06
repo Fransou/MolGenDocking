@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from mol_gen_docking.data.dataset import (
+from mol_gen_docking.data.gen_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDatasetGenerator,
     data_dict_to_hf_dataset,
@@ -19,9 +19,9 @@ logging.basicConfig()
 def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
     dataset = MolGenerationInstructionsDatasetGenerator(config)
 
-    n_train_prompts = int(args.n_prompts * 0.85)
-    n_valid_prompts = int(args.n_prompts * 0.05)  # 10% of the training set
-    n_test_prompts = int(args.n_prompts * 0.05)  # 20% of the training set
+    n_train_prompts = int(args.n_prompts * 0.98)
+    n_valid_prompts = int(args.n_prompts * 0.01)  # 10% of the training set
+    n_test_prompts = int(args.n_prompts * 0.01)  # 20% of the training set
 
     variables = [
         ("train_prompts", 0, n_train_prompts),

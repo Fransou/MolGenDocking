@@ -1,17 +1,15 @@
-import json
-import os
 import re
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-import numpy as np
-import pandas as pd
 import ray
 from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 
-# from tdc.chem_utils.oracle.filter import MolFilter
-from mol_gen_docking.reward.oracle_wrapper import OracleWrapper, get_oracle
-from mol_gen_docking.reward.property_utils import rescale_property_values
+from mol_gen_docking.reward.verifiers import (
+    GenerationVerifier,
+    MolPropVerifier,
+    ReactionVerifier,
+)
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -68,29 +66,27 @@ class RewardScorer:
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
+        reaction_matix_path: str = "data/rxn_matrix.pkl",
         oracle_kwargs: Dict[str, Any] = {},
         gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
-        if path_to_mappings is not None:
-            with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
-                property_name_mapping = json.load(f)
-            with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
-                docking_target_list = json.load(f)
         self.gpu_utilization_gpu_docking = gpu_utilization_gpu_docking
-        self.property_name_mapping = property_name_mapping
-        self.docking_target_list = docking_target_list
-        self.path_to_mappings = path_to_mappings
-
-        self.slow_props = docking_target_list  # + ["GSK3B", "JNK3", "DRD2"]
-
-        self.rescale = rescale
         self.reward = reward
-        self.oracle_kwargs = oracle_kwargs
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
         self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
-        self.oracles: Dict[str, OracleWrapper] = {}
+        self.generation_verifier = GenerationVerifier(
+            path_to_mappings=path_to_mappings,
+            reward=reward,
+            rescale=rescale,
+            oracle_kwargs=oracle_kwargs,
+            gpu_utilization_gpu_docking=gpu_utilization_gpu_docking,
+        )
+        self.mol_prop_verifier = MolPropVerifier(reward=reward)
+        self.reaction_verifier = ReactionVerifier(
+            reward=reward, rxn_matrix_path=reaction_matix_path
+        )
 
         if not ray.is_initialized():
             ray.init()
@@ -163,148 +159,7 @@ class RewardScorer:
             smiles.append(self.get_smiles_from_completion(completion))
         return smiles
 
-    def fill_df_properties(
-        self, df_properties: pd.DataFrame, use_pbar: bool = True
-    ) -> None:
-        def _get_property(
-            smiles: List[str],
-            prop: str,
-            rescale: bool = True,
-            kwargs: Dict[str, Any] = {},
-            pbar: Optional[Any] = None,
-        ) -> List[float]:
-            """
-            Get property reward
-            """
-            oracle_fn = self.oracles.get(
-                prop,
-                get_oracle(
-                    prop,
-                    path_to_data=self.path_to_mappings if self.path_to_mappings else "",
-                    docking_target_list=self.docking_target_list,
-                    property_name_mapping=self.property_name_mapping,
-                    **kwargs,
-                ),
-            )
-            if prop not in self.oracles:
-                self.oracles[prop] = oracle_fn
-            try:
-                property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
-            except Exception as e:
-                print(
-                    f"Error in {smiles}: {[s for s in smiles if Chem.MolFromSmiles(s) is None]}"
-                )
-                raise e
-            assert isinstance(property_reward, np.ndarray)
-            if pbar is not None:
-                pbar.update.remote(len(property_reward))
-
-            return [float(p) for p in property_reward]
-
-        _get_property_fast = ray.remote(num_cpus=0)(_get_property)
-        _get_property_long = ray.remote(
-            num_cpus=1,
-            num_gpus=self.gpu_utilization_gpu_docking
-            if "gpu" in self.oracle_kwargs.get("docking_oracle", "")
-            else 0,
-        )(_get_property)
-
-        all_properties = df_properties["property"].unique().tolist()
-        prop_smiles = {
-            p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
-            for p in all_properties
-        }
-        if use_pbar:
-            pbar = self.remote_tqdm.remote(  # type: ignore
-                total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
-                desc="[Properties]",
-            )
-        else:
-            pbar = None
-
-        values_job = []
-        for p in all_properties:
-            # If the reward is long to compute, use ray
-            smiles = prop_smiles[p]
-            if p in self.slow_props:
-                _get_property_remote = _get_property_long
-            else:
-                _get_property_remote = _get_property_fast
-
-            values_job.append(
-                _get_property_remote.remote(
-                    smiles,
-                    p,
-                    rescale=self.rescale,
-                    kwargs=self.oracle_kwargs,
-                    pbar=pbar,
-                )
-            )
-        all_values = ray.get(values_job)
-        for idx_p, p in enumerate(all_properties):
-            values = all_values[idx_p]
-            smiles = prop_smiles[p]
-            for s, v in zip(smiles, values):
-                df_properties.loc[
-                    (df_properties["smiles"] == s) & (df_properties["property"] == p),
-                    "value",
-                ] = v
-
-        if pbar is not None:
-            pbar.close.remote()  # type: ignore
-
-    def get_reward(self, row: pd.Series) -> float:
-        reward: float = 0
-        obj = row["obj"]
-        mol_prop = row["value"]
-        target_value = row["target_value"]
-        prop = row["property"]
-        is_docking = prop in self.docking_target_list
-        # Replace 0 docking score by the worst outcome
-        if is_docking and prop == 0.0:
-            return 0.0
-        if self.rescale:
-            target_value = rescale_property_values(
-                prop, target_value, docking=is_docking
-            )
-        if obj == "below":
-            reward += float(mol_prop <= target_value)
-        elif obj == "above":
-            reward += float(mol_prop >= target_value)
-        elif obj == "maximize":
-            reward += mol_prop
-        elif obj == "minimize":
-            reward += 1 - mol_prop
-        elif obj == "equal":
-            reward += np.clip(1 - 100 * (mol_prop - target_value) ** 2, 0, 1)
-        return float(reward)
-
-    def _get_prop_to_smiles_dataframe(
-        self,
-        smiles_list_per_completion: List[List[str]],
-        objectives: List[dict[str, Tuple[str, float]]],
-    ) -> pd.DataFrame:
-        df_properties = pd.DataFrame(
-            [
-                (s, p, None, obj, target_value, i)
-                for i, (props, smiles_list) in enumerate(
-                    zip(objectives, smiles_list_per_completion)
-                )
-                for s in smiles_list
-                for p, (obj, target_value) in props.items()
-            ],
-            columns=[
-                "smiles",
-                "property",
-                "value",
-                "obj",
-                "target_value",
-                "id_completion",
-            ],
-        )
-        return df_properties
-
-    def _get_docking_score(
+    def _get_generation_score(
         self,
         completions: List[Any],
         metadata: List[Dict[str, Any]],
@@ -314,72 +169,19 @@ class RewardScorer:
         """
         Get reward for molecular properties
         """
-        smiles_list_per_completion = self.get_all_completions_smiles(completions)
+        smiles_per_completion = self.get_all_completions_smiles(completions)
         if (
             self.reward == "valid_smiles"
-        ):  # TODO: Always return 1 if at least one valid smiles
-            return [
-                float(len(valid_smiles_c) > 0)
-                for valid_smiles_c in smiles_list_per_completion
-            ]
-        elif self.reward == "MolFilters":
-            # filters = MolFilter(
-            #     filters=["PAINS", "SureChEMBL", "Glaxo"], property_filters_flag=False
-            # )
-            raise NotImplementedError
+        ):  # TODO: Currently always return 1 if at least one valid smiles
+            return [float(len(smis) > 0) for smis in smiles_per_completion]
 
-        # objectives: List[Dict[str, Tuple[str, float]]], for each completion dict of the properties to evaluate and the objective ("above", "below", "equal", "maximize", "minimize") and target value
-        assert metadata is not None and (
-            all(
-                [
-                    p in m
-                    for m in metadata
-                    for p in ["properties", "objectives", "target"]
-                ]
-            )
+        scores = self.generation_verifier(
+            smiles_per_completion=smiles_per_completion,
+            metadata=metadata,
+            debug=debug,
+            use_pbar=use_pbar,
         )
-        objectives = []
-        for m in metadata:
-            props = {}
-            for p, obj, target in zip(m["properties"], m["objectives"], m["target"]):
-                props[p] = (obj, float(target))
-            objectives.append(props)
-
-        df_properties = self._get_prop_to_smiles_dataframe(
-            smiles_list_per_completion, objectives
-        )
-        self.fill_df_properties(df_properties, use_pbar=use_pbar)
-        df_properties["reward"] = df_properties.apply(
-            lambda x: self.get_reward(x), axis=1
-        )
-
-        rewards = []
-        for id_completion, smiles in enumerate(smiles_list_per_completion):
-            if len(smiles) > 0:
-                reward = df_properties[
-                    (df_properties["id_completion"] == id_completion)
-                    & (df_properties["smiles"].isin(smiles))
-                ]["reward"].mean()
-                if self.rescale and not debug:
-                    reward = np.clip(reward, 0, 1)
-            else:
-                reward = 0
-
-            if np.isnan(reward) or reward is None:
-                sub_table = df_properties[
-                    (df_properties["id_completion"] == id_completion)
-                    & (df_properties["smiles"].isin(smiles))
-                ]
-                log_table = ";".join(
-                    f"{col}: {sub_table[col].tolist()}\n" for col in sub_table.columns
-                )
-                print(
-                    f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n",
-                    f"Associated table :\n {log_table}",
-                )
-                reward = 0
-            rewards.append(float(reward))
-        return rewards
+        return scores
 
     def _get_prop_pred_score(
         self,
@@ -388,44 +190,7 @@ class RewardScorer:
         debug: bool = False,
         use_pbar: bool = False,
     ) -> List[float]:
-        parsed_answer = []
-        for answer in completions:
-            matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
-            if len(matches) == 1:
-                try:
-                    y = matches[0]
-                    if y.lower() in ["true", "yes"]:
-                        y = 1
-                    elif y.lower() in ["false", "no"]:
-                        y = 0
-                    else:
-                        y = float(y)
-                    parsed_answer.append(y)
-                except ValueError:
-                    parsed_answer.append(None)
-            else:
-                parsed_answer.append(None)
-        if self.reward == "valid_smiles":
-            return [float(isinstance(y, float)) for y in parsed_answer]
-        rewards = []
-        for meta, y in zip(metadata, parsed_answer):
-            if y is None:
-                rewards.append(0.0)
-            else:
-                if meta["objectives"][0] == "regression":
-                    std = meta.get("norm_var", 1.0)
-                    rewards.append(
-                        np.clip(
-                            1 - ((y - meta["target"][0]) / std) ** 2,
-                            a_min=0.0,
-                            a_max=1.0,
-                        )
-                    )
-                elif meta["objectives"][0] == "classification":
-                    rewards.append(float(y == meta["target"][0]))
-                else:
-                    raise NotImplementedError
-        return rewards
+        return self.mol_prop_verifier(completions=completions, metadata=metadata)
 
     def _get_reaction_score(
         self,
@@ -434,32 +199,7 @@ class RewardScorer:
         debug: bool = False,
         use_pbar: bool = False,
     ) -> List[float]:
-        def is_same(y: str, y_true: str) -> float:
-            mol_y = [
-                Chem.MolFromSmiles(smi)
-                for smi in y.strip().replace(",", "+").split("+")
-            ]
-            if any([m is None for m in mol_y]):
-                return 0.0
-            mol_y_true = [Chem.MolFromSmiles(smi) for smi in y_true.strip().split("+")]
-            assert not any([m is None for m in mol_y_true])
-
-            smi_y = sorted([Chem.MolToSmiles(m, canonical=True) for m in mol_y])
-            smi_y_true = sorted(
-                [Chem.MolToSmiles(m, canonical=True) for m in mol_y_true]
-            )
-            return float(smi_y == smi_y_true) * 0.9 + 0.1  # TODO:  use the IOU ?
-
-        rewards = []
-        for meta, answer in zip(metadata, completions):
-            matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
-            if len(matches) != 1:
-                rewards.append(0.0)
-            else:
-                rewards.append(float(is_same(matches[0], meta["target"][0])))
-        if self.reward == "valid_smiles":
-            return [float(r > 0.0) for r in rewards]
-        return rewards
+        return self.reaction_verifier(completions, metadata)
 
     def get_score(
         self,
@@ -473,7 +213,7 @@ class RewardScorer:
             str,
             Callable[[List[Any], List[dict[str, Any]], bool, bool], List[float]],
         ] = {
-            "docking": self._get_docking_score,
+            "docking": self._get_generation_score,
             "prop_pred": self._get_prop_pred_score,
             "reaction": self._get_reaction_score,
         }
@@ -494,13 +234,15 @@ class RewardScorer:
                 completions_per_obj["prop_pred"].append(completions[i])
                 metadata_per_obj["prop_pred"].append(meta)
             elif meta["objectives"][0] in [
-                "product",
-                "product_full",
+                "final_product",
                 "reactant",
-                "reactant_full",
-                "product_no_solvent",
-                "reactant_no_solvent",
-                "solvent",
+                "all_reactants",
+                "all_reactants_bb_ref",
+                "smarts",
+                "full_path",
+                "full_path_bb_ref",
+                "full_path_smarts_ref",
+                "full_path_smarts_bb_ref",
             ]:
                 idxs["reaction"].append(i)
                 completions_per_obj["reaction"].append(completions[i])

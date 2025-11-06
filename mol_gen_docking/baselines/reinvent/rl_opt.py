@@ -180,7 +180,7 @@ if __name__ == "__main__":
                 max_steps=args.num_train_epochs,
                 logging_strategy="steps",
                 eval_steps=10,
-                logging_steps=10,
+                logging_steps=50,
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
                 warmup_ratio=args.lr_warmup_ratio,
@@ -220,6 +220,7 @@ if __name__ == "__main__":
                     "objectives": metadata["objectives"],
                     "properties": metadata["properties"],
                     "target": metadata["target"],
+                    "algo": "VanillaReinvent",
                 }
             )
 

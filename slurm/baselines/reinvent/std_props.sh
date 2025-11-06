@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=reinvent-heterogenous
 #SBATCH --account=def-ibenayed
-#SBATCH --time=0-03:00:00
+#SBATCH --time=0-08:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
-#SBATCH --gpus=h100:1
-#SBATCH --array=0-42:14
+#SBATCH --gpus=h100_3g.40gb:1
+#SBATCH --array=0-38:19%1
 
 set -x
-STRIDE=14
+STRIDE=19
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines
 

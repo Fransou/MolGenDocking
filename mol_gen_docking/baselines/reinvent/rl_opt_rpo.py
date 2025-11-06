@@ -99,6 +99,10 @@ def get_args() -> argparse.Namespace:
         default=0.1,
         help="Sigma parameter for reinvent",
     )
+
+    parser.add_argument(
+        "--loss_type", type=str, default="dapo", choices=["grpo", "dr_grpo", "dapo"]
+    )
     parser.add_argument("--train_on_beams", type=int, default=0)
     parser.add_argument(
         "--num_beams",
@@ -180,7 +184,7 @@ if __name__ == "__main__":
                 max_steps=args.num_train_epochs,
                 logging_strategy="steps",
                 eval_steps=10,
-                logging_steps=10,
+                logging_steps=50,
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
                 warmup_ratio=args.lr_warmup_ratio,
@@ -197,6 +201,7 @@ if __name__ == "__main__":
                 generation_kwargs=generation_config,
                 batch_eval_metrics=False,
                 log_completions=True,
+                loss_type=args.loss_type,
             )
             train_dataset = Dataset.from_dict(
                 {"prompt": ["<s>"] * args.num_train_epochs}
@@ -220,6 +225,7 @@ if __name__ == "__main__":
                     "objectives": metadata["objectives"],
                     "properties": metadata["properties"],
                     "target": metadata["target"],
+                    "algo": "VanillaReinvent",
                 }
             )
 
@@ -234,7 +240,7 @@ if __name__ == "__main__":
                 "penalty_alpha", None
             )
             eval_datasets = {
-                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n * 4})
+                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n})
                 for n in [1, 4, 16, 64, 256]
             }
             metrics = trainer.evaluate(eval_datasets)

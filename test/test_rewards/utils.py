@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import pandas as pd
 
-from mol_gen_docking.reward.property_utils import (
+from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
     inverse_rescale_property_values,
 )
@@ -20,9 +20,8 @@ with open(f"{DATA_PATH}/docking_targets.json") as f:
 PROP_LIST: List[str] = [
     k
     for k in PROPERTIES_NAMES_SIMPLE.values()
-    if k not in DOCKING_PROP_LIST and k in CLASSICAL_PROPERTIES_NAMES
+    if k not in DOCKING_PROP_LIST and k in CLASSICAL_PROPERTIES_NAMES.values()
 ]
-print(PROP_LIST)
 
 
 propeties_csv = pd.read_csv("data/properties.csv", index_col=0)

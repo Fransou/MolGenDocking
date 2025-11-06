@@ -138,7 +138,7 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
     def __init__(
         self, compute_metrics: Any, n_repeat_test: int, *args: Any, **kwargs: Any
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(compute_metrics, n_repeat_test, *args, **kwargs)
         self.mol_evaluators = {
             name: Evaluator(name=name)
             for name in ["Validity", "Uniqueness", "Diversity"]
