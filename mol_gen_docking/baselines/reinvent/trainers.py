@@ -60,19 +60,17 @@ class EvalMolMetrics:
             eval_name: [] for eval_name in self.mol_evaluators.keys()
         }
         metrics_sub["reward"] = []
-
-        for i in range(0, len(preds.label_ids), len(preds.label_ids) // N_REPEAT_TEST):
-            sub_label_ids = preds.label_ids[i : i + N_REPEAT_TEST]
+        n = len(preds.label_ids)
+        steps = n // N_REPEAT_TEST
+        for i in range(0, n, steps):
+            sub_label_ids = preds.label_ids[i : i + steps]
             sub_label_ids[sub_label_ids == -100] = self.tokenizer.pad_token_id
             completions_text = self.tokenizer.batch_decode(
                 sub_label_ids, skip_special_tokens=True
             )
-            # We generate 4x the number of generations for the reward completions, but the
-            # Validity, Uniqueness and Diversity are computed on the top-n elements
-            n = len(completions_text) // 4
             for eval_name in self.mol_evaluators:
                 metrics_sub[eval_name].append(
-                    self.mol_evaluators[eval_name](completions_text[:n])
+                    self.mol_evaluators[eval_name](completions_text)
                 )
 
             # for the reward, we remove duplicates and keep the top-n after this processing
@@ -83,12 +81,12 @@ class EvalMolMetrics:
                     smi = Chem.MolToSmiles(mol)
                     if smi not in smiles:
                         smiles.append(smi)
-                if len(smiles) == n:
-                    break
-            smiles = np.unique(smiles)
+            reward = self.reward_fn(smiles)
+            if reward == []:
+                reward = [0.0]
             metrics_sub["reward"].append(
                 float(
-                    np.mean(self.reward_fn(smiles)) * len(smiles) / n
+                    np.mean(reward) * len(smiles) / len(completions_text)
                 )  # Scale for non-generated smiles
             )
 
@@ -96,7 +94,7 @@ class EvalMolMetrics:
         return metrics
 
 
-class VanillaReinventTrainer(GRPOTrainer):
+class ReinventGRPOTrainer(GRPOTrainer):
     def __init__(
         self, compute_metrics: Any, n_repeat_test: int, *args: Any, **kwargs: Any
     ) -> None:
@@ -110,7 +108,7 @@ class VanillaReinventTrainer(GRPOTrainer):
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Sampler:
         # See _get_train_sampler for an explanation of the sampler.
-        n_generations = len(eval_dataset) // self.n_repeat_test // 4
+        n_generations = len(eval_dataset) // self.n_repeat_test
         assert (
             n_generations % self.generation_config.num_beams == 0
             or self.generation_config.num_beams % n_generations == 0
@@ -124,6 +122,29 @@ class VanillaReinventTrainer(GRPOTrainer):
             mini_repeat_count=1,
             seed=self.args.seed,
         )
+
+    def prediction_step(
+        self,
+        model: Any,
+        inputs: Any,
+        prediction_loss_only: Any,
+        ignore_keys: Optional[list[str]] = None,
+    ) -> Tuple[Any, Any, Any]:
+        inputs = self._prepare_inputs(inputs)
+        return torch.tensor(0.0), inputs["completion_ids"], inputs["completion_ids"]
+
+
+class VanillaReinventTrainer(ReinventGRPOTrainer):
+    def __init__(
+        self, compute_metrics: Any, n_repeat_test: int, *args: Any, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.mol_evaluators = {
+            name: Evaluator(name=name)
+            for name in ["Validity", "Uniqueness", "Diversity"]
+        }
+        self.compute_metrics = compute_metrics
+        self.n_repeat_test = n_repeat_test
 
     def _compute_loss(self, model: Any, inputs: Dict[str, Any]) -> Any:
         # Compute the per-token log probabilities for the model
@@ -469,13 +490,3 @@ class VanillaReinventTrainer(GRPOTrainer):
             output["ref_per_token_logps"] = ref_per_token_logps
 
         return output
-
-    def prediction_step(
-        self,
-        model: Any,
-        inputs: Any,
-        prediction_loss_only: Any,
-        ignore_keys: Optional[list[str]] = None,
-    ) -> Tuple[Any, Any, Any]:
-        inputs = self._prepare_inputs(inputs)
-        return torch.tensor(0.0), inputs["completion_ids"], inputs["completion_ids"]

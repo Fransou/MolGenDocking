@@ -16,7 +16,7 @@ from trl import GRPOConfig
 from mol_gen_docking.baselines.reinvent.trainers import (
     N_REPEAT_TEST,
     EvalMolMetrics,
-    VanillaReinventTrainer,
+    ReinventGRPOTrainer,
     get_reward_fn,
 )
 from mol_gen_docking.data.pydantic_dataset import read_jsonl
@@ -202,7 +202,7 @@ if __name__ == "__main__":
                 {"prompt": ["<s>"] * args.num_train_epochs}
             )
 
-            trainer = VanillaReinventTrainer(
+            trainer = ReinventGRPOTrainer(
                 model=model,
                 args=training_args,
                 train_dataset=train_dataset,
@@ -234,7 +234,7 @@ if __name__ == "__main__":
                 "penalty_alpha", None
             )
             eval_datasets = {
-                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n})
+                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n * 4})
                 for n in [1, 4, 16, 64, 256]
             }
             metrics = trainer.evaluate(eval_datasets)
