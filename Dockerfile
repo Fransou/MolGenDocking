@@ -9,7 +9,7 @@ USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         wget make g++ libboost-filesystem-dev libboost-system-dev \
-        xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb python3 python3-pip && \
+        xutils-dev libxss1 xscreensaver xscreensaver-gl-extra xvfb python3 python3-dev python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python && \
     pip install --upgrade pip && \
     rm -rf /var/lib/apt/lists/*
@@ -19,7 +19,9 @@ COPY pyproject.toml ./
 COPY mol_gen_docking ./mol_gen_docking
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install ProDy uvicorn ringtail meeko openbabel-wheel && \
     pip install --no-cache-dir .
+
 
 # ------------------------------------------------------------------------------------------------------------
 # Builder stage — build AutoDock-GPU efficiently
@@ -43,6 +45,7 @@ RUN cd AutoDock-GPU && make DEVICE=CUDA
 # Store compiled binaries in a well-defined location
 RUN cp -r AutoDock-GPU /opt/AutoDock-GPU
 
+
 # ------------------------------------------------------------------------------------------------------------
 # Final runtime image
 # ------------------------------------------------------------------------------------------------------------
@@ -52,7 +55,6 @@ USER root
 # Copy built binaries
 COPY --from=autodock-builder /opt/AutoDock-GPU /opt/AutoDock-GPU
 ENV PATH="/opt/AutoDock-GPU/bin:${PATH}"
-
 
 RUN set -eux; \
     # ADFRsuite
@@ -72,5 +74,5 @@ RUN set -eux; \
 ENV PATH="/opt/ADFRsuite/bin:${PATH}"
 ENV LD_LIBRARY_PATH="/opt/ADFRsuite/lib:${LD_LIBRARY_PATH:-}"
 
-WORKDIR /data
+WORKDIR /
 CMD ["/bin/bash"]
