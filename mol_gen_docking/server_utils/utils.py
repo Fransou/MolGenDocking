@@ -38,9 +38,9 @@ class MolecularVerifierQuery(BaseModel):
     Query model for the MolecularVerifier.
     """
 
-    query: Optional[list[str]] = None
+    query: list[str]
+    metadata: list[dict[str, Any]]
     prompts: Optional[list[str]] = None
-    metadata: Optional[list[dict[str, Any]]] = None
 
 
 class MolecularVerifierResponse(BaseModel):
