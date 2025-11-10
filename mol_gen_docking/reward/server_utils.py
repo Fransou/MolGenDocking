@@ -13,6 +13,7 @@ class MolecularVerifierSettings(BaseSettings):
     scorer_ncpus: int = 8
     gpu_utilization_gpu_docking: float = 0.05
     max_concurrent_requests: int = 128
+    reaction_matix_path: str = "data/rxn_matrix.pkl"
     docking_oracle: Literal["pyscreener", "autodock_gpu"] = "pyscreener"
     vina_mode: str = "autodock_gpu_256wi"  # Command used to run autodock gpu
     data_path: str = "data"

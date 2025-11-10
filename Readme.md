@@ -161,39 +161,10 @@ Property prediction supports two main objective types:
 
 ### Datasets
 
-Property prediction tasks utilize datasets from Polaris, including:
-- **MolecularML**: ChEMBL datasets for various targets (e.g., moleculeace-chembl204-ki, moleculeace-chembl234-ki)
-- **TDCommons**: Toxicology and drug discovery datasets (e.g., ames, bbb-martins, caco2-wang, herg)
-- **ADME**: Absorption, Distribution, Metabolism, Excretion properties (e.g., fang-hclint, fang-perm, fang-rppb)
+Property prediction tasks utilize datasets from Polaris.
 
 The reward function evaluates predictions by comparing them to ground truth values, providing scores based on accuracy for classification or mean squared error for regression tasks.
 
 ## :pill: Chemical Reactions
 
 Chemical reaction tasks focus on predicting reaction outcomes, including forward and retrosynthetic predictions. The system supports various reaction prediction objectives using the USPTO dataset.
-
-### Task Types
-
-The repository implements several reaction prediction tasks:
-
-- **Product Prediction**: Given reactants and conditions, predict the reaction products
-- **Reactant Prediction**: Given products, predict the missing reactants
-- **Full Reaction Prediction**: Predict complete reaction schemes including all reactants and products
-- **Retrosynthetic Analysis**: Work backwards from products to identify possible synthetic routes
-
-### Objectives
-
-Reaction tasks use specific objective types:
-- **product**: Predict reaction products from given reactants
-- **reactant**: Identify missing reactants in a reaction
-- **reactant_full**: Predict all reactants needed for a given set of products
-- **product_full**: Predict all products from a given set of reactants
-- **solvent**:
-
-### Dataset
-
-Reaction tasks utilize the USPTO-llm dataset ([see documentation](https://github.com/GONGSHUKAI/USPTO_LLM)). The dataset contains chemical reactions with SMILES representations of reactants and products, and informations on the solvent.
-
-### Evaluation
-
-The reaction reward function evaluates predictions by comparing canonical SMILES strings of predicted and actual molecules. It provides partial credit for correct predictions and handles multiple molecule comparisons within reactions. The scoring accounts for molecular equivalence regardless of SMILES representation order.

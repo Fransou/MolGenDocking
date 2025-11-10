@@ -10,7 +10,7 @@ from mol_gen_docking.data.pdb_uniprot.api_requests import (
     fetch_uniprot_id_from_pdbid,
     fetch_uniprot_info,
 )
-from mol_gen_docking.reward.property_utils import (
+from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 

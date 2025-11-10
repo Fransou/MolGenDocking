@@ -15,7 +15,7 @@ source $HOME/OpenRLHF/bin/activate
 wandb offline
 HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
   --model_name reinvent_10M_prior \
-  --dataset $DATA_PATH/eval_data/eval_prompts \
+  --dataset $DATA_PATH/eval_data/eval_prompts.jsonl \
   --datasets-path $DATA_PATH \
   --batch_size $7 \
   --sigma $4 \

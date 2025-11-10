@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from mol_gen_docking.data.dataset import (
+from mol_gen_docking.data.gen_dataset import (
     DatasetConfig,
 )
 from mol_gen_docking.data.meeko_process import ReceptorProcess

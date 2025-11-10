@@ -6,11 +6,16 @@ import ray
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.data.dataset import (
+from mol_gen_docking.data.gen_dataset import (
     DatasetConfig,
 )
-from mol_gen_docking.reward.property_utils import rescale_property_values
-from mol_gen_docking.reward.rl_rewards import RewardScorer, has_bridged_bond
+from mol_gen_docking.reward.rl_rewards import (
+    RewardScorer,
+    has_bridged_bond,
+)
+from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+    rescale_property_values,
+)
 
 from .utils import (
     COMPLETIONS,
@@ -41,6 +46,13 @@ property_scorer = RewardScorer(
     "property",
     parse_whole_completion=False,
     rescale=False,
+)
+
+property_scorer_rescale = RewardScorer(
+    DATA_PATH,
+    "property",
+    parse_whole_completion=False,
+    rescale=True,
 )
 
 
@@ -149,8 +161,7 @@ def test_all_prompts(prop, obj, smiles):
         )
         for s in smiles
     ]
-    property_scorer.rescale = True
-    rewards = property_scorer(completions, metadata, debug=True, use_pbar=False)
+    rewards = property_scorer_rescale(completions, metadata, debug=True, use_pbar=False)
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
@@ -158,6 +169,8 @@ def test_all_prompts(prop, obj, smiles):
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
     objective = obj.split()[0]
+    print(rewards_max)
+    print(rewards_prop)
     if objective == "maximize":
         val = rewards_max
     elif objective == "minimize":
@@ -170,5 +183,6 @@ def test_all_prompts(prop, obj, smiles):
             val = (rewards_max >= target).float()
         elif objective == "equal":
             val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
+    val = val * mask
     assert torch.isclose(rewards_prop, val * mask, atol=1e-4).all()
     property_scorer.rescale = False

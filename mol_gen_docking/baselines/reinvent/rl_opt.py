@@ -1,105 +1,27 @@
 import argparse
 import json
 import os
-from typing import Any, Callable, Dict, List
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import requests
 import wandb
-from datasets import Dataset, load_from_disk
-from rdkit import Chem
-from tdc import Evaluator
+from datasets import Dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    EvalPrediction,
 )
 from trl import GRPOConfig
 
-from mol_gen_docking.baselines.reinvent.trainers import VanillaReinventTrainer
+from mol_gen_docking.baselines.reinvent.trainers import (
+    N_REPEAT_TEST,
+    EvalMolMetrics,
+    VanillaReinventTrainer,
+    get_reward_fn,
+)
+from mol_gen_docking.data.pydantic_dataset import read_jsonl
 
-N_REPEAT_TEST = 8
 os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
-
-
-def get_reward_fn(
-    metadata: Dict[str, Any], datasets_path: str, remote_rm_url: str
-) -> Callable[[str | List[str]], float | List[float]]:
-    response = requests.post(
-        f"{remote_rm_url}/prepare_receptor",
-        json={"metadata": [metadata]},
-    )
-    assert response.status_code == 200, response.text
-
-    def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
-        if isinstance(completions, str):
-            completions = [completions]
-        completions = [f"<answer> {s} </answer>" for s in completions]
-        response = requests.post(
-            f"{remote_rm_url}/get_reward",
-            json={"query": completions, "metadata": [metadata] * len(completions)},
-        )
-        assert response.status_code == 200, response.text
-        rewards: List[float] = response.json()["reward_list"]
-        if isinstance(completions, str):
-            return rewards[0]
-        return rewards
-
-    return reward_fn
-
-
-class EvalMolMetrics:
-    def __init__(
-        self,
-        tokenizer: AutoTokenizer,
-        reward_fn: Callable[[str | List[str]], float | List[float]],
-    ):
-        self.tokenizer = tokenizer
-        self.reward_fn = reward_fn
-        self.mol_evaluators = {
-            name: Evaluator(name=name)
-            for name in ["Validity", "Uniqueness", "Diversity"]
-        }
-
-    def __call__(self, preds: EvalPrediction) -> Dict[str, float]:
-        metrics_sub: Dict[str, List[float]] = {
-            eval_name: [] for eval_name in self.mol_evaluators.keys()
-        }
-        metrics_sub["reward"] = []
-
-        for i in range(0, len(preds.label_ids), len(preds.label_ids) // N_REPEAT_TEST):
-            sub_label_ids = preds.label_ids[i : i + N_REPEAT_TEST]
-            sub_label_ids[sub_label_ids == -100] = self.tokenizer.pad_token_id
-            completions_text = self.tokenizer.batch_decode(
-                sub_label_ids, skip_special_tokens=True
-            )
-            # We generate 4x the number of generations for the reward completions, but the
-            # Validity, Uniqueness and Diversity are computed on the top-n elements
-            n = len(completions_text) // 4
-            for eval_name in self.mol_evaluators:
-                metrics_sub[eval_name].append(
-                    self.mol_evaluators[eval_name](completions_text[:n])
-                )
-
-            # for the reward, we remove duplicates and keep the top-n after this processing
-            mols = [Chem.MolFromSmiles(smi) for smi in completions_text]
-            smiles = []
-            for mol in mols:
-                if mol is not None:
-                    smi = Chem.MolToSmiles(mol)
-                    if smi not in smiles:
-                        smiles.append(smi)
-                if len(smiles) == n:
-                    break
-            metrics_sub["reward"].append(
-                float(
-                    np.mean(self.reward_fn(smiles)) * len(smiles) / n
-                )  # Scale for non-generated smiles
-            )
-
-        metrics = {k: float(np.mean(m)) for k, m in metrics_sub.items()}
-        return metrics
 
 
 def get_args() -> argparse.Namespace:
@@ -107,7 +29,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="data/molgendata/eval_data/eval_prompts",
+        default="data/molgendata/eval_data/eval_prompts.jsonl",
         help="Dataset name",
     )
     parser.add_argument("--datasets-path", type=str, default="data/molgendata")
@@ -221,13 +143,13 @@ if __name__ == "__main__":
             args.generation_config = {}
         else:
             args.generation_config["num_beams"] = args.num_beams
-    dataset = load_from_disk(args.dataset)
+    dataset = read_jsonl(Path(args.dataset))
     with open(os.path.join(args.datasets_path, "docking_targets.json")) as f:
         docking_targets = json.load(f)
 
     id = 0
-    for row in dataset:
-        metadata = {k: row[k] for k in ["properties", "objectives", "target"]}
+    for sample in dataset:
+        metadata = sample.conversations[0].meta
         has_docking = any([prop in docking_targets for prop in metadata["properties"]])
         if args.rewards_to_pick == "std_only" and has_docking:
             continue
@@ -258,7 +180,7 @@ if __name__ == "__main__":
                 max_steps=args.num_train_epochs,
                 logging_strategy="steps",
                 eval_steps=10,
-                logging_steps=10,
+                logging_steps=50,
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
                 warmup_ratio=args.lr_warmup_ratio,
@@ -292,7 +214,15 @@ if __name__ == "__main__":
                 n_repeat_test=N_REPEAT_TEST,
             )
             trainer.train()
-            wandb.config.update({"id_obj": args.id_obj})
+            wandb.config.update(
+                {
+                    "id_obj": args.id_obj,
+                    "objectives": metadata["objectives"],
+                    "properties": metadata["properties"],
+                    "target": metadata["target"],
+                    "algo": "VanillaReinvent",
+                }
+            )
 
             ## Evaluate
             trainer.generation_config.num_beams = args.generation_config.get(
@@ -305,7 +235,7 @@ if __name__ == "__main__":
                 "penalty_alpha", None
             )
             eval_datasets = {
-                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n * 4})
+                f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n})
                 for n in [1, 4, 16, 64, 256]
             }
             metrics = trainer.evaluate(eval_datasets)
