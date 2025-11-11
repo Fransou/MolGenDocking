@@ -2,20 +2,44 @@ import copy
 import dataclasses
 import itertools
 import random
-from collections.abc import Iterable
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 import numpy as np
-from rdkit import Chem
+import ray
+from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors
 
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
 
+RDLogger.DisableLog("rdApp.*")
+
 _NumReactants: TypeAlias = int
 _MolOrRxnIndex: TypeAlias = int
 _TokenType: TypeAlias = tuple[_NumReactants, _MolOrRxnIndex]
+
+
+def pass_filters(smiles: str) -> bool:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return False
+    descriptors = Descriptors.CalcMolDescriptors(mol)
+    allowed = {
+        "qed": (1, 0.3),
+        "ExactMolWt": (600, 0),
+        "TPSA": (200, 0),
+        "NumHAcceptors": (10, 0),
+        "NumHDonors": (10, 0),
+        "NumRotatableBonds": (15, 1),
+        "RingCount": (7, 0),
+    }
+    return all(
+        [
+            descriptors[k] > v_min and descriptors[k] < v_max
+            for k, (v_max, v_min) in allowed.items()
+        ]
+    )
 
 
 @dataclasses.dataclass
@@ -42,8 +66,6 @@ class Stack:
         super().__init__()
         self._mols: list[Molecule] = []
         self._rxns: list[Reaction | None] = []
-        self._tokens: list[_TokenType] = []
-        self._stack: list[set[Molecule]] = []
 
     @property
     def mols(self) -> tuple[Molecule, ...]:
@@ -53,88 +75,22 @@ class Stack:
     def rxns(self) -> tuple[Reaction | None, ...]:
         return tuple(self._rxns)
 
-    @property
-    def tokens(self) -> tuple[_TokenType, ...]:
-        return tuple(self._tokens)
-
-    def get_top(self) -> set[Molecule]:
-        return self._stack[-1]
-
-    def get_one_top(self) -> Molecule:
-        return next(iter(self.get_top()))
-
-    def get_second_top(self) -> set[Molecule]:
-        return self._stack[-2]
-
-    def get_third_top(self) -> set[Molecule]:
-        return self._stack[-3]
-
-    def push_mol(self, mol: Molecule, index: int) -> None:
-        self._mols.append(mol)
-        self._rxns.append(None)
-        self._tokens.append((0, index))
-        self._stack.append({mol})
-
     def push_rxn(
         self,
+        reactants: list[Molecule],
         rxn: Reaction,
-        index: int,
-        product_limit: int | None = None,
         max_num_atoms: int = 80,
-    ) -> tuple[bool, bool]:  # Is the reaction correct and was there a filter issue
-        if len(self._stack) < rxn.num_reactants:
-            return False, False
+    ) -> tuple[
+        Molecule, bool, bool
+    ]:  # Is the reaction correct and was there a filter issue
+        if len(reactants) < rxn.num_reactants:
+            return Molecule(""), False, False
 
         prods: list[Molecule] = []
-        if rxn.num_reactants == 1:
-            for r in self.get_top():
-                prods += rxn([r])
-        elif rxn.num_reactants == 2:
-            for r1, r2 in itertools.product(self.get_top(), self.get_second_top()):
-                if product_limit is not None and len(prods) >= product_limit:
-                    break
-                prods += rxn([r1, r2]) + rxn([r2, r1])
-        elif rxn.num_reactants == 3:
-            for r1, r2, r3 in itertools.product(
-                self.get_top(), self.get_second_top(), self.get_third_top()
-            ):
-                if product_limit is not None and len(prods) >= product_limit:
-                    break
-                prods += (
-                    rxn([r1, r2, r3])
-                    + rxn([r1, r3, r2])
-                    + rxn([r2, r1, r3])
-                    + rxn([r2, r3, r1])
-                    + rxn([r3, r2, r1])
-                    + rxn([r3, r1, r2])
-                )
-        else:
-            return False, False
-
+        for r_ in itertools.permutations(reactants):
+            prods += rxn(list(r_))
         if len(prods) == 0:
-            return False, False
-
-        def pass_filters(smiles: str) -> bool:
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is None:
-                return False
-            descriptors = Descriptors.CalcMolDescriptors(mol)
-            allowed = {
-                "qed": (1, 0.3),
-                "ExactMolWt": (500, 0),
-                "TPSA": (150, 0),
-                "NumHAcceptors": (10, 0),
-                "NumHDonors": (10, 0),
-                "NumRotatableBonds": (15, 1),
-                "RingCount": (7, 0),
-            }
-            return all(
-                [
-                    descriptors[k] > v_min and descriptors[k] < v_max
-                    for k, (v_max, v_min) in allowed.items()
-                ]
-            )
-
+            return Molecule(""), False, False
         prods_pass_filters = [pass_filters(p.smiles) for p in prods]
         if any(prods_pass_filters):
             prods = [p for p, filt in zip(prods, prods_pass_filters) if filt]
@@ -142,175 +98,163 @@ class Stack:
         prods_len = [p.num_atoms for p in prods]
         if any([n <= max_num_atoms for n in prods_len]):
             prods = [p for p, n in zip(prods, prods_len) if n <= max_num_atoms]
-        if product_limit is not None:
-            prods = prods[:product_limit]
         prod: Molecule = random.choice(prods)
+        return prod, True, any(prods_pass_filters)
 
-        self._mols.append(prod)
+    def add_reactants(self, mol: Molecule) -> None:
+        self._mols.append(mol)
+        self._rxns.append(None)
+
+    def add_products(self, mol: Molecule, rxn: Reaction) -> None:
+        self._mols.append(mol)
         self._rxns.append(rxn)
-        self._tokens.append((rxn.num_reactants, index))
-        for _ in range(rxn.num_reactants):
-            self._stack.pop()
-        self._stack.append({prod})
-        return True, any(prods_pass_filters)
 
-    def get_tree(self) -> _Node:
-        stack: list[_Node] = []
-        for i in range(len(self._tokens)):
-            token = self._tokens[i]
-            n_react = token[0]
-            if n_react > 0:
-                item = _Node(self._mols[i], self._rxns[i], token, [])
-                for _ in range(n_react):
-                    item.children.append(stack.pop())
-                stack.append(item)
-            else:
-                stack.append(_Node(self._mols[i], self._rxns[i], token, []))
-        return stack[-1]
 
-    def get_postfix_tokens(self) -> tuple[_TokenType, ...]:
-        return tuple(self._tokens)
-
-    def __len__(self) -> int:
-        return len(self._mols)
-
-    def __getitem__(self, index: int) -> Molecule:
-        return self._mols[index]
-
-    def get_mol_idx_seq(self) -> list[int | None]:
-        return [t[1] if t[0] == 0 else None for t in self.tokens]
-
-    def get_rxn_idx_seq(self) -> list[int | None]:
-        return [t[1] if t[0] > 0 else None for t in self.tokens]
-
-    def count_reactions(self) -> int:
-        cnt = 0
-        for rxn in self._rxns:
-            if rxn is not None:
-                cnt += 1
-        return cnt
-
-    def get_state_repr(self) -> str:
-        rl: list[str] = []
-        for s in self._stack:
-            sl = list(map(lambda m: m.csmiles, s))
-            sl.sort()
-            rl.append(",".join(sl))
-        return ";".join(rl)
-
-    def get_action_string(self, delim: str = ";") -> str:
-        tokens: list[str] = []
-        for mol, (num_reactants, idx) in zip(self._mols, self._tokens):
-            if num_reactants == 0:
-                tokens.append(mol.smiles)
-            else:
-                tokens.append(f"R{idx}")
-        return delim.join(tokens)
-
-    def get_stack_depth(self) -> int:
-        return len(self._stack)
+def select_random_reaction(indices: list[int], matrix: ReactantReactionMatrix) -> int:
+    # We manually decrease the probability of selecting [#6:1][C:2](=O)[#6:3].[#6:4][OH,nH,NH:5]>>[#6:4][*:5][C:2]([#6:1])([#6:3])C(=O)O
+    return np.random.choice(indices)  # type: ignore
 
 
 def create_init_stack(
-    matrix: ReactantReactionMatrix, weighted_ratio: float = 0.0
+    matrix: ReactantReactionMatrix,
+    weighted_ratio: float = 0.0,
+    n_attempts_per_reaction: int = 100,
+    n_retry: int = 10,
 ) -> Stack:
     stack = Stack()
+    pass_filter = False
+    for _ in range(n_retry):
+        rxn_index = select_random_reaction(matrix.seed_reaction_indices, matrix)
+        rxn_col = matrix.matrix[:, rxn_index]
+        rxn = matrix.reactions[rxn_index]
+        for _ in range(n_attempts_per_reaction):
+            if rxn.num_reactants == 2:
+                m1 = matrix.sample_reactant(
+                    np.bitwise_and(rxn_col, 0b01).nonzero()[0],
+                )
+                m2 = matrix.sample_reactant(
+                    np.bitwise_and(rxn_col, 0b10).nonzero()[0],
+                )
+                reactants = [
+                    matrix.reactants[m1],
+                    matrix.reactants[m2],
+                ]
+            elif rxn.num_reactants == 1:
+                m = matrix.sample_reactant(rxn_col.nonzero()[0])  # type: ignore
+                reactants = [
+                    matrix.reactants[m],
+                ]
+            elif rxn.num_reactants == 3:
+                m1 = matrix.sample_reactant(
+                    np.bitwise_and(rxn_col, 0b001).nonzero()[0],
+                )
+                m2 = matrix.sample_reactant(
+                    np.bitwise_and(rxn_col, 0b010).nonzero()[0],
+                )
+                m3 = matrix.sample_reactant(
+                    np.bitwise_and(rxn_col, 0b100).nonzero()[0],
+                )
+                reactants = [
+                    matrix.reactants[m1],
+                    matrix.reactants[m2],
+                    matrix.reactants[m3],
+                ]
 
-    if weighted_ratio != 0.0:
-        prob_w = matrix.reactant_count[matrix.seed_reaction_indices].astype(np.float32)
-        prob_w = prob_w / prob_w.sum()
-        prob_u = np.ones_like(prob_w) / len(prob_w)
-        prob = weighted_ratio * prob_w + (1 - weighted_ratio) * prob_u
-        rxn_index: int = np.random.choice(matrix.seed_reaction_indices, p=prob)
-    else:
-        rxn_index = random.choice(matrix.seed_reaction_indices)
-    rxn_col = matrix.matrix[:, rxn_index]
-    rxn = matrix.reactions[rxn_index]
-
-    if rxn.num_reactants == 2:
-        m1 = np.random.choice(np.bitwise_and(rxn_col, 0b01).nonzero()[0])
-        m2 = np.random.choice(np.bitwise_and(rxn_col, 0b10).nonzero()[0])
-        if random.randint(0, 1) % 2 == 1:
-            m1, m2 = m2, m1
-        stack.push_mol(matrix.reactants[m1], m1)
-        stack.push_mol(matrix.reactants[m2], m2)
-    elif rxn.num_reactants == 1:
-        m = np.random.choice(rxn_col.nonzero()[0])
-        stack.push_mol(matrix.reactants[m], m)
-    elif rxn.num_reactants == 3:
-        m1 = np.random.choice(np.bitwise_and(rxn_col, 0b001).nonzero()[0])
-        m2 = np.random.choice(np.bitwise_and(rxn_col, 0b010).nonzero()[0])
-        m3 = np.random.choice(np.bitwise_and(rxn_col, 0b100).nonzero()[0])
-        m1, m2, m3 = random.sample([m1, m2, m3], 3)
-        stack.push_mol(matrix.reactants[m1], m1)
-        stack.push_mol(matrix.reactants[m2], m2)
-        stack.push_mol(matrix.reactants[m3], m3)
-
-    stack.push_rxn(rxn, rxn_index)
+            prod, success, pass_filter = stack.push_rxn(reactants, rxn)
+            if pass_filter:
+                for r in reactants:
+                    stack.add_reactants(r)
+                stack.add_products(prod, rxn)
+                break
+        if pass_filter:
+            break
+    if not pass_filter:
+        # If no reaction could be applied that passes we return the last tried stack
+        for r in reactants:
+            stack.add_reactants(r)
+        stack.add_products(prod, rxn)
     return stack
 
 
-def expand_stack_no_lim(
+def expand_stack_one_reaction(
     stack: Stack,
     matrix: ReactantReactionMatrix,
     forbidden_reactions: list[int] = [],
     max_num_atoms: int = 80,
+    n_attempts_per_reaction: int = 100,
 ) -> tuple[Stack, bool, int, bool]:
-    matches = matrix.reactions.match_reactions(random.choice(list(stack.get_top())))
+    last_product = stack.mols[-1]
+    matches = matrix.reactions.match_reactions(last_product)
     for forb_index in forbidden_reactions:
         if forb_index in matches:
             del matches[forb_index]
 
     if len(matches) == 0:
         return stack, False, -1, False
-    rxn_index = random.choice(list(matches.keys()))
+    rxn_index = select_random_reaction(list(matches.keys()), matrix)
+    # Position of the last product in the reaction
     reactant_flag = 1 << matches[rxn_index][0]
-
     rxn_col = matrix.matrix[:, rxn_index]
-    if np.any(rxn_col >= 4):
-        # Case of tri-mol reaction
-        all_reactants = 0b111
-        remaining_reactants = all_reactants ^ reactant_flag
-        reactant_1 = remaining_reactants & 0b001  # Isolate the 001 bit
-        reactant_2 = remaining_reactants & 0b010  # Isolate the 010 bit
-        reactant_3 = remaining_reactants & 0b100  # Isolate the 100 bit
-        valid_reactants = [
-            reactant
-            for reactant in [reactant_1, reactant_2, reactant_3]
-            if reactant != 0
-        ]
-        s_indices_1 = np.logical_and(
-            rxn_col != 0, (rxn_col & valid_reactants[0]) == valid_reactants[0]
-        ).nonzero()[0]
-        s_indices_2 = np.logical_and(
-            rxn_col != 0, (rxn_col & valid_reactants[1]) == valid_reactants[1]
-        ).nonzero()[0]
-        s_indices_1, s_indices_2 = random.sample([s_indices_1, s_indices_2], 2)
-        s_index1 = np.random.choice(s_indices_1)
-        stack.push_mol(matrix.reactants[s_index1], s_index1)
-        s_index2 = np.random.choice(s_indices_2)
-        stack.push_mol(matrix.reactants[s_index2], s_index2)
-        rxn_success, filter_success = stack.push_rxn(
-            matrix.reactions[rxn_index], rxn_index, max_num_atoms=max_num_atoms
+    for _ in range(n_attempts_per_reaction):
+        if np.any(rxn_col >= 4):
+            # Case of tri-mol reaction
+            all_reactants = 0b111
+            remaining_reactants = all_reactants ^ reactant_flag
+            reactant_1 = remaining_reactants & 0b001  # Isolate the 001 bit
+            reactant_2 = remaining_reactants & 0b010  # Isolate the 010 bit
+            reactant_3 = remaining_reactants & 0b100  # Isolate the 100 bit
+            valid_reactants = [
+                reactant
+                for reactant in [reactant_1, reactant_2, reactant_3]
+                if reactant != 0
+            ]
+            s_indices_1 = np.logical_and(
+                rxn_col != 0, (rxn_col & valid_reactants[0]) == valid_reactants[0]
+            ).nonzero()[0]
+            s_indices_2 = np.logical_and(
+                rxn_col != 0, (rxn_col & valid_reactants[1]) == valid_reactants[1]
+            ).nonzero()[0]
+            s_index1 = matrix.sample_reactant(
+                s_indices_1,
+            )
+            s_index2 = matrix.sample_reactant(
+                s_indices_2,
+            )
+            reactants = [
+                last_product,
+                matrix.reactants[s_index1],
+                matrix.reactants[s_index2],
+            ]
+        else:
+            # case of uni- and bi-mol reaction
+            s_indices = np.logical_and(
+                rxn_col != 0, rxn_col != reactant_flag
+            ).nonzero()[0]
+            # Case of uni-mol reaction
+            if len(s_indices) == 0:
+                reactants = [last_product]
+            # Case of bi-mol reaction
+            else:
+                s_index = matrix.sample_reactant(s_indices)
+                reactants = [
+                    last_product,
+                    matrix.reactants[s_index],
+                ]
+        prod, rxn_success, filter_success = stack.push_rxn(
+            reactants,
+            matrix.reactions[rxn_index],
+            max_num_atoms=max_num_atoms,
         )
+        if filter_success:
+            for r in reactants[1:]:
+                stack.add_reactants(r)
+            stack.add_products(prod, matrix.reactions[rxn_index])
+            return stack, rxn_success, rxn_index, filter_success
     else:
-        # case of uni- and bi-mol reaction
-        s_indices = np.logical_and(rxn_col != 0, rxn_col != reactant_flag).nonzero()[0]
-
-        # Case of uni-mol reaction
-        if len(s_indices) == 0:
-            return stack, False, -1, False
-
-        # Case of bi-mol reaction
-        s_index = np.random.choice(s_indices)
-        stack.push_mol(matrix.reactants[s_index], s_index)
-        # NOTE: when using the comprehensive reaction template sets, the new reactions are not guaranteed suceed.
-        #       This is a bug and should be fixed.
-        #       To avoid wrong results temporarily, we check the reaction outcome here.
-        rxn_success, filter_success = stack.push_rxn(
-            matrix.reactions[rxn_index], rxn_index, max_num_atoms=max_num_atoms
-        )
-    return stack, rxn_success, rxn_index, False
+        for r in reactants[1:]:
+            stack.add_reactants(r)
+        stack.add_products(prod, matrix.reactions[rxn_index])
+    return stack, rxn_success, rxn_index, filter_success
 
 
 def expand_stack(
@@ -319,19 +263,24 @@ def expand_stack(
     forbidden_reactions: list[int] = [],
     max_num_atoms: int = 80,
     n_retry: int = 10,
+    n_attempts_per_reaction: int = 1,
 ) -> tuple[Stack, bool, int]:
     for _ in range(n_retry):
-        new_stack, rxn_success, rxn_index, filter_pass = expand_stack_no_lim(
+        new_stack, rxn_success, rxn_index, filter_pass = expand_stack_one_reaction(
             copy.deepcopy(stack),
             matrix,
             forbidden_reactions=forbidden_reactions,
             max_num_atoms=max_num_atoms,
+            n_attempts_per_reaction=n_attempts_per_reaction,
         )
         if filter_pass:
             return new_stack, rxn_success, rxn_index
         else:
             forbidden_reactions.append(rxn_index)
-    return new_stack, rxn_success, rxn_index
+
+        if not rxn_success:
+            break
+    return stack, False, rxn_index
 
 
 def create_stack(
@@ -339,55 +288,45 @@ def create_stack(
     max_num_reactions: int = 5,
     max_num_atoms: int = 80,
     init_stack_weighted_ratio: float = 0.0,
+    n_attempts_per_reaction: int = 10,
+    n_retry: int = 10,
 ) -> Stack:
-    stack = create_init_stack(matrix, weighted_ratio=init_stack_weighted_ratio)
+    stack = create_init_stack(
+        matrix, n_attempts_per_reaction=n_attempts_per_reaction, n_retry=n_retry
+    )
     for _ in range(1, max_num_reactions):
-        stack, changed, _ = expand_stack(stack, matrix)
+        stack, changed, _ = expand_stack(
+            stack,
+            matrix,
+            n_attempts_per_reaction=n_attempts_per_reaction,
+            n_retry=n_retry,
+        )
         if not changed:
             break
-        if max(map(lambda m: m.num_atoms, stack.get_top())) > max_num_atoms:
+        assert len(stack.mols) > 0
+        if stack.mols[-1].num_atoms > max_num_atoms:
             break
     return stack
 
 
-def create_stack_step_by_step(
-    matrix: ReactantReactionMatrix,
+@ray.remote(num_cpus=1)
+def create_stack_ray(
+    matrix: Any,
     max_num_reactions: int = 5,
     max_num_atoms: int = 80,
     init_stack_weighted_ratio: float = 0.0,
-    n_attempts_reduce: int = 100,
-) -> Iterable[Stack]:
-    stack = create_init_stack(matrix, weighted_ratio=init_stack_weighted_ratio)
-    yield stack
-    for _ in range(1, max_num_reactions):
-        stack, changed, _ = expand_stack(stack, matrix)
-        if changed:
-            yield stack
-        else:
-            break
-        if max(map(lambda m: m.num_atoms, stack.get_top())) > max_num_atoms:
-            yield stack
-            forb_indices: list[int] = []
-            found_reduce = False
-            for _ in range(n_attempts_reduce):
-                new_stack, changed, idx = expand_stack(
-                    copy.deepcopy(stack), matrix, forbidden_reactions=forb_indices
-                )
-                max_to_reduce = max(map(lambda m: m.num_atoms, stack.get_top()))
-                if changed:
-                    if (
-                        max(map(lambda m: m.num_atoms, new_stack.get_top()))
-                        > max_to_reduce
-                    ):
-                        # Did not reduce
-                        forb_indices.append(idx)
-                        continue
-                    else:
-                        yield new_stack
-                        found_reduce = True
-                        stack = new_stack
-                        break
-                else:
-                    break
-            if not found_reduce:
-                break
+    n_attempts_per_reaction: int = 100,
+    n_retry: int = 10,
+    pbar: Any = None,
+) -> Stack:
+    out = create_stack(
+        matrix,
+        max_num_reactions=max_num_reactions,
+        max_num_atoms=max_num_atoms,
+        init_stack_weighted_ratio=init_stack_weighted_ratio,
+        n_attempts_per_reaction=n_attempts_per_reaction,
+        n_retry=n_retry,
+    )
+    if pbar is not None:
+        pbar.update.remote(1)
+    return out

@@ -1,12 +1,18 @@
 from itertools import permutations, product
 from typing import Iterator
 
+import ray
+from ray.experimental import tqdm_ray
 from torch.utils.data import IterableDataset
 
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
-from mol_gen_docking.data.reactions.stack import create_stack_step_by_step
+from mol_gen_docking.data.reactions.stack import (
+    create_stack,
+    create_stack_ray,
+    pass_filters,
+)
 
 
 class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
@@ -17,6 +23,8 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         max_smiles_len: int = 192,
         max_num_reactions: int = 5,
         init_stack_weighted_ratio: float = 0.0,
+        n_retry: int = 1,
+        n_attempts_per_reaction: int = 1,
         virtual_length: int = 65536,
     ) -> None:
         super().__init__()
@@ -26,41 +34,108 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         self._max_num_reactions = max_num_reactions
         self._init_stack_weighted_ratio = init_stack_weighted_ratio
         self._virtual_length = virtual_length
+        self._n_retry = n_retry
+        self._n_attempts_per_reaction = n_attempts_per_reaction
 
     def __len__(self) -> int:
         return self._virtual_length
 
-    def __iter__(self) -> Iterator[tuple[list[list[str]], list[str], list[str]]]:
+    def iter_ray(
+        self,
+    ) -> Iterator[tuple[list[list[str]], list[str], list[str], list[bool]]]:
+        if not ray.is_initialized():
+            ray.init()
+        reaction_matrix_ref = ray.put(self._reaction_matrix)
+        remote_tqdm = ray.remote(tqdm_ray.tqdm)
+        pbar = remote_tqdm.remote(total=self._virtual_length)  # type: ignore
+        all_stacks = ray.get(
+            [
+                create_stack_ray.remote(
+                    reaction_matrix_ref,
+                    max_num_reactions=self._max_num_reactions,
+                    max_num_atoms=self._max_num_atoms,
+                    init_stack_weighted_ratio=self._init_stack_weighted_ratio,
+                    n_retry=self._n_retry,
+                    n_attempts_per_reaction=self._n_attempts_per_reaction,
+                    pbar=pbar,
+                )
+                for _ in range(self._virtual_length)
+            ]
+        )
+        pbar.close.remote()  # type: ignore
+
+        for stack in all_stacks:
+            rxn_smarts = [
+                rxn.smarts for rxn in stack.rxns if rxn is not None
+            ]  # TODO find how to handle this better
+            is_product = [rxn is not None for rxn in stack.rxns]
+            reactants: list[list[Molecule]] = [[]]
+            products: list[Molecule] = []
+            for mol, is_prod in zip(stack.mols, is_product):
+                if not is_prod:
+                    reactants[-1].append(mol)
+                else:
+                    products.append(mol)
+                    reactants.append([mol])
+            reactants = reactants[:-1]
+            assert len(reactants) == len(products)
+            assert len(reactants) == len(rxn_smarts)
+            try:
+                reactants_smiles = [
+                    self.find_mol_order(r, p, smarts)
+                    for r, p, smarts in zip(reactants, products, rxn_smarts)
+                ]
+                product_smiles = [p.smiles for p in products]
+            except ValueError as e:
+                print(e)
+                continue
+            yield (
+                reactants_smiles,
+                product_smiles,
+                rxn_smarts,
+                [pass_filters(p.smiles) for p in products],
+            )
+
+    def __iter__(
+        self,
+    ) -> Iterator[tuple[list[list[str]], list[str], list[str], list[bool]]]:
         for _ in range(self._virtual_length):
-            for stack in create_stack_step_by_step(
+            stack = create_stack(
                 self._reaction_matrix,
                 max_num_reactions=self._max_num_reactions,
                 max_num_atoms=self._max_num_atoms,
                 init_stack_weighted_ratio=self._init_stack_weighted_ratio,
-            ):
-                rxn_smarts = [
-                    rxn.smarts for rxn in stack.rxns if rxn is not None
-                ]  # TODO find how to handle this better
-                is_product = [rxn is not None for rxn in stack.rxns]
-                reactants: list[list[Molecule]] = [[]]
-                products: list[Molecule] = []
-                for mol, is_prod in zip(stack.mols, is_product):
-                    if not is_prod:
-                        reactants[-1].append(mol)
-                    else:
-                        products.append(mol)
-                        reactants.append([mol])
+            )
+            rxn_smarts = [
+                rxn.smarts for rxn in stack.rxns if rxn is not None
+            ]  # TODO find how to handle this better
+            is_product = [rxn is not None for rxn in stack.rxns]
+            reactants: list[list[Molecule]] = [[]]
+            products: list[Molecule] = []
+            for mol, is_prod in zip(stack.mols, is_product):
+                if not is_prod:
+                    reactants[-1].append(mol)
+                else:
+                    products.append(mol)
+                    reactants.append([mol])
             reactants = reactants[:-1]
             assert len(reactants) == len(products)
             assert len(reactants) == len(rxn_smarts)
-
-            reactants_smiles = [
-                self.find_mol_order(r, p, smarts)
-                for r, p, smarts in zip(reactants, products, rxn_smarts)
-            ]
-            product_smiles = [p.smiles for p in products]
-
-            yield reactants_smiles, product_smiles, rxn_smarts
+            try:
+                reactants_smiles = [
+                    self.find_mol_order(r, p, smarts)
+                    for r, p, smarts in zip(reactants, products, rxn_smarts)
+                ]
+                product_smiles = [p.smiles for p in products]
+            except ValueError as e:
+                print(e)
+                continue
+            yield (
+                reactants_smiles,
+                product_smiles,
+                rxn_smarts,
+                [pass_filters(p.smiles) for p in products],
+            )
 
     @staticmethod
     def find_mol_order(

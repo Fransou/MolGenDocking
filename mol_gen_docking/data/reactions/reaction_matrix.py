@@ -98,3 +98,6 @@ class ReactantReactionMatrix:
     @property
     def matrix(self) -> np.ndarray:
         return self._matrix
+
+    def sample_reactant(self, reaction_idx: int) -> int:
+        return np.random.choice(reaction_idx)
