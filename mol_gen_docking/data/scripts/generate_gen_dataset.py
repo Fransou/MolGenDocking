@@ -53,6 +53,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--n-prompts",
+        "-n",
         type=int,
         default=512,
         help="The number of prompts to generate",
@@ -73,7 +74,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--data-path", type=str, default="data/mol_orz", help="Path to the dataset"
+        "--data-path",
+        "-d",
+        type=str,
+        default="data/mol_orz",
+        help="Path to the dataset",
     )
     parser.add_argument(
         "--split-docking",

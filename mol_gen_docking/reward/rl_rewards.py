@@ -66,7 +66,7 @@ class RewardScorer:
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
-        reaction_matix_path: str = "data/rxn_matrix.pkl",
+        reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
         oracle_kwargs: Dict[str, Any] = {},
         gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
@@ -85,7 +85,7 @@ class RewardScorer:
         )
         self.mol_prop_verifier = MolPropVerifier(reward=reward)
         self.reaction_verifier = ReactionVerifier(
-            reward=reward, rxn_matrix_path=reaction_matix_path
+            reward=reward, rxn_matrix_path=reaction_matrix_path
         )
 
         if not ray.is_initialized():

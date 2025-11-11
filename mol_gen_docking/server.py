@@ -3,7 +3,6 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict
 
-import numpy as np
 import ray
 from fastapi import FastAPI
 from tdc import Evaluator
@@ -12,7 +11,8 @@ from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import (
     RewardScorer,
 )
-from mol_gen_docking.reward.server_utils import (
+from mol_gen_docking.server_utils.buffer import RewardBuffer
+from mol_gen_docking.server_utils.utils import (
     MolecularVerifierQuery,
     MolecularVerifierResponse,
     MolecularVerifierSettings,
@@ -35,7 +35,7 @@ def get_or_create_reward_actor() -> Any:
             path_to_mappings=server_settings.data_path,
             parse_whole_completion=False,
             gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
-            reaction_matix_path=server_settings.reaction_matix_path,
+            reaction_matrix_path=server_settings.reaction_matrix_path,
             oracle_kwargs=dict(
                 exhaustiveness=server_settings.scorer_exhaustiveness,
                 n_cpu=server_settings.scorer_ncpus,
@@ -54,6 +54,7 @@ def get_or_create_valid_actor() -> Any:
             path_to_mappings=server_settings.data_path,
             reward="valid_smiles",
             parse_whole_completion=False,
+            reaction_matrix_path=server_settings.reaction_matrix_path,
         )
     return _valid_reward_model
 
@@ -65,8 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(
         f"Initialized molecular docking verifier lifespan with {server_settings}"
     )
-
     logger.info("Initializing socket")
+    app.state.reward_buffer = RewardBuffer(
+        app, buffer_time=1.0, max_batch_size=1000000000
+    )
 
     app.state.reward_model = get_or_create_reward_actor()
     app.state.reward_valid_smiles = get_or_create_valid_actor()
@@ -100,84 +103,7 @@ def create_app() -> FastAPI:
         if status == "Error":
             return MolecularVerifierResponse(error="Error in preprocessing")
 
-        queries, metadata = query.query, query.metadata
-
-        assert metadata is not None
-        prompts = []
-        for meta in metadata:
-            assert all([k in meta for k in ["properties", "objectives", "target"]])
-            prompts.append(
-                "|".join(
-                    [
-                        f"{p}, {o}, {t}"
-                        for p, o, t in zip(
-                            meta["properties"], meta["objectives"], meta["target"]
-                        )
-                    ]
-                )
-            )
-
-        rewards_job = app.state.reward_model.get_score.remote(
-            completions=queries, metadata=metadata
-        )
-        valid_reward = app.state.reward_valid_smiles.get_score(
-            completions=queries, metadata=metadata
-        )
-        final_smiles = app.state.reward_valid_smiles.get_all_completions_smiles(
-            completions=queries
-        )
-        logger.info(f"Validity: {valid_reward}")
-        logger.info(f"Final smiles: {final_smiles}")
-
-        # Get the prompts level metrics
-        unique_prompts = list(set(prompts))
-        group_prompt_smiles = {
-            p: [
-                s[-1]
-                for s, p_ in zip(final_smiles, prompts)
-                if (p_ == p) and not s == []
-            ]
-            for p in unique_prompts
-        }
-        diversity_scores_dict = {
-            p: app.state.diversity_evaluator(group_prompt_smiles[p])
-            if len(group_prompt_smiles[p]) > 1
-            else 0
-            for p in unique_prompts
-        }
-        diversity_score = [float(diversity_scores_dict[p]) for p in prompts]
-        diversity_score = [d if not np.isnan(d) else 0 for d in diversity_score]
-
-        uniqueness_scores_dict = {
-            p: app.state.uniqueness_evaluator(group_prompt_smiles[p])
-            if len(group_prompt_smiles[p]) > 1
-            else 0
-            for p in unique_prompts
-        }
-        uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
-        uniqueness_score = [u if not np.isnan(u) else 0 for u in uniqueness_score]
-
-        rewards = ray.get(rewards_job)
-        max_per_prompt_dict = {
-            p: max([float(r) for r, p_ in zip(rewards, prompts) if p_ == p])
-            for p in unique_prompts
-        }
-        max_per_prompt = [max_per_prompt_dict[p] for p in prompts]
-        response = MolecularVerifierResponse(
-            reward=0.0 if len(rewards) == 0 else sum(rewards) / len(rewards),
-            reward_list=rewards,
-            meta={
-                "property_scores": rewards,
-                "validity": valid_reward,
-                "uniqueness": uniqueness_score,
-                "diversity": diversity_score,
-                "pass_at_n": max_per_prompt,
-                "rewards": rewards,
-            },
-            error=None,
-        )
-
-        return response
+        return await app.state.reward_buffer.add_query(query)  # type:ignore
 
     @app.post("/prepare_receptor")  # type: ignore
     async def prepare_receptor(query: MolecularVerifierQuery) -> Dict[str, str]:

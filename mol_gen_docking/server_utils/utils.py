@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel
@@ -13,7 +14,7 @@ class MolecularVerifierSettings(BaseSettings):
     scorer_ncpus: int = 8
     gpu_utilization_gpu_docking: float = 0.05
     max_concurrent_requests: int = 128
-    reaction_matix_path: str = "data/rxn_matrix.pkl"
+    reaction_matrix_path: str = "rxn_matrix.pkl"
     docking_oracle: Literal["pyscreener", "autodock_gpu"] = "pyscreener"
     vina_mode: str = "autodock_gpu_256wi"  # Command used to run autodock gpu
     data_path: str = "data"
@@ -32,15 +33,19 @@ class MolecularVerifierSettings(BaseSettings):
             "GPU utilization per docking run must be > 0"
         )
 
+        assert Path(self.reaction_matrix_path).exists(), (
+            f"Reaction matrix file {self.reaction_matrix_path} does not exist"
+        )
+
 
 class MolecularVerifierQuery(BaseModel):
     """
     Query model for the MolecularVerifier.
     """
 
-    query: Optional[list[str]] = None
+    query: list[str]
+    metadata: list[dict[str, Any]]
     prompts: Optional[list[str]] = None
-    metadata: Optional[list[dict[str, Any]]] = None
 
 
 class MolecularVerifierResponse(BaseModel):
