@@ -1,3 +1,4 @@
+import os
 import time
 from itertools import product
 from typing import Any, Dict
@@ -9,11 +10,7 @@ import requests
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.data.gen_dataset import (
-    DatasetConfig,
-)
 from mol_gen_docking.reward.rl_rewards import (
-    RewardScorer,
     has_bridged_bond,
 )
 from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
@@ -21,7 +18,6 @@ from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
 )
 
 from .utils import (
-    DATA_PATH,
     OBJECTIVES_TO_TEST,
     PROP_LIST,
     PROPERTIES_NAMES_SIMPLE,
@@ -31,29 +27,6 @@ from .utils import (
 
 if not ray.is_initialized():
     ray.init(num_cpus=16)
-
-
-cfg = DatasetConfig(data_path=DATA_PATH)
-
-valid_scorer = RewardScorer(
-    DATA_PATH,
-    "valid_smiles",
-    parse_whole_completion=True,
-    rescale=False,
-)
-property_scorer = RewardScorer(
-    DATA_PATH,
-    "property",
-    parse_whole_completion=False,
-    rescale=False,
-)
-
-property_scorer_rescale = RewardScorer(
-    DATA_PATH,
-    "property",
-    parse_whole_completion=False,
-    rescale=True,
-)
 
 
 def is_reward_valid(rewards, smiles, properties):
@@ -94,6 +67,10 @@ def get_reward(smi: str, metadata: Dict[str, Any]):
     return r
 
 
+@pytest.mark.skipif(
+    os.system("lsof -t -i :5001") == 256,
+    reason="Generation reward server is not running",
+)
 @pytest.mark.parametrize(
     "prop, obj, smiles",
     list(
@@ -104,7 +81,7 @@ def get_reward(smi: str, metadata: Dict[str, Any]):
         )
     ),
 )
-def test_all_prompts(prop, obj, smiles):
+def test_std_prompts(prop, obj, smiles):
     """
     Test the reward function with the optimization of one property.
     Assumes the value of the reward function when using maximise is correct.
@@ -148,4 +125,3 @@ def test_all_prompts(prop, obj, smiles):
             val = np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1)
     val = val * mask
     assert torch.isclose(rewards_prop, val * mask, atol=1e-4).all()
-    property_scorer.rescale = False

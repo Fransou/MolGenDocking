@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
         i += 1
         print("=" * 10)
-        if "impossible" in label:
+        if impossible:
             print(r" \\\ IMPOSSIBLE ///")
         print(prompt_text)
         print("---")
