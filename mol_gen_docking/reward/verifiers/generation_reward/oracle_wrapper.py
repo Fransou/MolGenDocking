@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, List, Union
 import numpy as np
 from rdkit.Chem.rdchem import Mol
 from rdkit.Chem.rdmolfiles import MolFromSmiles, MolToSmiles
-from tdc.oracles import Oracle, oracle_names
+from tdc.oracles import Oracle
 
 from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     rescale_property_values,
@@ -183,7 +183,7 @@ def get_oracle(
                 f"docking_prop/{oracle_name}",
             )
 
-    elif oracle_name.lower() in oracle_names:
+    elif oracle_name.lower() in ["drd2", "gsk3b", "jnk3", "fpscores", "cyp3a4_veith"]:
         oracle_wrapper = OracleWrapper()
         oracle_wrapper.assign_evaluator(
             Oracle(name=oracle_name, **kwargs), f"tdc/{oracle_name}"

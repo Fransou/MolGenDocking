@@ -99,7 +99,7 @@ def test_valid_smiles(completion, smiles):
 @pytest.mark.parametrize(
     "property1, property2",
     product(
-        np.random.choice(PROP_LIST, 8),
+        PROP_LIST,
         np.random.choice(PROP_LIST, 8),
     ),
 )
@@ -169,8 +169,6 @@ def test_all_prompts(prop, obj, smiles):
     rewards_prop = rewards[:n_generations]
     rewards_max = rewards[n_generations:]
     objective = obj.split()[0]
-    print(rewards_max)
-    print(rewards_prop)
     if objective == "maximize":
         val = rewards_max
     elif objective == "minimize":

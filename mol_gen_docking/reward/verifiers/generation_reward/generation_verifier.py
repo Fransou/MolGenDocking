@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import ray
 from ray.experimental import tqdm_ray
-from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
@@ -16,8 +15,6 @@ from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
 from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     rescale_property_values,
 )
-
-RDLogger.DisableLog("rdApp.*")
 
 
 class GenerationVerifier:
@@ -76,13 +73,7 @@ class GenerationVerifier:
             )
             if prop not in self.oracles:
                 self.oracles[prop] = oracle_fn
-            try:
-                property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
-            except Exception as e:
-                self.logger.error(
-                    f"Error in {smiles}: {[s for s in smiles if Chem.MolFromSmiles(s) is None]}"
-                )
-                raise e
+            property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
             if pbar is not None:
                 pbar.update.remote(len(property_reward))

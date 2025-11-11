@@ -1,9 +1,9 @@
 from typing import Dict
 
 CLASSICAL_PROPERTIES_NAMES: Dict[str, str] = {
-    "Probability to inhibate glycogen synthase kinase-3 beta": "GSK3B",
-    "Probability to inhibate c-Jun N-terminal kinase-3": "JNK3",
-    "Bioactive probability against dopamine receptor D2": "DRD2",
+    # "Probability to inhibate glycogen synthase kinase-3 beta": "GSK3B",
+    # "Probability to inhibate c-Jun N-terminal kinase-3": "JNK3",
+    # "Bioactive probability against dopamine receptor D2": "DRD2",
     "Synthetic accessibility": "SA",
     "Quantitative estimate of drug-likeness": "QED",
     "Molecular Weight": "CalcExactMolWt",

@@ -2,8 +2,42 @@
 
 from typing import Any, List, Union
 
-from rdkit.Chem import rdMolDescriptors
+import networkx as nx
+from rdkit import Chem
+from rdkit.Chem import QED, Descriptors, rdMolDescriptors
 from rdkit.Chem.rdmolfiles import MolFromSmiles
+from rdkit.Contrib.SA_Score import sascorer
+
+
+def penalized_logp(mol: Chem.Mol) -> float:
+    """Copy of TDC's penalized logP implementation."""
+    logP_mean = 2.4570953396190123
+    logP_std = 1.434324401111988
+    SA_mean = -3.0525811293166134
+    SA_std = 0.8335207024513095
+    cycle_mean = -0.0485696876403053
+    cycle_std = 0.2860212110245455
+    log_p: float = Descriptors.MolLogP(mol)
+    SA: float = -sascorer.calculateScore(mol)
+
+    # cycle score
+    cycle_list: List[Any] = nx.cycle_basis(
+        nx.Graph(Chem.rdmolops.GetAdjacencyMatrix(mol))
+    )
+    if len(cycle_list) == 0:
+        cycle_length = 0
+    else:
+        cycle_length = max([len(j) for j in cycle_list])
+    if cycle_length <= 6:
+        cycle_length = 0
+    else:
+        cycle_length = cycle_length - 6
+    cycle_score = -cycle_length
+
+    normalized_log_p = (log_p - logP_mean) / logP_std
+    normalized_SA = (SA - SA_mean) / SA_std
+    normalized_cycle = (cycle_score - cycle_mean) / cycle_std
+    return normalized_log_p + normalized_SA + normalized_cycle
 
 
 class RDKITOracle:
@@ -17,6 +51,12 @@ class RDKITOracle:
 
     def get_descriptor(self) -> Any:
         """Get the descriptor from Rdkit."""
+        if self.name.lower() == "qed":
+            return QED.qed
+        if self.name.lower() == "sa":
+            return sascorer.calculateScore
+        if self.name.lower() == "logp":
+            return penalized_logp
         if hasattr(rdMolDescriptors, self.name):
             return getattr(rdMolDescriptors, self.name)
         raise ValueError(f"Descriptor {self.name} not found in Rdkit.")
