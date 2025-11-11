@@ -12,7 +12,7 @@ class MolecularVerifierSettings(BaseSettings):
 
     scorer_exhaustiveness: int = 8
     scorer_ncpus: int = 8
-    gpu_utilization_gpu_docking: float = 0.05
+    docking_concurrency_per_gpu: int = 2
     max_concurrent_requests: int = 128
     reaction_matrix_path: str = "data/rxn_matrix.pkl"
     docking_oracle: Literal["pyscreener", "autodock_gpu"] = "pyscreener"
@@ -29,7 +29,7 @@ class MolecularVerifierSettings(BaseSettings):
             self.scorer_cpus
             == self.scorer_exhaustiveness * self.max_concurrent_requests
         ), "Number of CPUs must be equal to exhaustiveness"
-        assert self.gpu_utilization_gpu_docking > 0.0, (
+        assert self.docking_concurrency_per_gpu > 0, (
             "GPU utilization per docking run must be > 0"
         )
 

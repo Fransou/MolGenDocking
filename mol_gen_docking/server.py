@@ -35,7 +35,7 @@ def get_or_create_reward_actor() -> Any:
         _reward_model = RemoteRewardScorer.remote(
             path_to_mappings=server_settings.data_path,
             parse_whole_completion=False,
-            gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
+            docking_concurrency_per_gpu=server_settings.docking_concurrency_per_gpu,
             reaction_matrix_path=server_settings.reaction_matrix_path,
             oracle_kwargs=dict(
                 exhaustiveness=server_settings.scorer_exhaustiveness,

@@ -27,7 +27,7 @@ class GenerationVerifier(Verifier):
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rescale: bool = True,
         oracle_kwargs: Dict[str, Any] = {},
-        gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
+        docking_concurrency_per_gpu: int = 2,
     ):
         super().__init__()
         self.logger = logging.getLogger("GenerationVerifier")
@@ -36,7 +36,7 @@ class GenerationVerifier(Verifier):
                 property_name_mapping = json.load(f)
             with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
                 docking_target_list = json.load(f)
-        self.gpu_utilization_gpu_docking = gpu_utilization_gpu_docking
+        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
         self.property_name_mapping = property_name_mapping
         self.docking_target_list = docking_target_list
         self.path_to_mappings = path_to_mappings
@@ -79,9 +79,8 @@ class GenerationVerifier(Verifier):
         _get_property_fast = ray.remote(num_cpus=0)(_get_property)
         _get_property_long = ray.remote(
             num_cpus=1,
-            num_gpus=self.gpu_utilization_gpu_docking
-            if "gpu" in self.oracle_kwargs.get("docking_oracle", "")
-            else 0,
+            num_gpus=float("gpu" in self.oracle_kwargs.get("docking_oracle", ""))
+            / self.docking_concurrency_per_gpu,
         )(_get_property)
 
         all_properties = df_properties["property"].unique().tolist()

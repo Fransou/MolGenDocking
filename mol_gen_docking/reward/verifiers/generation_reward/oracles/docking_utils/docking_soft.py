@@ -140,44 +140,6 @@ class BaseDocking:
         if not os.path.isfile(receptor_file):
             raise Exception(rf"Receptor file: {receptor_file} not found")
 
-        # Getting all available GPU ids
-        with subprocess.Popen(
-            "nvidia-smi --list-gpus",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True,
-        ) as proc:
-            if proc.wait(timeout=timeout_duration) == 0:
-                out = proc.stdout.read().decode("ascii")  # type:ignore
-                # First we see if MIG parsing works
-                pattern_mig = r"MIG-[\w-]+"
-                available_gpu_ids = re.findall(pattern_mig, out)
-                if available_gpu_ids == []:
-                    pattern_gpu = r"GPU (\d+):"
-                    available_gpu_ids = [x for x in re.findall(pattern_gpu, out)]
-            else:
-                raise Exception(
-                    f"Command 'nvidia-smi --list-gpus' returned unsuccessfully: {proc.stderr.read()}"  # type:ignore
-                )
-        # Checking for incorrect GPU id input
-        gpu_ids_list = []
-        if gpu_ids is None:
-            gpu_ids_list = available_gpu_ids
-        elif type(gpu_ids) is str:
-            if gpu_ids not in available_gpu_ids:
-                raise Exception(f"Unknown GPU id: {gpu_ids}")
-            gpu_ids_list = [gpu_ids]
-        elif type(gpu_ids) is list:
-            unknown_gpu_ids = []
-            for gpu_id in gpu_ids:
-                if gpu_id not in available_gpu_ids:
-                    unknown_gpu_ids.append(gpu_id)
-            if len(unknown_gpu_ids) > 0:
-                raise Exception(f"Unknown GPU id(s): {unknown_gpu_ids}")
-            gpu_ids_list = gpu_ids
-        else:
-            raise Exception(f"Unknown GPU ids: {gpu_ids}")
-
         self.cmd = cmd
         self.receptor_pdbqt_file = os.path.abspath(receptor_file)
         self.n_conformers = n_conformers
@@ -186,8 +148,6 @@ class BaseDocking:
         self.additional_args = additional_args
         self.preparator = preparator
         self.cwd = cwd
-        self.gpu_ids: List[str] = gpu_ids_list
-        self.logger.info(f"Available GPU ids: {gpu_ids_list}")
 
         self.docking_attempts = docking_attempts
         self.print_msgs = print_msgs
@@ -212,9 +172,11 @@ class BaseDocking:
         else:
             return self.preparator(smis, ligand_paths)
 
-    def _batched_prepare_ligands(self, ligand_dir_path: str, smis: List[str]) -> Any:
+    def _batched_prepare_ligands(
+        self, ligand_dir_path: str, smis: List[str], gpu_ids: List[int] = [0]
+    ) -> Any:
         # make different directories to support parallelization across multiple GPUs.
-        for gpu_id in self.gpu_ids:
+        for gpu_id in gpu_ids:
             make_dir(f"{ligand_dir_path}/{gpu_id}/", exist_ok=True)
         # create hashed filename for each unique smiles
         ligand_path_fn = get_ligand_hashed_fn(
@@ -246,11 +208,11 @@ class BaseDocking:
         )
 
         # Multi-GPU docking: move ligands to the gpu_id directories
-        split_ligand_paths = split_list(ligand_paths, len(self.gpu_ids))
+        split_ligand_paths = split_list(ligand_paths, len(gpu_ids))
 
         ligand_dir = []
-        for gpu_i in range(len(self.gpu_ids)):
-            gpu_id = self.gpu_ids[gpu_i]
+        for gpu_i in range(len(gpu_ids)):
+            gpu_id = gpu_ids[gpu_i]
             ligand_dir.append(os.path.abspath(f"{ligand_dir_path}/{gpu_id}/"))
             for ligand_file in split_ligand_paths[gpu_i]:
                 try:
@@ -264,7 +226,9 @@ class BaseDocking:
 
         return ligand_paths_by_smiles, ligand_dir
 
-    def _batched_docking(self, smis: List[str]) -> VINA_DOCKING_OUTPUT:
+    def _batched_docking(
+        self, smis: List[str], gpu_ids: List[int] = [0]
+    ) -> VINA_DOCKING_OUTPUT:
         # make temp pdbqt directories.
         ligand_tempdir = TemporaryDirectory(suffix="_lig")
         output_tempdir = TemporaryDirectory(suffix="_out")
@@ -276,7 +240,7 @@ class BaseDocking:
         make_dir(output_dir_path, exist_ok=True)
 
         ligand_paths_by_smiles, ligand_dir = self._batched_prepare_ligands(
-            ligand_dir_path=ligand_dir_path, smis=smis
+            ligand_dir_path=ligand_dir_path, smis=smis, gpu_ids=gpu_ids
         )
         # Run docking attempts multiple times on each GPU in case of failure.
         output = self._batched_docking_run(
@@ -285,6 +249,7 @@ class BaseDocking:
             ligand_dir_path=ligand_dir_path,
             ligand_paths_by_smiles=ligand_paths_by_smiles,
             output_dir_path=output_dir_path,
+            gpu_ids=gpu_ids,
         )
 
         # clean up temp dirs
@@ -302,10 +267,13 @@ class BaseDocking:
         ligand_dir_path: str,
         ligand_paths_by_smiles: Dict[str, List[str]],
         output_dir_path: str,
+        gpu_ids: List[int] = [0],
     ) -> VINA_DOCKING_OUTPUT:
         raise NotImplementedError
 
-    def __call__(self, smi: Union[str, List[str]]) -> VINA_DOCKING_OUTPUT:
+    def __call__(
+        self, smi: Union[str, List[str]], gpu_ids: List[int] = [0]
+    ) -> VINA_DOCKING_OUTPUT:
         """
         Parameters:
         - smi: SMILES strings to perform docking. A single string activates single-ligand docking mode, while \
@@ -323,7 +291,7 @@ class BaseDocking:
         else:
             raise Exception("smi must be a string or a list of strings")
         if len(smi) > 0:
-            return self._batched_docking(smi_list)
+            return self._batched_docking(smi_list, gpu_ids=gpu_ids)
         else:
             return None
 
@@ -380,6 +348,7 @@ class VinaDocking(BaseDocking):
         ligand_dir_path: str,
         ligand_paths_by_smiles: Dict[str, List[str]],
         output_dir_path: str,
+        gpu_ids: List[int] = [0],
     ) -> VINA_DOCKING_OUTPUT:
         # make temp pdbqt directories.
         config_tempdir = TemporaryDirectory(suffix="_config")
@@ -387,7 +356,7 @@ class VinaDocking(BaseDocking):
         make_dir(config_dir_path, exist_ok=True)
 
         # make different directories to support parallelization across multiple GPUs.
-        for gpu_id in self.gpu_ids:
+        for gpu_id in gpu_ids:
             make_dir(f"{output_dir_path}/{gpu_id}/", exist_ok=True)
 
         # create hashed output filename for each unique smiles
@@ -401,8 +370,8 @@ class VinaDocking(BaseDocking):
             output_paths += output_path_fn(smis[i])
 
         tmp_config_file_paths = []
-        for i in range(len(self.gpu_ids)):
-            gpu_id = self.gpu_ids[i]
+        for i in range(len(gpu_ids)):
+            gpu_id = gpu_ids[i]
             tmp_config_file_path = f"{config_dir_path}/config_{gpu_id}"
             tmp_config_file_paths.append(tmp_config_file_path)
             self._write_conf_file(
@@ -417,7 +386,7 @@ class VinaDocking(BaseDocking):
         if self.print_msgs:
             self.logger.info("Ligands prepared. Docking...")
 
-        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
+        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in gpu_ids]
         log_paths = [f"log_{i}" for i in range(len(tmp_config_file_paths))]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
@@ -435,19 +404,19 @@ class VinaDocking(BaseDocking):
                 )
             if all(
                 len(os.listdir(f"{output_dir_path}/{gpu_id}/")) > 0
-                for gpu_id in self.gpu_ids
+                for gpu_id in gpu_ids
             ):
                 break
 
             self.logger.warning(
-                f"Docking attempt #{attempt + 1} failed on GPU {self.gpu_ids[i]}."
+                f"Docking attempt #{attempt + 1} failed on GPU {gpu_ids[i]}."
             )
 
         # Move files from temporary to proper directory (or delete if redoing calculation)
-        for gpu_id in self.gpu_ids:
+        for gpu_id in gpu_ids:
             move_files_from_dir(f"{ligand_dir_path}/{gpu_id}/", ligand_dir_path)
 
-        for gpu_id in self.gpu_ids:
+        for gpu_id in gpu_ids:
             move_files_from_dir(f"{output_dir_path}/{gpu_id}/", output_dir_path)
 
         # Something went horribly wrong
@@ -620,12 +589,13 @@ class AutoDockGPUDocking(BaseDocking):
         ligand_dir_path: str,
         ligand_paths_by_smiles: Dict[str, List[str]],
         output_dir_path: str,
+        gpu_ids: List[int] = [0],
     ) -> VINA_DOCKING_OUTPUT:
         # Perform docking procedure(s)
         if self.print_msgs:
             self.logger.info("Ligands prepared. Docking...")
 
-        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in self.gpu_ids]
+        cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in gpu_ids]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
             if self.debug:
@@ -645,7 +615,7 @@ class AutoDockGPUDocking(BaseDocking):
                 break
 
         # Move files from temporary to proper directory (or delete if redoing calculation)
-        for gpu_id in self.gpu_ids:
+        for gpu_id in gpu_ids:
             move_files_from_dir(f"{ligand_dir_path}/{gpu_id}/", ligand_dir_path)
 
         output_paths = [

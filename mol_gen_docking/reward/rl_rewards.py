@@ -68,9 +68,9 @@ class RewardScorer:
         parse_whole_completion: bool = False,
         reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
         oracle_kwargs: Dict[str, Any] = {},
-        gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
+        docking_concurrency_per_gpu: int = 2,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
-        self.gpu_utilization_gpu_docking = gpu_utilization_gpu_docking
+        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
         self.reward = reward
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
@@ -81,7 +81,7 @@ class RewardScorer:
             reward=reward,
             rescale=rescale,
             oracle_kwargs=oracle_kwargs,
-            gpu_utilization_gpu_docking=gpu_utilization_gpu_docking,
+            docking_concurrency_per_gpu=docking_concurrency_per_gpu,
         )
         self.mol_prop_verifier = MolPropVerifier(reward=reward)
         self.reaction_verifier = ReactionVerifier(
