@@ -15,7 +15,9 @@ if not ray.is_initialized():
     ray.init(num_cpus=16)
 
 
-property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)
+property_scorer = RewardScorer(
+    DATA_PATH, "property", rescale=False, reaction_matrix_path=None
+)
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 DATASET: list[Sample] = read_jsonl(

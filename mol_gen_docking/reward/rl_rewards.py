@@ -66,7 +66,7 @@ class RewardScorer:
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
-        reaction_matrix_path: str = "data/rxn_matrix.pkl",
+        reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
         oracle_kwargs: Dict[str, Any] = {},
         gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
