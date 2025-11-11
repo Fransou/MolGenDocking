@@ -1,11 +1,27 @@
-import time as time
+import time
+from typing import Any, Dict
 
 import numpy as np
 import pytest
+import ray
 import requests
 import torch
 
 from .utils import DOCKING_PROP_LIST, propeties_csv
+
+
+@ray.remote
+def get_reward(smi: str, metadata: Dict[str, Any]):
+    time.sleep(np.random.random() * 2)
+    r = requests.post(
+        "http://0.0.0.0:5001/get_reward",
+        json={
+            "metadata": [metadata],
+            "query": [f"<answer> {smi} </answer>"],
+            "prompts": [""],
+        },
+    )
+    return r
 
 
 @pytest.mark.parametrize("target", DOCKING_PROP_LIST[:16])
@@ -16,10 +32,7 @@ def test_docking(target, has_gpu, n_generations=128):
         pytest.skip("Skipping test for gpu docking")
     port = "5001"
 
-    smiles = [
-        f"<answer> {smi} </answer>"
-        for smi in propeties_csv.iloc[:n_generations]["smiles"].tolist()
-    ]
+    smiles = propeties_csv.iloc[:n_generations]["smiles"].tolist()
     metadata = [
         {
             "properties": [target, "CalcPhi"],
@@ -36,13 +49,14 @@ def test_docking(target, has_gpu, n_generations=128):
     time.sleep(1)
 
     # Request Server
-    response = requests.post(
-        f"http://0.0.0.0:{port}/get_reward",
-        json={"query": smiles, "metadata": metadata},
-    )
-
-    assert response.status_code == 200, response.text
-    rewards = response.json()["reward_list"]
+    responses_jobs = [
+        get_reward.remote(
+            smi=s,
+            metadata=m,
+        )
+        for s, m in zip(smiles, metadata)
+    ]
+    rewards = [r.json()["reward"] for r in ray.get(responses_jobs)]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
