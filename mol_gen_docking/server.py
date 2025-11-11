@@ -35,7 +35,7 @@ def get_or_create_reward_actor() -> Any:
             path_to_mappings=server_settings.data_path,
             parse_whole_completion=False,
             gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
-            reaction_matix_path=server_settings.reaction_matix_path,
+            reaction_matrix_path=server_settings.reaction_matrix_path,
             oracle_kwargs=dict(
                 exhaustiveness=server_settings.scorer_exhaustiveness,
                 n_cpu=server_settings.scorer_ncpus,
@@ -54,6 +54,7 @@ def get_or_create_valid_actor() -> Any:
             path_to_mappings=server_settings.data_path,
             reward="valid_smiles",
             parse_whole_completion=False,
+            reaction_matrix_path=server_settings.reaction_matrix_path,
         )
     return _valid_reward_model
 
