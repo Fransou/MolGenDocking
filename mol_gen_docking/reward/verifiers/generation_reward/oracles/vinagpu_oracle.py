@@ -3,9 +3,10 @@ import os
 from pathlib import Path
 from typing import Generator, List, Literal, Optional, Tuple, Type, Union
 
+import ray
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
-import ray
+
 # from rgfn.gfns.reaction_gfn.proxies.docking_proxy.gnina_wrapper import GninaRescorer
 from mol_gen_docking.reward.verifiers.generation_reward.oracles.docking_utils.docking_soft import (
     AutoDockGPUDocking,
