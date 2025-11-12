@@ -75,8 +75,8 @@ class Stack:
     def rxns(self) -> tuple[Reaction | None, ...]:
         return tuple(self._rxns)
 
+    @staticmethod
     def push_rxn(
-        self,
         reactants: list[Molecule],
         rxn: Reaction,
         max_num_atoms: int = 80,
@@ -111,7 +111,6 @@ class Stack:
 
 
 def select_random_reaction(indices: list[int], matrix: ReactantReactionMatrix) -> int:
-    # We manually decrease the probability of selecting [#6:1][C:2](=O)[#6:3].[#6:4][OH,nH,NH:5]>>[#6:4][*:5][C:2]([#6:1])([#6:3])C(=O)O
     return np.random.choice(indices)  # type: ignore
 
 
@@ -185,6 +184,9 @@ def expand_stack_one_reaction(
 ) -> tuple[Stack, bool, int, bool]:
     last_product = stack.mols[-1]
     matches = matrix.reactions.match_reactions(last_product)
+
+    if forbidden_reactions is None:
+        forbidden_reactions = []
     for forb_index in forbidden_reactions:
         if forb_index in matches:
             del matches[forb_index]
@@ -260,11 +262,11 @@ def expand_stack_one_reaction(
 def expand_stack(
     stack: Stack,
     matrix: ReactantReactionMatrix,
-    forbidden_reactions: list[int] = [],
     max_num_atoms: int = 80,
     n_retry: int = 10,
     n_attempts_per_reaction: int = 1,
 ) -> tuple[Stack, bool, int]:
+    forbidden_reactions: list[int] = []
     for _ in range(n_retry):
         new_stack, rxn_success, rxn_index, filter_pass = expand_stack_one_reaction(
             copy.deepcopy(stack),
