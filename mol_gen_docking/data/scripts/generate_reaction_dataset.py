@@ -13,9 +13,9 @@ from mol_gen_docking.data.pydantic_dataset import (
     Sample,
     write_jsonl,
 )
-from mol_gen_docking.data.reactions.objectives import PROMPT_TEMPLATES
 from mol_gen_docking.data.reactions.projection_dataset import TextualProjectionDataset
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
+from mol_gen_docking.data.reactions.utils import PROMPT_TEMPLATES
 
 SYSTEM_PROMPT = (
     "A conversation between User and Assistant. "
@@ -53,10 +53,10 @@ def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
                 "full_reaction": data_dict["full_reaction"][i],
                 "or_smarts": data_dict["or_smarts"][i],
                 "impossible": data_dict["impossible"][i],
-                "smarts": data_dict["smarts"][i],
+                "smarts": np.unique(data_dict["smarts"][i]).tolist(),
                 "reactants": data_dict["reactants"][i],
                 "products": data_dict["products"][i],
-                "building_blocks": data_dict["building_blocks"][i],
+                "building_blocks": np.unique(data_dict["building_blocks"][i]).tolist(),
                 "idx_chosen": data_dict["idx_chosen"][i],
                 "n_building_blocks": len(data_dict["building_blocks"][i]),
                 "pass_filters": data_dict["pass_filters"][i],
@@ -96,12 +96,12 @@ def get_bb_blocks(
     args: argparse.Namespace,
 ) -> list[str]:
     n_to_choose = np.random.randint(2 * len(original_building_blocks), args.n_bb_max)
-    building_blocks: list[str] = np.random.choice(all_reactants, n_to_choose).tolist()
+    building_blocks = sample_l(n_to_choose, all_reactants)
     for smi in original_building_blocks:
         building_blocks.append(smi)
     building_blocks = list(set(building_blocks))
     np.random.shuffle(building_blocks)
-    return building_blocks
+    return list(building_blocks)
 
 
 def get_objective_label(
@@ -132,6 +132,13 @@ def get_objective_label(
     elif prop in ["all_reactants", "all_reactants_bb_ref"]:
         label = reactants[0]
     return prop, idx_chosen, label
+
+
+def sample_l(n: int, list_to_sample: List[str]) -> List[str]:
+    idxs = list(range(len(list_to_sample)))
+    np.random.shuffle(idxs)
+    idxs = idxs[:n]
+    return [list_to_sample[i] for i in idxs]
 
 
 def get_smarts_bb(
@@ -184,9 +191,11 @@ def make_impossible_decision(
             for i_smart in range(len(smarts)):
                 new_smart = smarts[i_smart]
                 while new_smart == smarts[i_smart]:
-                    new_smart = np.random.choice(all_reactions)
+                    id_new_smart = np.random.randint(0, len(all_reactions))
+                    new_smart = all_reactions[id_new_smart]
                 smarts[i_smart] = new_smart
-                impossible = True
+            smarts = np.unique(smarts).tolist()
+            impossible = True
         elif prop == "smarts":
             for i_reactants in range(len(reactants[0])):
                 new_reactant = reactants[0][i_reactants]
@@ -201,9 +210,7 @@ def make_impossible_decision(
             impossible = True
         elif prop in ["full_path_bb_ref", "all_reactants_bb_ref"]:
             n = len(building_blocks)
-            building_blocks = np.random.choice(
-                all_reactants, n + len(original_building_blocks)
-            ).tolist()
+            building_blocks = sample_l(n, all_reactants)
             building_blocks = [
                 s for s in building_blocks if s not in original_building_blocks
             ][:n]
@@ -251,7 +258,11 @@ def get_args() -> argparse.Namespace:
 
     args = parser.parse_args()
     if args.out_path == "":
-        args.out_path = os.path.join(args.data_path, "synthesis", "train.jsonl")
+        args.out_path = os.path.join(
+            args.data_path,
+            "synthesis",
+            f"train_{args.n_reaction_retry}_{args.n_bb_retry}.jsonl",
+        )
     os.makedirs(os.path.dirname(args.out_path), exist_ok=True)
     assert len(args.proba_obj) == len(PROMPT_TEMPLATES)
     return args
@@ -338,9 +349,7 @@ def update_data_dict(
     data_dict["pass_filters"].append(pass_filters)
 
 
-if __name__ == "__main__":
-    args = get_args()
-
+def main(args: argparse.Namespace) -> None:
     data_dict: Dict[str, Any] = {
         "prompt": [],
         "properties": [],
@@ -364,7 +373,7 @@ if __name__ == "__main__":
     i = 0
 
     for reactants, products, or_smarts, pass_filters in tqdm(
-        proj_dataset.iter_ray(), "Post-processing prompts", total=len(proj_dataset)
+        proj_dataset, "Post-processing prompts", total=len(proj_dataset)
     ):
         update_data_dict(
             data_dict,
@@ -390,3 +399,8 @@ if __name__ == "__main__":
         Path(os.path.join(out_path)),
         dataset,
     )
+
+
+if __name__ == "__main__":
+    args = get_args()
+    main(args)

@@ -9,9 +9,10 @@ from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
 from mol_gen_docking.data.reactions.stack import (
+    Stack,
     create_stack,
     create_stack_ray,
-    pass_filters,
+    pass_filters_p,
 )
 
 
@@ -65,36 +66,10 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         pbar.close.remote()  # type: ignore
 
         for stack in all_stacks:
-            rxn_smarts = [
-                rxn.smarts for rxn in stack.rxns if rxn is not None
-            ]  # TODO find how to handle this better
-            is_product = [rxn is not None for rxn in stack.rxns]
-            reactants: list[list[Molecule]] = [[]]
-            products: list[Molecule] = []
-            for mol, is_prod in zip(stack.mols, is_product):
-                if not is_prod:
-                    reactants[-1].append(mol)
-                else:
-                    products.append(mol)
-                    reactants.append([mol])
-            reactants = reactants[:-1]
-            assert len(reactants) == len(products)
-            assert len(reactants) == len(rxn_smarts)
-            try:
-                reactants_smiles = [
-                    self.find_mol_order(r, p, smarts)
-                    for r, p, smarts in zip(reactants, products, rxn_smarts)
-                ]
-                product_smiles = [p.smiles for p in products]
-            except ValueError as e:
-                print(e)
+            out = self.post_process_stack(stack)
+            if out is None:
                 continue
-            yield (
-                reactants_smiles,
-                product_smiles,
-                rxn_smarts,
-                [pass_filters(p.smiles) for p in products],
-            )
+            yield out
 
     def __iter__(
         self,
@@ -106,36 +81,40 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
                 max_num_atoms=self._max_num_atoms,
                 init_stack_weighted_ratio=self._init_stack_weighted_ratio,
             )
-            rxn_smarts = [
-                rxn.smarts for rxn in stack.rxns if rxn is not None
-            ]  # TODO find how to handle this better
-            is_product = [rxn is not None for rxn in stack.rxns]
-            reactants: list[list[Molecule]] = [[]]
-            products: list[Molecule] = []
-            for mol, is_prod in zip(stack.mols, is_product):
-                if not is_prod:
-                    reactants[-1].append(mol)
-                else:
-                    products.append(mol)
-                    reactants.append([mol])
-            reactants = reactants[:-1]
-            assert len(reactants) == len(products)
-            assert len(reactants) == len(rxn_smarts)
-            try:
-                reactants_smiles = [
-                    self.find_mol_order(r, p, smarts)
-                    for r, p, smarts in zip(reactants, products, rxn_smarts)
-                ]
-                product_smiles = [p.smiles for p in products]
-            except ValueError as e:
-                print(e)
+            out = self.post_process_stack(stack)
+            if out is None:
                 continue
-            yield (
-                reactants_smiles,
-                product_smiles,
-                rxn_smarts,
-                [pass_filters(p.smiles) for p in products],
-            )
+            yield out
+
+    def post_process_stack(
+        self, stack: Stack
+    ) -> tuple[list[list[str]], list[str], list[str], list[bool]] | None:
+        rxn_smarts = [
+            rxn.smarts for rxn in stack.rxns if rxn is not None
+        ]  # TODO find how to handle this better
+        is_product = [rxn is not None for rxn in stack.rxns]
+        reactants: list[list[Molecule]] = [[]]
+        products: list[Molecule] = []
+        for mol, is_prod in zip(stack.mols, is_product):
+            if not is_prod:
+                reactants[-1].append(mol)
+            else:
+                products.append(mol)
+                reactants.append([mol])
+        reactants = reactants[:-1]
+        try:
+            reactants_smiles = [
+                self.find_mol_order(r, p, smarts)
+                for r, p, smarts in zip(reactants, products, rxn_smarts)
+            ]
+            product_smiles = [p.smiles for p in products]
+        except ValueError as e:
+            print(e)
+            return None
+        filter_logps = [pass_filters_p(p.smiles) for p in products]
+        filters = [f for f, _ in filter_logps]
+
+        return reactants_smiles, product_smiles, rxn_smarts, filters
 
     @staticmethod
     def find_mol_order(

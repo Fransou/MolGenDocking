@@ -80,7 +80,14 @@ class ReactantReactionMatrix:
     @cached_property
     def seed_reaction_indices(self) -> list[int]:
         full_flag = np.array(
-            [0b01 if rxn.num_reactants == 1 else 0b11 for rxn in self._reactions],
+            [
+                0b01
+                if rxn.num_reactants == 1
+                else 0b11
+                if rxn.num_reactants == 2
+                else 0b111
+                for rxn in self._reactions
+            ],
             dtype=np.uint8,
         )
         return list(
@@ -98,6 +105,3 @@ class ReactantReactionMatrix:
     @property
     def matrix(self) -> np.ndarray:
         return self._matrix
-
-    def sample_reactant(self, reaction_idx: int) -> int:
-        return np.random.choice(reaction_idx)
