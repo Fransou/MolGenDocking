@@ -68,7 +68,7 @@ def get_reward(smi: str, metadata: Dict[str, Any]):
 
 
 @pytest.mark.skipif(
-    os.system("lsof -t -i :5001") == 256,
+    os.system("lsof -t -i :5001") != 0,
     reason="Generation reward server is not running",
 )
 @pytest.mark.parametrize(

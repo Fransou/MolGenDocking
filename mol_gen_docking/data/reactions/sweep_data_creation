@@ -1,0 +1,8 @@
+for n_reaction_retry in 2 10 50 100; do
+  for n_bb_retry in 2 10 50 100; do
+    python mol_gen_docking/data/scripts/generate_reaction_dataset.py \
+      -d data -n 5000 \
+      --n_reaction_retry "$n_reaction_retry" \
+      --n_bb_retry "$n_bb_retry"
+  done
+done
