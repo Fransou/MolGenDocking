@@ -243,6 +243,7 @@ class RewardScorer:
                 "full_path_bb_ref",
                 "full_path_smarts_ref",
                 "full_path_smarts_bb_ref",
+                "analog_gen",
             ]:
                 idxs["reaction"].append(i)
                 completions_per_obj["reaction"].append(completions[i])
