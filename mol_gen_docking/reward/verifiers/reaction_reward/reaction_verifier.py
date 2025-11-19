@@ -5,7 +5,8 @@ from functools import reduce
 from typing import Any, Dict, List, Literal
 
 import numpy as np
-from rdkit import RDLogger
+from rdkit import DataStructs, RDLogger
+from rdkit.Chem import AllChem
 
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
@@ -98,9 +99,10 @@ class ReactionVerifier:
         smarts: List[str],
         n_steps_max: int,
         impossible: bool,
+        reward_type: Literal["binary", "tanimoto"] = "binary",
     ) -> float:
         """
-        Returns 0.9 if the synthesis is deemed impossible, and the model retruns 'impossible'.
+        Returns 0.9 if the synthesis is deemed impossible, and the model returns 'impossible'.
         Test all steps with all smarts allowed, and returns the reward as :
         sum(n_valid)**2 / n_total**2
         if n_total <= n_steps_max otherwise returns 0.0
@@ -117,7 +119,6 @@ class ReactionVerifier:
             self.logger.info("Reaction predicted impossible correctly")
             return 0.9
         # Ensure one reaction per line
-
         steps: List[str] = matches[0].split("\n")
         steps = [s for s in steps if not s.strip() == ""]
         if not all([len(step.split("->")) == 2 for step in steps]):
@@ -137,11 +138,30 @@ class ReactionVerifier:
             return 0.0
         n_steps = len(reactants)
 
-        if n_steps > n_steps_max or not any(
-            [Molecule(label) == last_p for last_p in products[-1]]
-        ):
+        label_mol = Molecule(label)
+        if n_steps > n_steps_max:
             self.logger.info("Too many steps for synthesis")
             return 0.0
+        reward_mult: List[float] = [1.0 for _ in products]
+        if reward_type == "binary" and not any(
+            [label_mol == last_p for last_p in products[-1]]
+        ):
+            self.logger.info("Product not found")
+            return 0.0
+        elif reward_type == "tanimoto":
+            # Compute the tanimoto similarity between the label and products at each step
+            label_fp = AllChem.GetMorganFingerprintAsBitVect(
+                label_mol._rdmol, 2, nBits=2048
+            )
+            for i, product in enumerate(products):
+                all_sims = []
+                for p in product:
+                    fp_p = AllChem.GetMorganFingerprintAsBitVect(
+                        p._rdmol, 2, nBits=2048
+                    )
+                    all_sims.append(DataStructs.TanimotoSimilarity(label_fp, fp_p))
+                reward_mult[i] = max(all_sims)
+
         if building_blocks == []:
             building_blocks_mol = list(self.rxn_matrix.reactants)
         else:
@@ -197,8 +217,10 @@ class ReactionVerifier:
                 break
             else:
                 n_valid += 1
+        if n_valid < n_steps:
+            return (n_valid / n_steps) ** 2
 
-        return (n_valid / n_steps) ** 2
+        return reward_mult[n_valid - 1]
 
     def get_score(
         self, completions: List[Any], metadata: List[Dict[str, Any]]
@@ -206,7 +228,7 @@ class ReactionVerifier:
         rewards = []
         for meta, answer in zip(metadata, completions):
             objective = meta["objectives"][0]
-            impossible: bool = meta["impossible"]
+            impossible: bool = meta.get("impossible", False)
             if objective in self.check_ground_truth_tasks:
                 rewards.append(
                     self.ground_truth_reward_mol(
@@ -226,6 +248,18 @@ class ReactionVerifier:
                         meta["smarts"],
                         n_steps_max=meta["n_steps_max"],
                         impossible=impossible,
+                    )
+                )
+            elif objective == "analog_gen":
+                rewards.append(
+                    self.reward_run_path(
+                        answer,
+                        meta["target"][0],
+                        meta["building_blocks"],
+                        meta["smarts"],
+                        n_steps_max=meta["n_steps_max"],
+                        reward_type="tanimoto",
+                        impossible=False,
                     )
                 )
 
