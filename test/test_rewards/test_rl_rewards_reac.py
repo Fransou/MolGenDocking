@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 import pytest
-import ray
 
 from mol_gen_docking.data.pydantic_dataset import Sample, read_jsonl
 from mol_gen_docking.reward.rl_rewards import RewardScorer
@@ -11,10 +10,6 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 from .utils import (
     DATA_PATH,
 )
-
-if not ray.is_initialized():
-    ray.init(num_cpus=16)
-
 
 property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)
 

@@ -26,7 +26,7 @@ from .utils import (
 )
 
 if not ray.is_initialized():
-    ray.init(num_cpus=16)
+    ray.init()
 
 
 def is_reward_valid(rewards, smiles, properties):
