@@ -14,7 +14,7 @@ dependencies = [
     "selfies",
     "fastapi",
     "PyTDC==1.1.14",
-    "gunicorn",
+    "rdkit==2025.9.1",
     "pytest",
     "hydra-core",
     "pyscreener",
