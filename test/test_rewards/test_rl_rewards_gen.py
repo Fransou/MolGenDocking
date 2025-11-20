@@ -2,7 +2,6 @@ from itertools import product
 
 import numpy as np
 import pytest
-import ray
 import torch
 from rdkit import Chem
 
@@ -28,10 +27,6 @@ from .utils import (
     get_unscaled_obj,
     propeties_csv,
 )
-
-if not ray.is_initialized():
-    ray.init(num_cpus=16)
-
 
 cfg = DatasetConfig(data_path=DATA_PATH)
 
