@@ -47,21 +47,21 @@ INTEGER_PROPS = [
 ]
 
 PROPERTY_ALLOWED_OBJECTIVES = {
-    "GSK3B": ["maximize", "above"],
-    "JNK3": ["maximize", "above"],
-    "DRD2": ["maximize", "above"],
-    "SA": ["minimize", "below"],
-    "QED": ["maximize", "above"],
-    "CalcExactMolWt": ["above", "below"],
-    "CalcNumAromaticRings": ["above", "below", "minimize"],
-    "CalcNumHBA": ["above", "below"],
-    "CalcNumHBD": ["above", "below"],
-    "CalcNumRotatableBonds": ["above", "below"],
-    "CalcFractionCSP3": ["above", "below"],
-    "CalcTPSA": ["above", "below"],
-    "CalcHallKierAlpha": ["above", "below"],
-    "CalcPhi": ["maximize", "above", "below", "minimize"],
-    "logP": ["maximize", "above", "below", "minimize"],
+    "GSK3B": (["maximize", "above"], [0.5, 0.5]),
+    "JNK3": (["maximize", "above"], [0.5, 0.5]),
+    "DRD2": (["maximize", "above"], [0.5, 0.5]),
+    "SA": (["minimize", "below"], [0.5, 0.5]),
+    "QED": (["maximize", "above"], [0.7, 0.3]),
+    "CalcExactMolWt": (["above", "below"], [0.3, 0.7]),
+    "CalcNumAromaticRings": (["above", "below", "minimize"], [0.2, 0.5, 0.3]),
+    "CalcNumHBA": (["above", "below"], [0.5, 0.5]),
+    "CalcNumHBD": (["above", "below"], [0.5, 0.5]),
+    "CalcNumRotatableBonds": (["above", "below"], [0.5, 0.5]),
+    "CalcFractionCSP3": (["above", "below"], [0.5, 0.5]),
+    "CalcTPSA": (["above", "below"], [0.3, 0.7]),
+    "CalcHallKierAlpha": (["above", "below"], [0.5, 0.5]),
+    "CalcPhi": (["maximize", "above", "below", "minimize"], [0.25, 0.25, 0.25, 0.25]),
+    "logP": (["maximize", "above", "below", "minimize"], [0.25, 0.25, 0.25, 0.25]),
 }
 
 

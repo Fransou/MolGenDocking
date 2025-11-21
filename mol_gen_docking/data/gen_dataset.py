@@ -15,7 +15,6 @@ from tqdm import tqdm
 from mol_gen_docking.data.pydantic_dataset import Conversation, Message, Sample
 from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
-    PROPERTY_ALLOWED_OBJECTIVES,
     inverse_rescale_property_values,
 )
 from mol_gen_docking.reward.verifiers.generation_reward.utils import (
@@ -27,9 +26,17 @@ from mol_gen_docking.reward.verifiers.generation_reward.utils import (
 logger = logging.getLogger(__name__)
 
 OBJECTIVES = ["maximize", "minimize", "above", "below", "equal"]
-DOCKING_SOLO_OBJECTIVES = ["minimize", "below"]
-DOCKING_OBJECTIVES = ["minimize", "below", "above"]
+DOCKING_SOLO_OBJECTIVES = (["minimize", "below"], [0.8, 0.2])
+DOCKING_OBJECTIVES = (["minimize", "below", "above"], [0.6, 0.3, 0.1])
 TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
+
+DOCKING_SUFFIX: str = "\n(The docking score represents the free-energy of binding, low scores corresponding to strong binders.)"
+
+# Get the CURRENT_DIR/utils/....json
+with open(
+    os.path.join(os.path.dirname(__file__), "utils", "standard_prop_gen_info.json")
+) as f:
+    PROPERTY_ALLOWED_OBJECTIVES = json.load(f)
 
 
 @dataclass
@@ -74,7 +81,7 @@ class RuleSet:
         """
         n_props = metadata["n_props"]
         properties = metadata["properties"]
-        max_occ = self.max_occ if n_props > 0 else self.max_occ // 2
+        max_occ = self.max_occ if n_props > 0 else 2
 
         if n_props not in self.n_occ_prop:
             self.n_occ_prop[n_props] = {}
@@ -206,9 +213,9 @@ class MolGenerationInstructionsDatasetGenerator:
         self.prop_key_list = list(self.prop_name_mapping.keys())
 
         self.rule_set = RuleSet(
-            probs_docking_targets=config.probs_docking_targets,
-            max_occ=config.max_occ,
-            max_docking_per_prompt=config.max_docking_per_prompt,
+            probs_docking_targets=self.config.probs_docking_targets,
+            max_occ=self.config.max_occ,
+            max_docking_per_prompt=self.config.max_docking_per_prompt,
         )
         self.needs_dock = False  # Only for ood
 
@@ -255,7 +262,7 @@ class MolGenerationInstructionsDatasetGenerator:
             i0 = i1
 
     def fill_prompt(
-        self, props: List[str], objs: List[str]
+        self, props: List[str], objs: List[str], has_docking: bool
     ) -> Tuple[str, List[Dict[str, str]]]:
         """
         Takes a list of properties and corresponding objectives
@@ -265,9 +272,8 @@ class MolGenerationInstructionsDatasetGenerator:
             raise ValueError("props and objs must have the same length.")
 
         # Phrase templates for each type of objective
-
-        phrases = []
-        phrases_mm = []
+        phrases = [""]  # Empty string for the join method later
+        phrases_mm = [""]  # to add the prefix in front of the 1st obj
         path_to_mm_object = []
         for prop, obj in zip(props, objs):
             obj_l = obj.lower()
@@ -304,8 +310,12 @@ class MolGenerationInstructionsDatasetGenerator:
 
         # Top-level prompt templates
         prompt: str = random.choice(self.templates).split("|")[int(len(props) > 1)]
-        full_prompt = prompt.format(objectives="; ".join(phrases))
-        prompt_mm = prompt.format(objectives="; ".join(phrases_mm))
+        full_prompt = prompt.format(objectives="\n    - ".join(phrases))
+        prompt_mm = prompt.format(objectives="\n    - ".join(phrases_mm))
+
+        if has_docking:
+            full_prompt += DOCKING_SUFFIX
+            prompt_mm += DOCKING_SUFFIX
 
         full_prompt_mm: List[Dict[str, str]] = [
             {"type": "text", "text": prompt_mm}
@@ -389,21 +399,28 @@ class MolGenerationInstructionsDatasetGenerator:
                 min(self.rule_set.max_docking_per_prompt, len(allowed_docking_props)),
                 replace=False,
             ).tolist()
-            if self.needs_dock:
-                allowed_std_props = np.random.choice(
-                    allowed_std_props, n_props - 1
-                ).tolist()
 
-            probas = np.array(
-                [
-                    (1 - self.rule_set.probs_docking_targets) / len(allowed_std_props)
-                    for _ in range(len(allowed_std_props))
-                ]
-                + [
-                    self.rule_set.probs_docking_targets / len(allowed_docking_props)
-                    for _ in range(len(allowed_docking_props))
-                ]
+            probas_docking = np.ones(len(allowed_docking_props)) / len(
+                allowed_docking_props
             )
+            probas_docking = (
+                probas_docking
+                * self.rule_set.probs_docking_targets
+                / (1 - self.rule_set.probs_docking_targets)
+            )
+            if n_props == 1:  # We consider all props equally
+                probas_std = np.ones(len(allowed_std_props)) / len(allowed_std_props)
+            else:
+                probas_std = np.array(
+                    [
+                        PROPERTY_ALLOWED_OBJECTIVES[self.prop_name_mapping[p]][
+                            "frequency"
+                        ]
+                        for p in allowed_std_props
+                    ]
+                )
+
+            probas = np.concatenate([probas_docking, probas_std])
             probas = probas / probas.sum()
 
         property_list = allowed_std_props + allowed_docking_props
@@ -411,8 +428,10 @@ class MolGenerationInstructionsDatasetGenerator:
         properties = list(
             random.choice(property_list, n_props, replace=False, p=probas)
         )
-        # If n_props>=2, we ensure that we have at least one docking property
-        if n_props >= 2 and len(np.intersect1d(allowed_docking_props, properties)) == 0:
+        # If n_props>=2 or needs dock, we ensure that we have at least one docking property
+        if (n_props >= 2 or self.needs_dock) and len(
+            np.intersect1d(allowed_docking_props, properties)
+        ) == 0:
             properties[0] = allowed_docking_props[0]
         return properties
 
@@ -440,12 +459,17 @@ class MolGenerationInstructionsDatasetGenerator:
         for prop in properties:
             short_prop = self.prop_name_mapping[prop]
             if solo_docking and short_prop in self.docking_targets:
-                obj = random.choice(DOCKING_SOLO_OBJECTIVES)
+                obj = random.choice(
+                    DOCKING_SOLO_OBJECTIVES[0], p=DOCKING_SOLO_OBJECTIVES[1]
+                )
                 solo_docking = False
             elif short_prop in self.docking_targets:
-                obj = random.choice(DOCKING_OBJECTIVES)
+                obj = random.choice(DOCKING_OBJECTIVES[0], p=DOCKING_OBJECTIVES[1])
             else:
-                obj = random.choice(PROPERTY_ALLOWED_OBJECTIVES[short_prop])
+                obj = random.choice(
+                    PROPERTY_ALLOWED_OBJECTIVES[short_prop]["objectives"],
+                    p=PROPERTY_ALLOWED_OBJECTIVES[short_prop]["p_objectives"],
+                )
 
             if obj in TARGET_VALUE_OBJECTIVES:
                 # Find the value to target
@@ -460,9 +484,15 @@ class MolGenerationInstructionsDatasetGenerator:
         return objectives
 
     def generate_text_prompts(
-        self, properties: List[str], objectives: List[str], pocket_datas: Dict[str, Any]
+        self,
+        properties: List[str],
+        objectives: List[str],
+        pocket_datas: Dict[str, Any],
+        has_docking: bool,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        prompt_text, prompt_multimodal = self.fill_prompt(properties, objectives)
+        prompt_text, prompt_multimodal = self.fill_prompt(
+            properties, objectives, has_docking=has_docking
+        )
         prompt_text_with_pocket = self.add_pocket_info_to_prompt(
             prompt_text, pocket_datas
         )
@@ -511,17 +541,21 @@ class MolGenerationInstructionsDatasetGenerator:
         :param return_n_props: if True, returns the number of properties to optimize
         :return:
         """
-        for _ in range(n):
-            n_props_probs = np.array(
-                [
-                    self.config.props_prob[i]
-                    * int(
-                        len(self.rule_set.prohibited_props_at_n.get(i + 1, []))
-                        < len(docking_properties_list)
-                    )
-                    for i in range(self.max_n_props)
-                ]
-            )
+
+        for i_sampled in range(n):
+            n_props_probs = np.array(self.config.props_prob)
+            for i in range(len(n_props_probs)):
+                if len(self.rule_set.prohibited_props_at_n.get(i + 1, [])) > 0:
+                    if i == 0:
+                        if len(self.rule_set.prohibited_props_at_n[1]) >= len(
+                            docking_properties_list
+                        ) + len(self.std_properties):
+                            n_props_probs[i] = 0
+                    else:
+                        if len(self.rule_set.prohibited_props_at_n[i + 1]) >= len(
+                            docking_properties_list
+                        ):
+                            n_props_probs[i] = 0
             n_props_probs = n_props_probs / n_props_probs.sum()
             possible_n = np.arange(1, self.max_n_props + 1)
             n_props: int = int(np.random.choice(possible_n, p=n_props_probs))
@@ -542,9 +576,14 @@ class MolGenerationInstructionsDatasetGenerator:
                     ]
                 )
             )
+            has_docking = any(
+                self.prop_name_mapping[p] in self.docking_targets for p in properties
+            )
 
             pocket_datas = self._generate_pocket_additional_data(properties)
-            prompt = self.generate_text_prompts(properties, objectives, pocket_datas)
+            prompt = self.generate_text_prompts(
+                properties, objectives, pocket_datas, has_docking=has_docking
+            )
 
             metadata = self._get_prompt_metadata(
                 properties, objectives, identifier, n_props
@@ -603,7 +642,12 @@ class MolGenerationInstructionsDatasetGenerator:
                 if k in data_dict:
                     data_dict[k].append(metadata[k])
             tqdm.update(p_bar)
-        self.rule_set.partial_reset()
+        # Reinitialize rule set
+        self.rule_set = RuleSet(
+            probs_docking_targets=self.config.probs_docking_targets,
+            max_occ=self.config.max_occ,
+            max_docking_per_prompt=self.config.max_docking_per_prompt,
+        )
         return data_dict
 
 
@@ -612,7 +656,9 @@ def data_dict_to_hf_dataset(data_dict: dict) -> Dataset:
     return hf_dataset
 
 
-def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
+def data_dict_to_pydantic(
+    data_dict: dict, key: str = "prompt", origin: str = "train"
+) -> List[Sample]:
     sample_list: List[Sample] = []
 
     for i in range(len(data_dict[key])):
@@ -636,7 +682,9 @@ def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
                 "target": data_dict["target"][i],
                 "prompt_id": data_dict["prompt_id"][i],
                 "n_props": data_dict["n_props"][i],
+                "n_docking_props": len(data_dict["docking_metadata"][i]),
                 "docking_metadata": data_dict["docking_metadata"][i],
+                "source": origin,
             },
         )
         sample_list.append(

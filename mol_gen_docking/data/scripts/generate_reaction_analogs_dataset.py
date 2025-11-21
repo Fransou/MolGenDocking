@@ -22,7 +22,7 @@ SYSTEM_PROMPT = (
     "<answer> answer here </answer>."
 )
 
-PROMPT = "Generate an analog of {SMILES} with its corresponding synthetic pathway. Provide your answer in the following format:\nA + B -> C\n C -> D\n Where D is the analog of {SMILES}."
+PROMPT = "Generate an analog of {SMILES} with its corresponding synthetic pathway. Provide your answer in the following format:\nA + B -> C\n C -> D\n with at most 5 steps, where the last product is the analog of {SMILES}."
 
 
 def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:

@@ -119,15 +119,14 @@ def test_multi_docking_props(targets, receptor_process, scorer, n_generations=2)
     _, missed = receptor_process(targets)
     assert len(missed) == 0, f"Receptor {targets} could not be processed."
     metadatas = [build_metadatas(targets)] * n_generations
-    smiles = [
-        [propeties_csv.iloc[i]["smiles"]] for i in range(n_generations * len(targets))
-    ]
+    smiles = [[propeties_csv.iloc[i]["smiles"]] for i in range(n_generations)]
     completions = [
         fill_completion(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
+    print(completions, targets)
     rewards = scorer(completions, metadatas)
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
-    assert rewards.shape[0] == n_generations * len(targets)
+    assert rewards.shape[0] == n_generations

@@ -35,7 +35,7 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
         if "ood" in name:
             dataset.needs_dock = True
         data_dict = dataset.generate_dataset(n_prompts, docking_split=docking_split)
-        pydantic_dataset = data_dict_to_pydantic(data_dict)  # Validate the data
+        pydantic_dataset = data_dict_to_pydantic(data_dict, origin=name)
         write_jsonl(
             Path(os.path.join(args.data_path, name + ".jsonl")), pydantic_dataset
         )
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         "--n-props-probs",
         nargs="+",
         type=float,
-        default=[0.5, 0.3, 0.2],
+        default=[0.4, 0.4, 0.2],
         help="Probabilities for the number of properties per prompt",
     )
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
         "--data-path",
         "-d",
         type=str,
-        default="data/mol_orz",
+        default="data/molgendata",
         help="Path to the dataset",
     )
     parser.add_argument(
@@ -85,11 +85,13 @@ if __name__ == "__main__":
         nargs="+",
         default=[0.8, 0.1, 0.1],
     )
+    parser.add_argument("--max-occ", type=int, default=8)
     args = parser.parse_args()
 
     config = DatasetConfig(
         data_path=args.data_path,
         max_n_props=len(args.n_props_probs),
+        max_occ=args.max_occ,
         props_prob=args.n_props_probs,
         split_docking=args.split_docking,
         max_docking_per_prompt=args.max_dock_prop_per_prompt,
