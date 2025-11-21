@@ -14,7 +14,7 @@ dependencies = [
     "selfies",
     "fastapi",
     "PyTDC==1.1.14",
-    "rdkit==2025.9.1",
+    "rdkit",
     "pytest",
     "hydra-core",
     "pyscreener",
@@ -36,3 +36,4 @@ register_dummy_model = "mol_gen_docking.models.vllm_model.register:register"
 
 [tool.hatch.build.targets.wheel]
     packages = ["src/mol_gen_docking"]
+
