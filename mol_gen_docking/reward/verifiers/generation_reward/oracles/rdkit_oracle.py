@@ -6,7 +6,16 @@ import networkx as nx
 from rdkit import Chem
 from rdkit.Chem import QED, Descriptors, rdMolDescriptors
 from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.Contrib.SA_Score import sascorer
+
+try:
+    from rdkit.Contrib.SA_Score import sascorer
+except ModuleNotFoundError:
+    # fix from https://github.com/rdkit/rdkit/issues/2279
+    import os
+    import sys
+
+    sys.path.append(os.path.join(Chem.RDConfig.RDContribDir, "SA_Score"))
+    import sascorer
 
 
 def penalized_logp(mol: Chem.Mol) -> float:

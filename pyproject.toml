@@ -14,12 +14,14 @@ dependencies = [
     "selfies",
     "fastapi",
     "PyTDC==1.1.14",
-    "gunicorn",
+    "rdkit",
     "pytest",
     "hydra-core",
     "pyscreener",
     "meeko==0.6.1",
     "scikit-learn==1.2.2",
+    "ringtail",
+    "prody",
     "biopython"
 ]
 

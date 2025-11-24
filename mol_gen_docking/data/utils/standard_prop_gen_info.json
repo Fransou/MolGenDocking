@@ -1,0 +1,77 @@
+{
+  "GSK3B":{
+    "objectives":["maximize", "above"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.5
+  },
+  "JNK3":{
+    "objectives":["maximize", "above"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.5
+  },
+  "DRD2":{
+    "objectives":["maximize", "above"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.5
+  },
+  "SA":{
+    "objectives":["minimize", "below"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":5
+  },
+  "QED":{
+    "objectives":["maximize", "above"],
+    "p_objectives":[0.7, 0.3],
+    "frequency":3
+  },
+  "CalcExactMolWt":{
+    "objectives":["above", "below"],
+    "p_objectives":[0.3, 0.7],
+    "frequency":1
+  },
+  "CalcNumAromaticRings":{
+    "objectives":["above", "below", "minimize"],
+    "p_objectives":[0.2, 0.5, 0.3],
+    "frequency":0.5
+  },
+  "CalcNumHBA":{
+    "objectives":["maximize", "above"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.5
+  },
+  "CalcNumHBD":{
+    "objectives":["above", "below"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.5
+  },
+  "CalcNumRotatableBonds":{
+    "objectives":["above", "below"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":1
+  },
+    "CalcFractionCSP3":{
+    "objectives":["above", "below"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.3
+  },
+    "CalcTPSA":{
+    "objectives":["above", "below"],
+    "p_objectives":[0.3, 0.7],
+    "frequency":1
+  },
+    "CalcHallKierAlpha":{
+    "objectives":["above", "maximize"],
+    "p_objectives":[0.5, 0.5],
+    "frequency":0.3
+  },
+    "CalcPhi":{
+    "objectives":["maximize", "above", "below", "minimize"],
+    "p_objectives":[0.4, 0.4, 0.1, 0.1],
+    "frequency":2
+  },
+    "logP":{
+    "objectives":["maximize", "above", "below", "minimize"],
+    "p_objectives":[0.1, 0.1, 0.4, 0.4],
+    "frequency":3
+  }
+}

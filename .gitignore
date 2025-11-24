@@ -176,6 +176,7 @@ SFT*
 /data/polaris
 /data/synflownet
 /data/synthesis
+/data/analog_gen
 /data/molgendata/pdb_files
 /data/molgendata/eval_data
 /data/molgendata/test_data

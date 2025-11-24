@@ -23,11 +23,11 @@ cp data/properties.csv $SLURM_TMPDIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
-export PATH=$PATH:$HOME/autodock_vina_1_1_2_linux_x86/bin
+export PATH=$PATH:$HOME/ADFRsuite_x86_64Linux_1.0/bin
 
 ray start --head --node-ip-address 0.0.0.0
 
-coverage run -m pytest test/test_rewards/test_docking_API.py --accelerator=gpu
+pytest test/test_rewards/test_docking_API.py --accelerator=gpu
 
 # Launch server
 export docking_oracle=autodock_gpu
@@ -35,6 +35,6 @@ export scorer_exhaustiveness=4
 uvicorn --host 0.0.0.0 --port 5001 mol_gen_docking.server:app --log-level critical &
 sleep 10
 
-coverage run -m pytest test/test_rewards/test_docking_server_autodock_gpu.py -x -s
+pytest test/test_rewards/test_docking_server_autodock_gpu.py -x -s
 
 kill -9 $(lsof -t -i :5001)

@@ -227,16 +227,8 @@ class GenerationVerifier:
                 reward = 0
 
             if np.isnan(reward) or reward is None:
-                sub_table = df_properties[
-                    (df_properties["id_completion"] == id_completion)
-                    & (df_properties["smiles"].isin(smiles))
-                ]
-                log_table = ";".join(
-                    f"{col}: {sub_table[col].tolist()}\n" for col in sub_table.columns
-                )
                 self.logger.warning(
-                    f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n",
-                    f"Associated table :\n {log_table}",
+                    f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n"
                 )
                 reward = 0
             rewards.append(float(reward))
