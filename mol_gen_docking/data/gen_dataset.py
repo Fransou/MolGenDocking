@@ -144,7 +144,7 @@ class DatasetConfig:
     props_prob: List[float] = field(default_factory=lambda: [0.5, 0.3, 0.2])
     vina: bool = True
     split_docking: List[float] = field(default_factory=lambda: [1])
-    probs_docking_targets: float = 0.5
+    probs_docking_targets: float = 0.2
     max_occ: int = 4
     max_docking_per_prompt: int = 2
     min_n_pocket_infos: int = -1
