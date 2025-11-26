@@ -22,7 +22,8 @@ cp data/properties.csv $SLURM_TMPDIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
-#export PATH=$PATH:$HOME/autodock_vina_1_1_2_linux_x86/bin
+module load autodock-vina/1.2.6
+
 
 ray start --head --node-ip-address 0.0.0.0
 

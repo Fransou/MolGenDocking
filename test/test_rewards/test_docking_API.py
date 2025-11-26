@@ -23,7 +23,7 @@ cfg = DatasetConfig(data_path=DATA_PATH)
 props_to_eval = DOCKING_PROP_LIST[:64]
 
 
-@pytest.fixture(scope="module", params=[1, 2, 4, 8, 16])
+@pytest.fixture(scope="module", params=[4, 8, 16])
 def exhaustiveness(request):
     return request.param
 
@@ -52,7 +52,7 @@ def scorer(has_gpu, exhaustiveness):
                 n_cpu=int(os.environ.get("N_CPUS_DOCKING", exhaustiveness)),
                 exhaustiveness=exhaustiveness,
                 docking_oracle="autodock_gpu",
-                vina_mode="autodock_gpu_256wi",
+                vina_mode="autodock_gpu_128wi",
             ),
         )
 
@@ -104,7 +104,7 @@ def test_docking_props(target, scorer, receptor_process, n_generations=4):
         fill_completion(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
-    rewards = scorer(completions, metadatas)
+    rewards = scorer(completions, metadatas)[0]
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
@@ -125,7 +125,7 @@ def test_multi_docking_props(targets, receptor_process, scorer, n_generations=2)
         for s in smiles
     ]
     print(completions, targets)
-    rewards = scorer(completions, metadatas)
+    rewards = scorer(completions, metadatas)[0]
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()

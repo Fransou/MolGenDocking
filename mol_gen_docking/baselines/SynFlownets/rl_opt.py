@@ -24,12 +24,12 @@ def get_reward_fn(
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):
-            return SCORER([completions], metadata=[metadata], use_pbar=False)[0]
+            return SCORER([completions], metadata=[metadata], use_pbar=False)[0][0]
         return SCORER(  # typing: ignore
             completions,
             metadata=[metadata] * len(completions),
             use_pbar=False,
-        )
+        )[0]
 
     return reward_fn
 

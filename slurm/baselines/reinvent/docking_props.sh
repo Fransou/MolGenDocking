@@ -7,10 +7,10 @@
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus=h100:1
-#SBATCH --array=0-260:4%1
+#SBATCH --array=0-30:6%1
 
 set -x
-STRIDE=14
+STRIDE=6
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines
 

@@ -1,18 +1,21 @@
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
+from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 
-class MolPropVerifier:
+
+class MolPropVerifier(Verifier):
     def __init__(self, reward: str) -> None:
+        super().__init__()
         self.reward = reward
         self.logger = logging.getLogger("MolPropVerifier")
 
     def get_score(
         self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         parsed_answer = []
         for answer in completions:
             matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
@@ -31,7 +34,9 @@ class MolPropVerifier:
             else:
                 parsed_answer.append(None)
         if self.reward == "valid_smiles":
-            return [float(isinstance(y, float)) for y in parsed_answer]
+            return [float(isinstance(y, float)) for y in parsed_answer], [
+                {} for _ in parsed_answer
+            ]
         rewards = []
         for meta, y in zip(metadata, parsed_answer):
             if y is None:
@@ -51,12 +56,4 @@ class MolPropVerifier:
                 else:
                     self.logger.error(f"Not a valid objective: {meta['objectives'][0]}")
                     raise NotImplementedError
-        return rewards
-
-    def __call__(
-        self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> List[float]:
-        """
-        Call the scorer to get the rewards.
-        """
-        return self.get_score(completions=completions, metadata=metadata)
+        return rewards, [{} for _ in parsed_answer]
