@@ -21,7 +21,7 @@ def get_reward_fn(
 ) -> Callable[[str | List[str]], float | List[float]]:
     response = requests.post(
         f"{remote_rm_url}/prepare_receptor",
-        json={"metadata": [metadata]},
+        json={"metadata": [metadata], "query": [""]},
     )
     assert response.status_code == 200, response.text
 

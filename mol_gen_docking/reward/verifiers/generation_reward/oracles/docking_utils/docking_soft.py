@@ -112,7 +112,7 @@ class BaseDocking:
         gpu_ids: Union[None, str, List[str]] = None,
         docking_attempts: int = 10,
         print_msgs: bool = True,
-        print_output: bool = True,
+        print_output: bool = False,
         debug: bool = True,
     ) -> None:
         """
@@ -582,7 +582,7 @@ class AutoDockGPUDocking(BaseDocking):
         gpu_ids: Union[None, str, List[str]] = None,
         docking_attempts: int = 10,
         print_msgs: bool = True,
-        print_output: bool = True,
+        print_output: bool = False,
         debug: bool = True,
         agg_type: Literal["mean", "min", "cluster_min"] = "min",
     ) -> None:
