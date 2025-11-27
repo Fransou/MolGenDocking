@@ -224,6 +224,7 @@ class MeekoLigandPreparator(BasePreparator):
         remove_stereo_chemistry_on_fail: bool = True,  # TODO: Check Bredt's rule for bridged bonds
     ):
         super().__init__(conformer_attempts, n_conformers)
+        self.ligand_critic_errors: List[str] = []
         self.logger = logging.getLogger(
             __name__ + "/" + self.__class__.__name__,
         )
@@ -314,14 +315,20 @@ class MeekoLigandPreparator(BasePreparator):
                             file.write(pdbqt_string)
             except Exception:
                 if attempt == 1:
-                    self.logger.warning(f"Error when preparing ligand: {smi}")
-                    if self.remove_stereo_chemistry_on_fail:
-                        old_smi = smi
-                        mol = Chem.RemoveHs(mol)
-                        Chem.RemoveStereochemistry(mol)
-                        smi = Chem.MolToSmiles(mol, canonical=True)
-                        self.logger.warning(
-                            f"Removing stereo chemistry in: {old_smi} | results: {smi}"
+                    try:
+                        self.logger.warning(f"Error when preparing ligand: {smi}")
+                        if self.remove_stereo_chemistry_on_fail:
+                            old_smi = smi
+                            mol = Chem.RemoveHs(mol)
+                            Chem.RemoveStereochemistry(mol)
+                            smi = Chem.MolToSmiles(mol, canonical=True)
+                            self.logger.warning(
+                                f"Removing stereo chemistry in: {old_smi} | results: {smi}"
+                            )
+                    except Exception:
+                        self.ligand_critic_errors.append(old_smi)
+                        self.logger.error(
+                            f"List of problematic ligands: {self.ligand_critic_errors}"
                         )
                 else:
                     self.logger.error(

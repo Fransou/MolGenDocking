@@ -89,7 +89,9 @@ class RewardBuffer:
             return [
                 q
                 if isinstance(q, MolecularVerifierResponse)
-                else MolecularVerifierResponse(error="Empty batch")
+                else MolecularVerifierResponse(
+                    reward=0.0, reward_list=[], error="Empty batch"
+                )
                 for q in queries
             ]
 

@@ -687,6 +687,18 @@ class AutoDockGPUDocking(BaseDocking):
                         ]
                     )
             except ZeroDivisionError:
+                with open(file, "rb") as fp:
+                    for line in fp.readlines():
+                        line_str: str = line.decode("utf-8")
+                        # store ligand file name
+                        if line_str[0:11] == "Ligand file":
+                            identifier = (
+                                line_str.split(":", 1)[1]
+                                .split("/")[-1]
+                                .split(".")[0]
+                                .strip()
+                            )  # remove path and file extension
+                            break
                 binding_score_val = 0.0
             # We cap the binding score to a maximum value  of 0.0 kcal/mol
             binding_score_val = (
