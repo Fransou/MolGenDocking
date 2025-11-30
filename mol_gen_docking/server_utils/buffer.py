@@ -1,6 +1,6 @@
 import asyncio
 from collections import deque
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import ray
@@ -75,9 +75,9 @@ class RewardBuffer:
         app = self.app
 
         # --- Step 1. Merge all batched inputs ---
-        all_completions: list[str] = []
-        all_metadata: list[dict[str, Any]] = []
-        query_indices: list[int] = []
+        all_completions: List[str] = []
+        all_metadata: List[dict[str, Any]] = []
+        query_indices: List[int] = []
 
         for i, q in enumerate(queries):
             all_completions.extend(q.query)
@@ -89,7 +89,9 @@ class RewardBuffer:
             return [
                 q
                 if isinstance(q, MolecularVerifierResponse)
-                else MolecularVerifierResponse(error="Empty batch")
+                else MolecularVerifierResponse(
+                    reward=0.0, reward_list=[], error="Empty batch"
+                )
                 for q in queries
             ]
 
@@ -104,17 +106,20 @@ class RewardBuffer:
         valid_reward = valid_scorer.get_score(
             completions=all_completions, metadata=all_metadata
         )
-        final_smiles = valid_scorer.get_all_completions_smiles(
+        final_smiles: List[str] = valid_scorer.get_all_completions_smiles(
             completions=all_completions
         )
 
-        rewards = ray.get(rewards_job)
-
+        out: Tuple[List[float], List[Dict[str, Any]]] = ray.get(rewards_job)
+        rewards, metadatas = out
         # --- Step 3. Group results by original query ---
-        grouped_results: list[list[float]] = [[] for _ in range(len(queries))]
-        grouped_smiles: list[list[str]] = [[] for _ in range(len(queries))]
-        for r, s, idx in zip(rewards, final_smiles, query_indices):
+        grouped_results: List[List[float]] = [[] for _ in range(len(queries))]
+        grouped_meta: List[List[Dict[str, Any]]] = [[] for _ in range(len(queries))]
+        grouped_smiles: List[List[str]] = [[] for _ in range(len(queries))]
+
+        for r, m, s, idx in zip(rewards, metadatas, final_smiles, query_indices):
             grouped_results[idx].append(r)
+            grouped_meta[idx].append(m)
             grouped_smiles[idx].append(s)
 
         # --- Step 4. Compute per-query metrics ---
@@ -124,8 +129,8 @@ class RewardBuffer:
                 # prefilled error
                 responses.append(q)
                 continue
-
             rewards_i = grouped_results[i]
+            metadata_i = grouped_meta[i]
             smiles_i = grouped_smiles[i]
             metadata = q.metadata
             prompts = []
@@ -187,6 +192,7 @@ class RewardBuffer:
                     "diversity": diversity_score,
                     "pass_at_n": max_per_prompt,
                     "rewards": rewards_i,
+                    "verifier_metadata_output": metadata_i,
                 },
                 error=None,
             )

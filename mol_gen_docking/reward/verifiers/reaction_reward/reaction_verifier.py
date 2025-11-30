@@ -2,7 +2,7 @@ import logging
 import pickle
 import re
 from functools import reduce
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Tuple
 
 import numpy as np
 from rdkit import DataStructs, RDLogger
@@ -11,16 +11,18 @@ from rdkit.Chem import AllChem
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
+from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 
 RDLogger.DisableLog("rdApp.*")
 
 
-class ReactionVerifier:
+class ReactionVerifier(Verifier):
     def __init__(
         self,
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rxn_matrix_path: str | None = None,
     ):
+        super().__init__()
         self.rxn_matrix: ReactantReactionMatrix
         if rxn_matrix_path is not None:
             with open(rxn_matrix_path, "rb") as f:
@@ -81,15 +83,36 @@ class ReactionVerifier:
         return self.r_ground_truth_mols(mols, mol_label)
 
     def reward_smarts(
-        self, completion: str, labels: List[str], impossible: bool
-    ) -> float:  # TODO: run the predicted smarts if non-equal
+        self,
+        completion: str,
+        labels: List[str],
+        reactants: List[str],
+        product: str,
+        impossible: bool,
+    ) -> Tuple[float, Dict[str, Any]]:  # TODO: run the predicted smarts if non-equal
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
-            return 0.0
+            return 0.0, {"Reactants_contained": False, "Products_contained": False}
         if impossible:
-            return float(matches[0] == "impossible")
-        return float(matches[0].strip() == gt_smarts)
+            return float(matches[0] == "impossible"), {
+                "Reactants_contained": True,
+                "Products_contained": True,
+            }
+        if matches[0].strip() == gt_smarts:
+            return 1.0, {"Reactants_contained": True, "Products_contained": True}
+        try:
+            rxnB = Reaction(matches[0].strip())
+            p = rxnB([Molecule(r) for r in reactants])
+            reward = 0.0
+            if product in p:
+                reward = 0.1
+            return reward, {
+                "Reactants_contained": True,
+                "Products_contained": reward == 0.1,
+            }
+        except ValueError:
+            return 0.0, {"Reactants_contained": False, "Products_contained": False}
 
     def reward_run_path(
         self,
@@ -100,7 +123,7 @@ class ReactionVerifier:
         n_steps_max: int,
         impossible: bool,
         reward_type: Literal["binary", "tanimoto"] = "binary",
-    ) -> float:
+    ) -> Tuple[float, Dict[str, Any]]:
         """
         Returns 0.9 if the synthesis is deemed impossible, and the model returns 'impossible'.
         Test all steps with all smarts allowed, and returns the reward as :
@@ -114,16 +137,28 @@ class ReactionVerifier:
         self.logger.info("Running reaction verifier on: {}".format(completion))
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
-            return 0.0
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         if impossible and matches[0] == "impossible":
             self.logger.info("Reaction predicted impossible correctly")
-            return 0.9
+            return 0.9, {
+                "prop_valid": 1.0,
+                "correct_last_product": True,
+                "correct_bb": True,
+            }
         # Ensure one reaction per line
         steps: List[str] = matches[0].split("\n")
         steps = [s for s in steps if not s.strip() == ""]
         if not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
-            return 0.0
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         reactants = [
             [Molecule(smi.strip()) for smi in step.split("->")[0].split(" + ")]
             for step in steps
@@ -135,19 +170,31 @@ class ReactionVerifier:
         if any([not r.is_valid for r in sum(reactants, [])]) or any(
             [not p.is_valid for p in sum(products, [])]
         ):
-            return 0.0
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         n_steps = len(reactants)
 
         label_mol = Molecule(label)
         if n_steps > n_steps_max:
             self.logger.info("Too many steps for synthesis")
-            return 0.0
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         reward_mult: List[float] = [1.0 for _ in products]
         if reward_type == "binary" and not any(
             [label_mol == last_p for last_p in products[-1]]
         ):
             self.logger.info("Product not found")
-            return 0.0
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         elif reward_type == "tanimoto":
             # Compute the tanimoto similarity between the label and products at each step
             label_fp = AllChem.GetMorganFingerprintAsBitVect(
@@ -170,10 +217,18 @@ class ReactionVerifier:
             for r in reactant:
                 if r not in building_blocks_mol:
                     self.logger.info("Using unkown molecule: {}".format(r.smiles))
-                    return 0.0
+                    return 0.0, {
+                        "prop_valid": 0.0,
+                        "correct_last_product": True,
+                        "correct_bb": False,
+                    }
                 if product == []:
                     self.logger.info("Missing product")
-                    return 0.0
+                    return 0.0, {
+                        "prop_valid": 0.0,
+                        "correct_last_product": True,
+                        "correct_bb": False,
+                    }
                 for p in product:
                     building_blocks_mol.append(p)
         reactions: ReactionContainer
@@ -218,14 +273,23 @@ class ReactionVerifier:
             else:
                 n_valid += 1
         if n_valid < n_steps:
-            return (n_valid / n_steps) ** 2
+            return reward_mult[n_valid - 1] * (n_valid / n_steps) ** 2, {
+                "prop_valid": n_valid / n_steps,
+                "correct_last_product": True,
+                "correct_bb": True,
+            }
 
-        return reward_mult[n_valid - 1]
+        return reward_mult[n_valid - 1], {
+            "prop_valid": 1.0,
+            "correct_last_product": True,
+            "correct_bb": True,
+        }
 
     def get_score(
         self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         rewards = []
+        rewards_meta: List[Dict[str, Any]] = []
         for meta, answer in zip(metadata, completions):
             objective = meta["objectives"][0]
             impossible: bool = meta.get("impossible", False)
@@ -235,42 +299,41 @@ class ReactionVerifier:
                         answer, meta["target"], impossible=impossible
                     )
                 )
+                rewards_meta.append({})
             elif objective == "smarts":
-                rewards.append(
-                    self.reward_smarts(answer, meta["target"], impossible=impossible)
+                r, meta = self.reward_smarts(
+                    answer,
+                    meta["target"],
+                    meta["reactants"][0],
+                    meta["products"][0],
+                    impossible=impossible,
                 )
+                rewards.append(r)
+                rewards_meta.append(meta)
             elif objective in self.run_validation_tasks:
-                rewards.append(
-                    self.reward_run_path(
-                        answer,
-                        meta["target"][0],
-                        meta["building_blocks"],
-                        meta["smarts"],
-                        n_steps_max=meta["n_steps_max"],
-                        impossible=impossible,
-                    )
+                r, meta = self.reward_run_path(
+                    answer,
+                    meta["target"][0],
+                    meta["building_blocks"],
+                    meta["smarts"],
+                    n_steps_max=meta["n_steps_max"],
+                    impossible=impossible,
                 )
+                rewards.append(r)
+                rewards_meta.append(meta)
             elif objective == "analog_gen":
-                rewards.append(
-                    self.reward_run_path(
-                        answer,
-                        meta["target"][0],
-                        meta["building_blocks"],
-                        meta["smarts"],
-                        n_steps_max=meta["n_steps_max"],
-                        reward_type="tanimoto",
-                        impossible=False,
-                    )
+                r, meta = self.reward_run_path(
+                    answer,
+                    meta["target"][0],
+                    meta["building_blocks"],
+                    meta["smarts"],
+                    n_steps_max=meta["n_steps_max"],
+                    reward_type="tanimoto",
+                    impossible=False,
                 )
+                rewards.append(r)
+                rewards_meta.append(meta)
 
         if self.reward == "valid_smiles":
-            return [float(r > 0.0) for r in rewards]
-        return rewards
-
-    def __call__(
-        self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> List[float]:
-        """
-        Call the scorer to get the rewards.
-        """
-        return self.get_score(completions=completions, metadata=metadata)
+            return [float(r > 0.0) for r in rewards], rewards_meta
+        return rewards, rewards_meta

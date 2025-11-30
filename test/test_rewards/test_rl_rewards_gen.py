@@ -84,7 +84,7 @@ def test_valid_smiles(completion, smiles):
         valid_scorer(
             completions,
             metadata=[{"objectives": ["maximize"]}],
-        )
+        )[0]
     )
     assert rewards.sum() == float(
         "SMILES" in completion and not ("FAKE" in smiles and len(smiles) == 1)
@@ -113,7 +113,7 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     ]
     completions = [fill_completion(s, completion) for s in smiles]
 
-    rewards = property_scorer(completions, metadata, use_pbar=False)
+    rewards = property_scorer(completions, metadata, use_pbar=False)[0]
 
     if smiles != []:
         is_reward_valid(rewards[0], smiles[0], [property1])
@@ -156,7 +156,9 @@ def test_all_prompts(prop, obj, smiles):
         )
         for s in smiles
     ]
-    rewards = property_scorer_rescale(completions, metadata, debug=True, use_pbar=False)
+    rewards = property_scorer_rescale(
+        completions, metadata, debug=True, use_pbar=False
+    )[0]
 
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)

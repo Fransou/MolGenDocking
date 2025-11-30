@@ -165,7 +165,7 @@ class RewardScorer:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         """
         Get reward for molecular properties
         """
@@ -173,15 +173,17 @@ class RewardScorer:
         if (
             self.reward == "valid_smiles"
         ):  # TODO: Currently always return 1 if at least one valid smiles
-            return [float(len(smis) > 0) for smis in smiles_per_completion]
-
-        scores = self.generation_verifier(
-            smiles_per_completion=smiles_per_completion,
-            metadata=metadata,
-            debug=debug,
-            use_pbar=use_pbar,
+            return [float(len(smis) > 0) for smis in smiles_per_completion], [
+                {} for _ in smiles_per_completion
+            ]
+        if debug:
+            self.generation_verifier.debug = True
+        else:
+            self.generation_verifier.debug = False
+        scores, metadata = self.generation_verifier.get_score(
+            smiles_per_completion, metadata
         )
-        return scores
+        return scores, metadata
 
     def _get_prop_pred_score(
         self,
@@ -189,8 +191,8 @@ class RewardScorer:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> List[float]:
-        return self.mol_prop_verifier(completions=completions, metadata=metadata)
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+        return self.mol_prop_verifier.get_score(completions, metadata)
 
     def _get_reaction_score(
         self,
@@ -198,8 +200,8 @@ class RewardScorer:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> List[float]:
-        return self.reaction_verifier(completions, metadata)
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+        return self.reaction_verifier.get_score(completions, metadata)
 
     def get_score(
         self,
@@ -207,11 +209,14 @@ class RewardScorer:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         assert len(completions) == len(metadata)
         obj_to_fn: Dict[
             str,
-            Callable[[List[Any], List[dict[str, Any]], bool, bool], List[float]],
+            Callable[
+                [List[Any], List[dict[str, Any]], bool, bool],
+                Tuple[List[float], List[Dict[str, Any]]],
+            ],
         ] = {
             "docking": self._get_generation_score,
             "prop_pred": self._get_prop_pred_score,
@@ -263,16 +268,18 @@ class RewardScorer:
                     "Unrecognized objective: {}".format(meta["objectives"])
                 )
         rewards = [0.0 for _ in range(len(metadata))]
+        metadata = [{} for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
-            rewards_obj = fn(
+            rewards_obj, metadata_obj = fn(
                 completions_per_obj[key],
                 metadata_per_obj[key],
                 debug,
                 use_pbar,
             )
-            for i, r in zip(idxs[key], rewards_obj):
+            for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
                 rewards[i] = r
-        return rewards
+                metadata[i] = m
+        return rewards, metadata
 
     def __call__(
         self,
@@ -280,7 +287,7 @@ class RewardScorer:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> List[float]:
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         """
         Call the scorer to get the rewards.
         """

@@ -8,6 +8,7 @@ import pandas as pd
 import ray
 from ray.experimental import tqdm_ray
 
+from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
     get_oracle,
@@ -17,7 +18,7 @@ from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
 )
 
 
-class GenerationVerifier:
+class GenerationVerifier(Verifier):
     """From a list of smiles and a metadata dict, returns a reward based
     on how well the proposed molecules meet the criterias"""
 
@@ -29,6 +30,7 @@ class GenerationVerifier:
         oracle_kwargs: Dict[str, Any] = {},
         gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
+        super().__init__()
         self.logger = logging.getLogger("GenerationVerifier")
         if path_to_mappings is not None:
             with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
@@ -47,6 +49,7 @@ class GenerationVerifier:
         self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
         self.oracles: Dict[str, OracleWrapper] = {}
+        self.debug = False  # Only for tests
 
     def fill_df_properties(
         self, df_properties: pd.DataFrame, use_pbar: bool = True
@@ -184,12 +187,8 @@ class GenerationVerifier:
         return df_properties
 
     def get_score(
-        self,
-        smiles_per_completion: List[List[str]],
-        metadata: List[Dict[str, Any]],
-        debug: bool = False,
-        use_pbar: bool = False,
-    ) -> List[float]:
+        self, smiles_per_completion: List[List[str]], metadata: List[Dict[str, Any]]
+    ) -> Tuple[List[float], List[Dict[str, Any]]]:
         assert metadata is not None and (
             all(
                 [
@@ -209,22 +208,30 @@ class GenerationVerifier:
         df_properties = self._get_prop_to_smiles_dataframe(
             smiles_per_completion, objectives
         )
-        self.fill_df_properties(df_properties, use_pbar=use_pbar)
+        self.fill_df_properties(df_properties)
         df_properties["reward"] = df_properties.apply(
             lambda x: self.get_reward(x), axis=1
         )
 
         rewards = []
+        rewards_meta = []
         for id_completion, smiles in enumerate(smiles_per_completion):
+            meta: Dict[str, List[Any]] = {"properties": [], "individual_rewards": []}
             if len(smiles) > 0:
-                reward = df_properties[
+                rows_completion = df_properties[
                     (df_properties["id_completion"] == id_completion)
                     & (df_properties["smiles"].isin(smiles))
-                ]["reward"].mean()
-                if self.rescale and not debug:
+                ]
+                reward = rows_completion["reward"].mean()
+                for i in range(len(rows_completion["smiles"])):
+                    meta["properties"].append(rows_completion["property"].iloc[i])
+                    meta["individual_rewards"].append(rows_completion["reward"].iloc[i])
+
+                if self.rescale and not self.debug:
                     reward = np.clip(reward, 0, 1)
             else:
                 reward = 0
+            rewards_meta.append(meta)
 
             if np.isnan(reward) or reward is None:
                 self.logger.warning(
@@ -232,21 +239,4 @@ class GenerationVerifier:
                 )
                 reward = 0
             rewards.append(float(reward))
-        return rewards
-
-    def __call__(
-        self,
-        smiles_per_completion: List[List[str]],
-        metadata: List[Dict[str, Any]],
-        debug: bool = False,
-        use_pbar: bool = False,
-    ) -> List[float]:
-        """
-        Call the scorer to get the rewards.
-        """
-        return self.get_score(
-            smiles_per_completion=smiles_per_completion,
-            metadata=metadata,
-            debug=debug,
-            use_pbar=use_pbar,
-        )
+        return rewards, rewards_meta

@@ -12,8 +12,9 @@ cd $WORKING_DIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
+
 wandb offline
-HF_HUB_OFFLINE=1 python mol_gen_docking/baselines/reinvent/rl_opt.py \
+HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
   --model_name reinvent_10M_prior \
   --dataset $DATA_PATH/eval_data/eval_prompts.jsonl \
   --datasets-path $DATA_PATH \

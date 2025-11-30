@@ -7,10 +7,10 @@
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus=h100:1
-#SBATCH --array=0-260:4%1
+#SBATCH --array=0-6:6
 
 set -x
-STRIDE=14
+STRIDE=6
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines
 
@@ -20,7 +20,9 @@ HEAD_NODE=${NODES_LIST[0]}
 HEAD_NODE_IP=$(srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 hostname --ip-address | head -n1)
 
 # Launch head server
-srun  --overlap --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP head &
+srun --overlap \
+     --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 \
+     $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP head &
 
 export HEAD_NODE_PORT=34567
 sleep 30

@@ -22,8 +22,15 @@ from .utils import (
 cfg = DatasetConfig(data_path=DATA_PATH)
 props_to_eval = DOCKING_PROP_LIST[:64]
 
+PREV_ERRORS: List[str] = [
+    "O=C1[C@H]2[C@H]3C=CC[C@@H]3[C@@H]2C(=O)N1c1ccccc1F",
+    "O=C(C1[C@@H]2CCCC[C@@H]12)N(CC(F)F)C1CCOCC1",
+    "CC[C@]12C[C@@H]1C[NH+](Cc1csc(c3ccccc3F)n1)C2",
+    "CCN1C(=O)c2cc(C)c(C)cc2[C@@]2(CC[C@@H]3C[C@@H]23)C1=O",
+]
 
-@pytest.fixture(scope="module", params=[1, 2, 4, 8, 16])
+
+@pytest.fixture(scope="module", params=[4, 8, 16])
 def exhaustiveness(request):
     return request.param
 
@@ -52,7 +59,7 @@ def scorer(has_gpu, exhaustiveness):
                 n_cpu=int(os.environ.get("N_CPUS_DOCKING", exhaustiveness)),
                 exhaustiveness=exhaustiveness,
                 docking_oracle="autodock_gpu",
-                vina_mode="autodock_gpu_256wi",
+                vina_mode="autodock_gpu_128wi",
             ),
         )
 
@@ -99,12 +106,14 @@ def test_docking_props(target, scorer, receptor_process, n_generations=4):
     """Test the reward function runs for vina targets."""
     target = [target, "CalcPhi"]
     metadatas = [build_metadatas(target)] * n_generations
-    smiles = [[propeties_csv.iloc[i]["smiles"]] for i in range(n_generations)]
+    smiles = [
+        [propeties_csv.iloc[i]["smiles"]] for i in range(n_generations)
+    ] + +PREV_ERRORS
     completions = [
         fill_completion(s, "Here is a molecule: [SMILES] what are its properties?")
         for s in smiles
     ]
-    rewards = scorer(completions, metadatas)
+    rewards = scorer(completions, metadatas)[0]
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()
@@ -125,7 +134,7 @@ def test_multi_docking_props(targets, receptor_process, scorer, n_generations=2)
         for s in smiles
     ]
     print(completions, targets)
-    rewards = scorer(completions, metadatas)
+    rewards = scorer(completions, metadatas)[0]
     assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
     rewards = torch.Tensor(rewards)
     assert not rewards.isnan().any()

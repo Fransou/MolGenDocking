@@ -113,14 +113,14 @@ def get_objective_label(
 ) -> tuple[str, int, List[str]]:
     prop = np.random.choice(list(PROMPT_TEMPLATES.keys()), p=args.proba_obj)
     idx_chosen: int = 0
-    if "full_path" not in prop:
-        # Get a random step in the synthesis with probability 0.5
-        idx_chosen = int(np.random.choice(list(range(len(reactants)))))
-        if prop != "final_product":
-            reactants = [reactants[idx_chosen]]
-            products = [products[idx_chosen]]
-            or_smarts = [or_smarts[idx_chosen]]
-            pass_filters = [pass_filters[idx_chosen]]
+    if "full_path" not in prop and prop != "final_product":
+        if "all_reactants_bb_ref" not in prop:
+            idx_chosen = int(np.random.choice(list(range(len(reactants)))))
+
+        reactants = [reactants[idx_chosen]]
+        products = [products[idx_chosen]]
+        or_smarts = [or_smarts[idx_chosen]]
+        pass_filters = [pass_filters[idx_chosen]]
     # 2 - Get a label
     label: List[str] = ["n/a"]
     if prop == "final_product" or prop.startswith("full_path"):
