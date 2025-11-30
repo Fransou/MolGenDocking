@@ -18,7 +18,7 @@ def test_regression():
     metadata = [
         {"objectives": ["regression"], "properties": [""], "target": [target]}
     ] * 5
-    rewards = property_scorer(completions, metadata, use_pbar=False)[0]
+    rewards = property_scorer(completions, metadata)[0]
     assert sorted(rewards)[::-1] == rewards
 
 
@@ -29,13 +29,13 @@ def test_classification():
     metadata = [
         {"objectives": ["classification"], "properties": [""], "target": [1]}
     ] * 5
-    rewards = property_scorer(completions, metadata, use_pbar=False)[0]
+    rewards = property_scorer(completions, metadata)[0]
     assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0]
 
     metadata = [
         {"objectives": ["classification"], "properties": [""], "target": [0]}
     ] * 5
-    rewards = property_scorer(completions, metadata, use_pbar=False)[0]
+    rewards = property_scorer(completions, metadata)[0]
     assert rewards == [0.0, 0.0, 1.0, 1.0, 0.0]
 
 
@@ -52,7 +52,7 @@ def test_with_generation():
             "target": [1],
         }
     ] * 5
-    rewards = property_scorer(completions, metadata, use_pbar=False, debug=True)[0]
+    rewards = property_scorer(completions, metadata, debug=True)[0]
     assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0] + [0, 1, 2, 3, 4]
 
     metadata = [
@@ -64,5 +64,5 @@ def test_with_generation():
             "target": [1],
         }
     ] * 5
-    rewards = property_scorer(completions, metadata, use_pbar=False)[0]
+    rewards = property_scorer(completions, metadata)[0]
     assert rewards == [0.0, 0.0, 1.0, 1.0, 1.0] + [0, 1, 2, 3, 4]

@@ -38,7 +38,7 @@ def test_reaction(line):
     answers = [target, "dsad"]
     completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
 
-    rewards = property_scorer(completions, [metadata] * len(answers), use_pbar=False)[0]
+    rewards = property_scorer(completions, [metadata] * len(answers))[0]
     assert rewards == [1.0 * float(not metadata["impossible"]), 0.0]
 
 
@@ -48,8 +48,6 @@ def test_reaction_analog(line, examples):
 
     completions = ["<answer>\n {} \n</answer>".format(v[0]) for v in examples]
 
-    rewards = property_scorer(
-        completions, [metadata] * len(completions), use_pbar=False
-    )[0]
+    rewards = property_scorer(completions, [metadata] * len(completions))[0]
 
     assert rewards == [v[1] for v in examples]

@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 import numpy as np
 import pandas as pd
 import ray
-from ray.experimental import tqdm_ray
 
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
@@ -46,20 +45,16 @@ class GenerationVerifier(Verifier):
 
         self.rescale = rescale
         self.oracle_kwargs = oracle_kwargs
-        self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
         self.oracles: Dict[str, OracleWrapper] = {}
         self.debug = False  # Only for tests
 
-    def fill_df_properties(
-        self, df_properties: pd.DataFrame, use_pbar: bool = True
-    ) -> None:
+    def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
         def _get_property(
             smiles: List[str],
             prop: str,
             rescale: bool = True,
             kwargs: Dict[str, Any] = {},
-            pbar: Optional[Any] = None,
         ) -> List[float]:
             """
             Get property reward
@@ -78,8 +73,6 @@ class GenerationVerifier(Verifier):
                 self.oracles[prop] = oracle_fn
             property_reward: np.ndarray | float = oracle_fn(smiles, rescale=rescale)
             assert isinstance(property_reward, np.ndarray)
-            if pbar is not None:
-                pbar.update.remote(len(property_reward))
 
             return [float(p) for p in property_reward]
 
@@ -96,13 +89,6 @@ class GenerationVerifier(Verifier):
             p: df_properties[df_properties["property"] == p]["smiles"].unique().tolist()
             for p in all_properties
         }
-        if use_pbar:
-            pbar = self.remote_tqdm.remote(  # type: ignore
-                total=df_properties[["property", "smiles"]].drop_duplicates().shape[0],
-                desc="[Properties]",
-            )
-        else:
-            pbar = None
 
         values_job = []
         for p in all_properties:
@@ -119,7 +105,6 @@ class GenerationVerifier(Verifier):
                     p,
                     rescale=self.rescale,
                     kwargs=self.oracle_kwargs,
-                    pbar=pbar,
                 )
             )
         all_values = ray.get(values_job)
@@ -131,9 +116,6 @@ class GenerationVerifier(Verifier):
                     (df_properties["smiles"] == s) & (df_properties["property"] == p),
                     "value",
                 ] = v
-
-        if pbar is not None:
-            pbar.close.remote()  # type: ignore
 
     def get_reward(self, row: pd.Series) -> float:
         reward: float = 0
