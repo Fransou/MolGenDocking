@@ -74,7 +74,7 @@ def receptor_process(has_gpu):
         def wrapped_fn(r: str | List[str]):
             if isinstance(r, str):
                 r = [r]
-            return rp.process_receptors(r, allow_bad_res=True, use_pbar=True)
+            return rp.process_receptors(r, allow_bad_res=True)
 
         return wrapped_fn
 
