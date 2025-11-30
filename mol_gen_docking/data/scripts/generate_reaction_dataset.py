@@ -114,9 +114,7 @@ def get_objective_label(
     prop = np.random.choice(list(PROMPT_TEMPLATES.keys()), p=args.proba_obj)
     idx_chosen: int = 0
     if "full_path" not in prop and prop != "final_product":
-        if "all_reactants_bb_ref" not in prop:
-            idx_chosen = int(np.random.choice(list(range(len(reactants)))))
-
+        idx_chosen = int(np.random.choice(list(range(len(reactants)))))
         reactants = [reactants[idx_chosen]]
         products = [products[idx_chosen]]
         or_smarts = [or_smarts[idx_chosen]]
