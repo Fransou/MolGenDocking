@@ -16,43 +16,6 @@ from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 RDLogger.DisableLog("rdApp.*")
 
 
-def is_reactant_contained(
-    rxnA: AllChem.ChemicalReaction, rxnB: AllChem.ChemicalReaction
-) -> bool:
-    """Check if all reactants of rxnA are substructures of reactants in rxnB."""
-    reactantsA = [mol for mol in rxnA.GetReactants()]
-    reactantsB = [mol for mol in rxnB.GetReactants()]
-
-    for molA, molB in zip(reactantsA, reactantsB):
-        if not molB.HasSubstructMatch(molA):
-            return False
-    return True
-
-
-def is_product_contained(
-    rxnA: AllChem.ChemicalReaction, rxnB: AllChem.ChemicalReaction
-) -> bool:
-    """Check if all products of rxnA are substructures of products in rxnB."""
-    productsA = [mol for mol in rxnA.GetProducts()]
-    productsB = [mol for mol in rxnB.GetProducts()]
-
-    for molA, molB in zip(productsA, productsB):
-        if not molB.HasSubstructMatch(molA):
-            return False
-    return True
-
-
-def heuristic_reaction_containment(smartsA: str, smartsB: str) -> Dict[str, bool]:
-    r"""Checks if smartsA \in smartsB"""
-    rxnA = AllChem.ReactionFromSmarts(smartsA)
-    rxnB = AllChem.ReactionFromSmarts(smartsB)
-
-    return {
-        "Reactants_contained": is_reactant_contained(rxnA, rxnB),
-        "Products_contained": is_product_contained(rxnA, rxnB),
-    }
-
-
 class ReactionVerifier(Verifier):
     def __init__(
         self,
@@ -120,7 +83,12 @@ class ReactionVerifier(Verifier):
         return self.r_ground_truth_mols(mols, mol_label)
 
     def reward_smarts(
-        self, completion: str, labels: List[str], impossible: bool
+        self,
+        completion: str,
+        labels: List[str],
+        reactants: List[str],
+        product: str,
+        impossible: bool,
     ) -> Tuple[float, Dict[str, Any]]:  # TODO: run the predicted smarts if non-equal
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
@@ -133,7 +101,18 @@ class ReactionVerifier(Verifier):
             }
         if matches[0].strip() == gt_smarts:
             return 1.0, {"Reactants_contained": True, "Products_contained": True}
-        return 0.0, heuristic_reaction_containment(gt_smarts, matches[0].strip())
+        try:
+            rxnB = Reaction(matches[0].strip())
+            p = rxnB([Molecule(r) for r in reactants])
+            reward = 0.0
+            if product in p:
+                reward = 0.1
+            return reward, {
+                "Reactants_contained": True,
+                "Products_contained": reward == 0.1,
+            }
+        except ValueError:
+            return 0.0, {"Reactants_contained": False, "Products_contained": False}
 
     def reward_run_path(
         self,
@@ -323,7 +302,11 @@ class ReactionVerifier(Verifier):
                 rewards_meta.append({})
             elif objective == "smarts":
                 r, meta = self.reward_smarts(
-                    answer, meta["target"], impossible=impossible
+                    answer,
+                    meta["target"],
+                    meta["reactants"][0],
+                    meta["products"][0],
+                    impossible=impossible,
                 )
                 rewards.append(r)
                 rewards_meta.append(meta)
