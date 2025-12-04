@@ -20,7 +20,7 @@ HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
   --datasets-path $DATA_PATH \
   --batch_size $7 \
   --sigma $4 \
-  --num_train_epochs 500 \
+  --num_train_epochs 1000 \
   --num_beams $5 \
   --train_on_beams $6 \
   --id_obj $2 \

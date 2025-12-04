@@ -49,7 +49,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--num_train_epochs",
         type=int,
-        default=500,
+        default=100,
         help="Number of training epochs",
     )
     parser.add_argument(
@@ -61,7 +61,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--lr_scheduler_type",
         type=str,
-        default="cosine_with_restarts",
+        default="linear",
         help="Learning rate scheduler type",
     )
     parser.add_argument(
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                 logging_steps=50,
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
-                warmup_ratio=args.lr_warmup_ratio,
+                warmup_steps=int(args.lr_warmup_ratio * args.num_train_epochs),
                 weight_decay=args.weight_decay,
                 per_device_train_batch_size=args.batch_size,
                 per_device_eval_batch_size=args.eval_batch_size,

@@ -7,10 +7,10 @@
 #SBATCH --mem=100G
 #SBATCH --cpus-per-task=12
 #SBATCH --gpus=h100:1
-#SBATCH --array=0-6:6
+#SBATCH --array=0-12:3
 
 set -x
-STRIDE=6
+STRIDE=3
 
 SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/baselines
 
@@ -42,6 +42,5 @@ for i in $(seq $START_IDX $END_IDX); do
       $4
 done
 
-wait
 
 echo "Training + reward server job finished."
