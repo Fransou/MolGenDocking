@@ -654,7 +654,10 @@ class AutoDockGPUDocking(BaseDocking):
 
         # Something went horribly wrong
         if output_paths == []:
-            raise ValueError()
+            error_msg = f"Critical error encountered, no output path given for smi list:\n {smis}"
+            error_msg += f"### ### number of preprocessed smiles: {len(os.listdir(ligand_dir_path))}"
+
+            self.logger.error(error_msg)
         # Gather binding scores
         binding_scores_dict: Dict[str, float | None] = {}
         # Move all output files to a TempDir
