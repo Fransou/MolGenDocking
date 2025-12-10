@@ -108,7 +108,7 @@ class RewardBuffer:
         )
         final_smiles: List[str] = valid_scorer.get_all_completions_smiles(
             completions=all_completions
-        )
+        )[0]
 
         out: Tuple[List[float], List[Dict[str, Any]]] = ray.get(rewards_job)
         rewards, metadatas = out

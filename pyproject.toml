@@ -7,7 +7,7 @@ name = "mol_gen_docking"
 version = "2025.8.4"
 dependencies = [
     "torch>=2.6.0",
-    "datasets",
+    "datasets>=4.4.1",
     "ray",
     "pydantic",
     "pydantic_settings",

@@ -55,6 +55,8 @@ def create_reinvent_model(
     config["intermediate_size"] = int(config["hidden_size"] * 2.7)
 
     cfg = LlamaConfig(**config)
+    print(cfg)
+
     model = LlamaForCausalLM(cfg)
     n_params = model.num_parameters(only_trainable=True)
 
@@ -64,6 +66,8 @@ def create_reinvent_model(
         n_params = f"{int(n_params // 1e3)}K"
 
     NAME = f"reinvent_{n_params}"
+    if N_voc != 60:
+        NAME += f"_{N_voc}"
     print("#-#" * 20)
     print(f"Model name : {NAME}")
     print("#-#" * 20)

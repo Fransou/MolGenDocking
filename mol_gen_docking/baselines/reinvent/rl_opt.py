@@ -55,7 +55,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=1e-4,
+        default=5e-4,
         help="Learning rate",
     )
     parser.add_argument(
@@ -180,23 +180,25 @@ if __name__ == "__main__":
                 max_steps=args.num_train_epochs,
                 logging_strategy="steps",
                 eval_steps=10,
-                logging_steps=50,
+                logging_steps=10,
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
                 warmup_steps=int(args.lr_warmup_ratio * args.num_train_epochs),
+                warmup_ratio=args.lr_warmup_ratio,
                 weight_decay=args.weight_decay,
                 per_device_train_batch_size=args.batch_size,
                 per_device_eval_batch_size=args.eval_batch_size,
                 num_generations=args.batch_size,
                 dataloader_num_workers=0,
                 max_completion_length=256,
+                max_grad_norm=1,
                 bf16=True,
                 gradient_accumulation_steps=args.gradient_accumulation_steps,
                 save_total_limit=0,
                 beta=args.sigma,
                 generation_kwargs=generation_config,
                 batch_eval_metrics=False,
-                log_completions=True,
+                log_completions=False,
             )
             train_dataset = Dataset.from_dict(
                 {"prompt": ["<s>"] * args.num_train_epochs}
@@ -236,7 +238,7 @@ if __name__ == "__main__":
             )
             eval_datasets = {
                 f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n})
-                for n in [1, 4, 16, 64, 256]
+                for n in [1, 4, 16, 64, 128]
             }
             metrics = trainer.evaluate(eval_datasets)
             rows = []

@@ -594,7 +594,6 @@ class AutoDockGPUDocking(BaseDocking):
         # Perform docking procedure(s)
         if self.print_msgs:
             self.logger.info("Ligands prepared. Docking...")
-
         cmd_prefixes = [f"CUDA_VISIBLE_DEVICES={gpu_id} " for gpu_id in gpu_ids]
         # Run docking attempts multiple times on each GPU in case of failure.
         for attempt in range(self.docking_attempts):
