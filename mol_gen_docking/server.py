@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Dict
 import ray
 from fastapi import FastAPI
 from tdc import Evaluator
+import time
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import (
@@ -18,7 +19,7 @@ from mol_gen_docking.server_utils.utils import (
     MolecularVerifierSettings,
 )
 
-logger = logging.getLogger("llm_verifier_server")
+logger = logging.getLogger("molecular_verifier_server")
 
 server_settings: MolecularVerifierSettings
 RemoteRewardScorer: Any = ray.remote(RewardScorer)
@@ -98,12 +99,16 @@ def create_app() -> FastAPI:
 
     @app.post("/get_reward")  # type: ignore
     async def get_reward(query: MolecularVerifierQuery) -> MolecularVerifierResponse:
+        t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
         if status == "Error":
             return MolecularVerifierResponse(error="Error in preprocessing")
 
-        return await app.state.reward_buffer.add_query(query)  # type:ignore
+        result = await app.state.reward_buffer.add_query(query)  # type:ignore
+        t1 = time.time()
+        logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
+        return result
 
     @app.post("/prepare_receptor")  # type: ignore
     async def prepare_receptor(query: MolecularVerifierQuery) -> Dict[str, str]:
