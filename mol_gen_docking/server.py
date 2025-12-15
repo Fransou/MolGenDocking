@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Initializing socket")
     app.state.reward_buffer = RewardBuffer(
-        app, buffer_time=1.0, max_batch_size=1000000000
+        app, buffer_time=15.0, max_batch_size=1000000000
     )
 
     app.state.reward_model = get_or_create_reward_actor()
