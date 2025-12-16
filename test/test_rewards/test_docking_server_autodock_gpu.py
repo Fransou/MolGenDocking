@@ -43,7 +43,7 @@ def test_docking(target, has_gpu, n_generations=128):
     ]
     response = requests.post(
         f"http://0.0.0.0:{port}/prepare_receptor",
-        json={"metadata": metadata},
+        json={"metadata": metadata, "query": [""] * len(metadata)},
     )
     assert response.status_code == 200, response.text
     time.sleep(1)
