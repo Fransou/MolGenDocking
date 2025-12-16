@@ -98,7 +98,7 @@ class RewardScorer:
         if not self.parse_whole_completion:
             matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
             if len(matches) > 0:
-                comp = " ".join(matches)
+                comp = matches[-1]
             else:
                 comp = ""
         # Now we identify which elements are possibly SMILES
