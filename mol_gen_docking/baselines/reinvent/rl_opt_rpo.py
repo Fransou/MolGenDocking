@@ -179,7 +179,7 @@ if __name__ == "__main__":
                 generation_config["num_beam_groups"] = 1
                 generation_config["penalty_alpha"] = None
             out_dir = os.path.join(args.output_dir, f"task_{id}")
-            os.path.makedirs(
+            os.makedirs(
                 out_dir,
                 exist_ok=True
             )
@@ -187,6 +187,9 @@ if __name__ == "__main__":
                 output_dir=out_dir,
                 max_steps=args.num_train_epochs,
                 logging_strategy="steps",
+                save_strategy="steps",
+                eval_strategy="steps",
+                save_steps=10,
                 eval_steps=10,
                 logging_steps=10,
                 learning_rate=args.learning_rate,
@@ -200,7 +203,7 @@ if __name__ == "__main__":
                 dataloader_num_workers=0,
                 max_completion_length=256,
                 max_grad_norm=1,
-                bf16=True,
+                bf16=False,
                 gradient_accumulation_steps=args.gradient_accumulation_steps,
                 save_total_limit=1,
                 beta=args.sigma,
@@ -215,11 +218,15 @@ if __name__ == "__main__":
             train_dataset = Dataset.from_dict(
                 {"prompt": ["<s>"] * args.num_train_epochs}
             )
+            eval_dataset = Dataset.from_dict(
+                {"prompt": ["<s>"] * 16}
+            )
 
             trainer = ReinventGRPOTrainer(
                 model=model,
                 args=training_args,
                 train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
                 processing_class=tokenizer,
                 reward_funcs=reward_fn,
                 compute_metrics=EvalMolMetrics(
@@ -250,7 +257,7 @@ if __name__ == "__main__":
             )
             eval_datasets = {
                 f"@{n}": Dataset.from_dict({"prompt": ["<s>"] * N_REPEAT_TEST * n})
-                for n in [1, 4, 16, 64, 128]
+                for n in [1, 10, 100]
             }
             metrics = trainer.evaluate(eval_datasets)
             rows = []

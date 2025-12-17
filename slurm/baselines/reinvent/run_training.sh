@@ -1,5 +1,5 @@
 #!/bin/bash
-echo $1 $2 $3 $4 $5 $6 $7 $8 $9
+
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
 export DATASET=molgendata
@@ -14,7 +14,9 @@ export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
 
 wandb offline
+mkdir $SLURM_TMPDIR/reinvent_finetuned_model_$2_$3_$4_$5_$6_$7_$8_$9
 HF_HUB_OFFLINE=1 python -m mol_gen_docking.baselines.reinvent.rl_opt \
+  --output_dir $SLURM_TMPDIR/reinvent_rpo_finetuned_model_$2_$3_$4_$5_$6_$7_$8_$9 \
   --model_name $9 \
   --dataset $DATA_PATH/eval_data/eval_prompts.jsonl \
   --datasets-path $DATA_PATH \
