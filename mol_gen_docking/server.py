@@ -19,6 +19,8 @@ from mol_gen_docking.server_utils.utils import (
     MolecularVerifierSettings,
 )
 
+# Set logging level to info
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("molecular_verifier_server")
 
 server_settings: MolecularVerifierSettings
