@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=batch_inference_molgen
 #SBATCH --account=def-ibenayed
-#SBATCH --time=12:00:00
+#SBATCH --time=06:00:00
 #SBATCH --gpus=h100:4
 #SBATCH --mem=80G
 #SBATCH --cpus-per-task=16
@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
-#SBATCH --array=0-50%2
+#SBATCH --array=0-5%2
 
 
 source $HOME/.bashrc
@@ -45,7 +45,7 @@ ray job submit \
    --zero_stage 3 \
    --bf16 \
    --best_of_n 128 \
-   --rollout_batch_size 10 \
+   --rollout_batch_size 100 \
    --iter $SLURM_ARRAY_TASK_ID \
    --apply_chat_template \
    --dataset $DATA_PATH/eval_data/eval_prompts.jsonl \
