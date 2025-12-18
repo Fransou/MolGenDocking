@@ -18,6 +18,7 @@ class MolecularVerifierSettings(BaseSettings):
     docking_oracle: Literal["pyscreener", "autodock_gpu"] = "pyscreener"
     vina_mode: str = "autodock_gpu_256wi"  # Command used to run autodock gpu
     data_path: str = "data"
+    buffer_time: int = 20
 
     def __post_init__(self) -> None:
         assert self.scorer_exhaustiveness > 0, "Exhaustiveness must be greater than 0"

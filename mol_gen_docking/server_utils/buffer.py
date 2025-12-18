@@ -9,7 +9,11 @@ from mol_gen_docking.server_utils.utils import (
     MolecularVerifierQuery,
     MolecularVerifierResponse,
 )
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("molecular_verifier_buffer")
+logger.setLevel(logging.INFO)
 
 class RewardBuffer:
     def __init__(
@@ -55,7 +59,7 @@ class RewardBuffer:
             ]
 
         queries, futures = zip(*batch)
-
+        logger.info(f"Processing batch of size {len(queries)}")
         try:
             responses = await self._process_batch(list(queries))
             for fut, res in zip(futures, responses):
