@@ -12,6 +12,7 @@ from tqdm import tqdm
 import jsonlines
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from transformers import AutoTokenizer
+from pathlib import Path
 
 verifier_settings = MolecularVerifierSettings()
 reward_scorer = RewardScorer(
@@ -26,10 +27,10 @@ def get_args() -> argparse.Namespace:
         description="Score molecular completions."
     )
     parser.add_argument(
-        "--input_file",
+        "--input_files",
         type=str,
         required=True,
-        help="Path to the input file containing molecular completions.",
+        help="Path to the input file containing molecular completions (can be a regex in a directory).",
     )
     parser.add_argument(
         "--model_name",
@@ -42,9 +43,17 @@ def get_args() -> argparse.Namespace:
 if __name__=="__main__":
     args = get_args()
     completions = []
-    with jsonlines.open(args.input_file) as reader:
-        for item in reader:
-            completions.append(item)
+    if Path(args.input_files).is_file():
+        input_files = [args.input_files]
+    else:
+        directory = Path("/".join(args.input_files.split("/")[:-1]))
+        pattern = args.input_files.split("/")[-1]
+        input_files = sorted([str(p) for p in directory.glob(pattern)])
+
+    for input_file in input_files:
+        with jsonlines.open(input_file) as reader:
+            for item in reader:
+                completions.append(item)
     all_responses, rew_meta = reward_scorer.get_score(
             completions=[item["output"] for item in completions],
             metadata=[item.get("metadata", {}) for item in completions],
