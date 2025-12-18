@@ -12,6 +12,7 @@ from torch.utils.data import Sampler
 from transformers import AutoTokenizer, EvalPrediction
 from trl import GRPOTrainer
 from trl.trainer.utils import RepeatSampler, nanmax, nanmin, nanstd, pad
+import copy
 
 N_REPEAT_TEST = 8
 
@@ -105,6 +106,7 @@ class ReinventGRPOTrainer(GRPOTrainer):
         }
         self.compute_metrics = compute_metrics
         self.n_repeat_test = n_repeat_test
+        self.training_num_generations = copy.deepcopy(self.num_generations)
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Sampler:
         # See _get_train_sampler for an explanation of the sampler.
@@ -133,6 +135,22 @@ class ReinventGRPOTrainer(GRPOTrainer):
         inputs = self._prepare_inputs(inputs)
         return torch.tensor(0.0), inputs["completion_ids"], inputs["completion_ids"]
 
+    def _generate_and_score_completions(
+            self, inputs: list[dict[str, Union[torch.Tensor, Any]]]
+    ) -> dict[str, Union[torch.Tensor, Any]]:
+        mode = "train" if self.model.training else "eval"
+        self.num_generations = self.training_num_generations if mode == "train" else 1
+
+        outputs = super()._generate_and_score_completions(inputs)
+
+        completions_text = list(self._logs["completion"]) # Trick get all completions
+        ### MOLECULE SPECIFIC METRICS ###
+        for eval_name in self.mol_evaluators:
+            self._metrics[mode][eval_name].append(
+                self.mol_evaluators[eval_name](completions_text)
+            )
+        self.num_generations = self.training_num_generations
+        return outputs
 
 class VanillaReinventTrainer(ReinventGRPOTrainer):
     def __init__(
@@ -179,7 +197,7 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
         # Compute the Diff
         ref_per_token_logps = inputs["ref_per_token_logps"]
         per_token_diff = ref_per_token_logps - per_token_logps
-        diff = per_token_diff.mean(-1)
+        diff = per_token_diff.sum(-1)
 
         loss = (diff + self.beta * reward) ** 2
         return loss.mean()
@@ -347,7 +365,11 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
         )
 
         completions = completions_text
-
+        ### MOLECULE SPECIFIC METRICS ###
+        for eval_name in self.mol_evaluators:
+            self._metrics[mode][eval_name].append(
+                self.mol_evaluators[eval_name](completions_text)
+            )
         # Calculate rewards for each reward function. rewards_per_func aggregates rewards across all processes. This is
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
@@ -416,11 +438,6 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
             is_std_zero.float().mean().item()
         )
 
-        ### MOLECULE SPECIFIC METRICS ###
-        for eval_name in self.mol_evaluators:
-            self._metrics[mode][eval_name].append(
-                self.mol_evaluators[eval_name](completions_text)
-            )
         # Log prompt and completion texts
         self._logs["prompt"].extend(gather_object(prompts_text))
         self._logs["completion"].extend(gather_object(completions_text))

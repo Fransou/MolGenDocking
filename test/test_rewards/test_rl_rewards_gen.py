@@ -108,7 +108,7 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
         {"properties": [property1], "objectives": ["maximize"], "target": [0]}
     ] + [{"properties": [property2], "objectives": ["maximize"], "target": [0]}]
     smiles = [
-        propeties_csv.sample(np.random.randint(1, 8))["smiles"].tolist()
+        propeties_csv.sample(1)["smiles"].tolist()
         for k in range(2)
     ]
     completions = [fill_completion(s, completion) for s in smiles]

@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Generator, List, Literal, Optional, Tuple, Type, Union
 
+import ray
 from tdc.metadata import docking_target_info
 from tdc.utils import receptor_load
 
@@ -42,7 +43,7 @@ class DockingMoleculeGpuOracle:
         conformer_attempts: int = 1,
         n_conformers: int = 1,
         docking_attempts: int = 10,
-        docking_batch_size: int = 128,
+        docking_batch_size: int = 1024,
         exhaustiveness: int = 8000,
         n_gpu: int = 1,
         gpu_ids: Optional[List[str]] = None,
@@ -187,7 +188,7 @@ class DockingMoleculeGpuOracle:
         #     )
 
     def dock_batch_qv2gpu(
-        self, smiles: List[str]
+        self, smiles: List[str], gpu_ids: List[int] = [0]
     ) -> Tuple[List[float | None], List[Optional[str]]]:
         """
         Uses customized QuickVina2-GPU (Tang et al.) implementation to
@@ -197,7 +198,7 @@ class DockingMoleculeGpuOracle:
             score calculation) returns self.failed_score for that molecule.
         """
 
-        output = self.docking_module_gpu(smiles)
+        output = self.docking_module_gpu(smiles, gpu_ids=gpu_ids)
         if output is None:
             raise ValueError("Failed to compute docking score")
         scores, docked_pdbqts = output
@@ -243,8 +244,11 @@ class DockingMoleculeGpuOracle:
 
     def __call__(self, smiles: List[str]) -> List[float]:
         scores: List[float] = []
+        gpu_ids = ray.get_gpu_ids()
+        assert len(gpu_ids) >= 1, "No GPU available for docking."
+
         for chunk in _chunks(smiles, self.batch_size):
-            scores_chunk, docked_pdbqts = self.dock_batch_qv2gpu(chunk)
+            scores_chunk, docked_pdbqts = self.dock_batch_qv2gpu(chunk, gpu_ids=gpu_ids)
             if scores_chunk is not None:
                 scores_chunk_float = [
                     self.failed_score if s is None else s for s in scores_chunk

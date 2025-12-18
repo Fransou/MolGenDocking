@@ -7,16 +7,17 @@
 
 #SBATCH --nodes=1
 #SBATCH --mem=248G
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=16
 #SBATCH --gpus=h100:2
 
 #SBATCH hetjob
 
-#SBATCH --nodes=2
-#SBATCH --mem=750G
-#SBATCH --cpus-per-task=192
+#SBATCH --nodes=1
+#SBATCH --mem=200G
+#SBATCH --cpus-per-task=128
 
 set -x
+SLURM_SCRIPTS_DIR=$HOME/MolGenDocking/slurm/openrlhf
 
 # Split nodes
 CPU_NODES=($(scontrol show hostnames $SLURM_JOB_NODELIST))
@@ -33,10 +34,10 @@ srun --nodes 1 --nodelist=$HEAD_NODE --ntasks=1 $HOME/MolGenDocking/slurm/hetero
 
 # Launch workers
 for node in $WORKER_NODES; do
-    srun --nodes 1 --nodelist=$node --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_server.sh $HEAD_NODE_IP worker
+    srun --nodes 1 --nodelist=$node --ntasks=1 $SLURM_SCRIPTS_DIR/run_server.sh $HEAD_NODE_IP worker
 done
 
-srun --het-group=0 --ntasks=1 $HOME/MolGenDocking/slurm/heterogenous/run_training.sh $HEAD_NODE_IP $1 $2
+srun --het-group=0 --ntasks=1 $SLURM_SCRIPTS_DIR/heterogenous/run_training.sh $HEAD_NODE_IP $1 $2
 
 wait
 

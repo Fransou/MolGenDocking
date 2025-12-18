@@ -19,7 +19,10 @@ from mol_gen_docking.server_utils.utils import (
     MolecularVerifierSettings,
 )
 
+# Set logging level to info
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("molecular_verifier_server")
+logger.setLevel(logging.INFO)
 
 server_settings: MolecularVerifierSettings
 RemoteRewardScorer: Any = ray.remote(RewardScorer)
@@ -35,7 +38,7 @@ def get_or_create_reward_actor() -> Any:
         _reward_model = RemoteRewardScorer.remote(
             path_to_mappings=server_settings.data_path,
             parse_whole_completion=False,
-            gpu_utilization_gpu_docking=server_settings.gpu_utilization_gpu_docking,
+            docking_concurrency_per_gpu=server_settings.docking_concurrency_per_gpu,
             reaction_matrix_path=server_settings.reaction_matrix_path,
             oracle_kwargs=dict(
                 exhaustiveness=server_settings.scorer_exhaustiveness,
@@ -69,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Initializing socket")
     app.state.reward_buffer = RewardBuffer(
-        app, buffer_time=15.0, max_batch_size=1000000000
+        app, buffer_time=server_settings.buffer_time, max_batch_size=1000000000
     )
 
     app.state.reward_model = get_or_create_reward_actor()

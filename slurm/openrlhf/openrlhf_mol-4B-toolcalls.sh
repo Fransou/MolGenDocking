@@ -1,33 +1,38 @@
 #!/bin/bash
+#SBATCH --job-name=orz_mol-toolcalls
+#SBATCH --account=def-ibenayed
+#SBATCH --time=24:00:00
+#SBATCH --gpus=h100:2
+#SBATCH --mem=200G
+#SBATCH --cpus-per-task=48
+#SBATCH --tasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --output=logs/%x-%j.out
+#SBATCH --error=logs/%x-%j.err
 
-echo "Starting training model server"
 source $HOME/.bashrc
 export WORKING_DIR=$HOME/MolGenDocking
-export DATASET=mol_orz
+export DATASET=molgendata
 
-cp $SCRATCH/MolGenData/$DATASET.zip $SLURM_TMPDIR
+cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
 cd $SLURM_TMPDIR
-unzip -q $DATASET.zip
+tar -xzf $DATASET.tar.gz
 
 cd $WORKING_DIR
 cp data/properties.csv $SLURM_TMPDIR
 
 module load cuda
 
-export PATH=$HOME/autodock_vina_1_1_2_linux_x86/bin/vina:$PATH
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
 
 ray start --head --node-ip-address 0.0.0.0
 
+python -m mol_gen_docking.fast_api_reward_server --data-path $SLURM_TMPDIR/$DATASET > logs/reward_model_$SLURM_JOB_ID.out &
+sleep 15
 
 wandb offline
-export RAY_LOG_TO_STDERR=1
-
 export GPUS_PER_NODES=2
-export N_SAMPLES_PER_PROMPT=$2
-export BATCH_SIZE=$3
-
 export PRETRAIN=$SCRATCH/Qwen/sft_Qwen-4B/model
 
 #export DEBUG_MODE=1
@@ -49,16 +54,16 @@ ray job submit --address="http://127.0.0.1:8265" \
    --colocate_all_models \
    --vllm_gpu_memory_utilization 0.7 \
    --pretrain $PRETRAIN \
-   --remote_rm_url http://$1:5000/get_reward \
-   --save_path $SCRATCH/DockGen-4B-toolcalls-nsamples-$N_SAMPLES_PER_PROMPT-batchsize-$BATCH_SIZE \
-   --ckpt_path $SCRATCH/checkpoint/DockGen-4B-toolcalls-nsamples-$N_SAMPLES_PER_PROMPT-batchsize-$BATCH_SIZE \
+   --remote_rm_url http://localhost:5000/get_reward \
+   --save_path $SCRATCH/DockGen-4B-toolcalls \
+   --ckpt_path $SCRATCH/checkpoint/DockGen-4B-toolcalls \
    --max_ckpt_num 5 \
    --save_steps 3 \
-   --micro_train_batch_size $BATCH_SIZE \
-   --train_batch_size $(($BATCH_SIZE * $GPUS_PER_NODES)) \
-   --micro_rollout_batch_size $BATCH_SIZE \
-   --rollout_batch_size $(($BATCH_SIZE * $GPUS_PER_NODES)) \
-   --n_samples_per_prompt $N_SAMPLES_PER_PROMPT \
+   --micro_train_batch_size 4 \
+   --train_batch_size 8 \
+   --micro_rollout_batch_size 4 \
+   --rollout_batch_size 8 \
+   --n_samples_per_prompt 128 \
    --max_samples 100000 \
    --max_epochs 1 \
    --prompt_max_len 2560 \
@@ -71,6 +76,7 @@ ray job submit --address="http://127.0.0.1:8265" \
    --advantage_estimator reinforce \
    --prompt_data $SLURM_TMPDIR/$DATASET/train_prompts \
    --input_key prompt \
+   --label_key metadata \
    --apply_chat_template \
    --packing_samples \
    --normalize_reward \

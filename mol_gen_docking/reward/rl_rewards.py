@@ -68,9 +68,9 @@ class RewardScorer:
         parse_whole_completion: bool = False,
         reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
         oracle_kwargs: Dict[str, Any] = {},
-        gpu_utilization_gpu_docking: float = 0.10,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
+        docking_concurrency_per_gpu: int = 2,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
-        self.gpu_utilization_gpu_docking = gpu_utilization_gpu_docking
+        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
         self.reward = reward
         self.parse_whole_completion = parse_whole_completion
         self.__name__ = f"RewardScorer/{reward}"
@@ -81,7 +81,7 @@ class RewardScorer:
             reward=reward,
             rescale=rescale,
             oracle_kwargs=oracle_kwargs,
-            gpu_utilization_gpu_docking=gpu_utilization_gpu_docking,
+            docking_concurrency_per_gpu=docking_concurrency_per_gpu,
         )
         self.mol_prop_verifier = MolPropVerifier(reward=reward)
         self.reaction_verifier = ReactionVerifier(
@@ -91,16 +91,23 @@ class RewardScorer:
         if not ray.is_initialized():
             ray.init()
 
-    def get_smiles_from_completion(self, comp: str) -> List[str]:
+    def get_smiles_from_completion(self, comp: str) -> Tuple[List[str], str]:
         """
         Get smiles from completion
         """
+        comp = comp.strip()
+        reason : str = ""
         if not self.parse_whole_completion:
-            matches = re.findall(r"<answer>(.*?)</answer>", comp, flags=re.DOTALL)
+            matches = re.findall(
+                r"(?:<answer>|<\|answer_start\|>)(.*?)(?:</answer>|<\|answer_end\|>)",
+                comp,
+                flags=re.DOTALL,
+            )
             if len(matches) > 0:
                 comp = matches[-1]
             else:
                 comp = ""
+                reason = "no_answer"
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
         re.split("\n| |.|\t|:", comp)
@@ -135,6 +142,10 @@ class RewardScorer:
             return results
 
         s_poss = [x for x in comp.split() if filter_smiles(x)]
+        if len(s_poss) != 1:
+            if reason == "":
+                reason = "no_smiles"
+            return [], reason
         chunk_size = 4
         tasks = [
             test_is_valid_batch.remote(s_poss[i : i + chunk_size])
@@ -143,11 +154,14 @@ class RewardScorer:
         is_valid: List[bool] = sum(ray.get(tasks), [])
         s_spl = [
             x for (x, val) in zip(s_poss, is_valid) if val
-        ]  ### TODO: Maybe do not return the mean if mutliple molecules
-        return s_spl
+        ]
+        if s_spl == [] and reason == "":
+            reason = "no_valid_smiles"
+        return s_spl, reason
 
-    def get_all_completions_smiles(self, completions: Any) -> List[List[str]]:
+    def get_all_completions_smiles(self, completions: Any) -> Tuple[List[List[str]], str]:
         smiles = []
+        failures = []
         for completion in completions:
             if isinstance(completion, list):
                 assert len(completion) == 1
@@ -155,9 +169,10 @@ class RewardScorer:
             if isinstance(completion, dict):
                 assert "content" in completion
                 completion = completion["content"]
-
-            smiles.append(self.get_smiles_from_completion(completion))
-        return smiles
+            smi, failure = self.get_smiles_from_completion(completion)
+            smiles.append(smi)
+            failures.append(failure)
+        return smiles, failures
 
     def _get_generation_score(
         self,
@@ -169,12 +184,12 @@ class RewardScorer:
         """
         Get reward for molecular properties
         """
-        smiles_per_completion = self.get_all_completions_smiles(completions)
+        smiles_per_completion, failures = self.get_all_completions_smiles(completions)
         if (
             self.reward == "valid_smiles"
         ):  # TODO: Currently always return 1 if at least one valid smiles
             return [float(len(smis) > 0) for smis in smiles_per_completion], [
-                {} for _ in smiles_per_completion
+                {"failure": fail} for fail in failures
             ]
         if debug:
             self.generation_verifier.debug = True
