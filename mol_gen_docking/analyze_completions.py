@@ -30,7 +30,7 @@ def get_args() -> argparse.Namespace:
         "--input_files",
         type=str,
         required=True,
-        help="Path to the input file containing molecular completions (can be a regex in a directory).",
+        help="Path to the input file containing molecular completions (can be a directory).",
     )
     parser.add_argument(
         "--model_name",
@@ -46,9 +46,8 @@ if __name__=="__main__":
     if Path(args.input_files).is_file():
         input_files = [args.input_files]
     else:
-        directory = Path("/".join(args.input_files.split("/")[:-1]))
-        pattern = args.input_files.split("/")[-1]
-        input_files = sorted([str(p) for p in directory.glob(pattern)])
+        directory = Path(args.input_files)
+        input_files = [str(f) for f in directory.glob("*.jsonl")]
 
     for input_file in input_files:
         with jsonlines.open(input_file) as reader:
