@@ -23,7 +23,6 @@ cp data/properties.csv $SLURM_TMPDIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
-export PATH=$PATH:$HOME/ADFRsuite_x86_64Linux_1.0/bin
 
 ray start --head --node-ip-address 0.0.0.0
 

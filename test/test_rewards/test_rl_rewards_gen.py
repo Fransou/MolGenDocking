@@ -69,7 +69,9 @@ def is_reward_valid(rewards, smiles, properties):
         if bridged_mask.sum() == 0:
             props = torch.tensor(0.0)
         else:
-            props = (props[bridged_mask].float()).mean()
+            all_props = (props[bridged_mask].float())
+            props = all_props.prod().pow(1 / len(properties)).mean()
+
 
         rewards = torch.tensor(rewards).mean()
         assert torch.isclose(rewards, props, atol=1e-3).all()

@@ -203,7 +203,9 @@ class GenerationVerifier(Verifier):
                     (df_properties["id_completion"] == id_completion)
                     & (df_properties["smiles"].isin(smiles))
                 ]
-                reward = rows_completion["reward"].mean()
+                rewards_l = rows_completion["reward"]
+                reward = np.power(rewards_l.prod(), (1 / len(rewards_l)))  # Geometric mean
+
                 for i in range(len(rows_completion["smiles"])):
                     meta["properties"].append(rows_completion["property"].iloc[i])
                     meta["individual_rewards"].append(rows_completion["reward"].iloc[i])
