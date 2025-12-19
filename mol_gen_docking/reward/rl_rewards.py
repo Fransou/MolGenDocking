@@ -122,7 +122,6 @@ class RewardScorer:
             return False
 
         # Finally we remove any string that is not a valid SMILES
-        @ray.remote(num_cpus=1)
         def test_is_valid_batch(smis: list[str]) -> list[bool]:
             RDLogger.DisableLog("rdApp.*")
             results = []
@@ -146,12 +145,8 @@ class RewardScorer:
             if reason == "":
                 reason = "no_smiles"
             return [], reason
-        chunk_size = 128
-        tasks = [
-            test_is_valid_batch.remote(s_poss[i : i + chunk_size])
-            for i in range(0, len(s_poss), chunk_size)
-        ]
-        is_valid: List[bool] = sum(ray.get(tasks), [])
+        is_valid: List[bool] = test_is_valid_batch(s_poss)
+
         s_spl = [
             x for (x, val) in zip(s_poss, is_valid) if val
         ]
