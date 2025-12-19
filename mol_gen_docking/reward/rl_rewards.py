@@ -146,7 +146,7 @@ class RewardScorer:
             if reason == "":
                 reason = "no_smiles"
             return [], reason
-        chunk_size = 4
+        chunk_size = 128
         tasks = [
             test_is_valid_batch.remote(s_poss[i : i + chunk_size])
             for i in range(0, len(s_poss), chunk_size)
