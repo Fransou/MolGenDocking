@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections import deque
 from typing import Any, Dict, List, Tuple
 
@@ -9,11 +10,11 @@ from mol_gen_docking.server_utils.utils import (
     MolecularVerifierQuery,
     MolecularVerifierResponse,
 )
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("molecular_verifier_buffer")
 logger.setLevel(logging.INFO)
+
 
 class RewardBuffer:
     def __init__(

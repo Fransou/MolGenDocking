@@ -1,12 +1,12 @@
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict
 
 import ray
 from fastapi import FastAPI
 from tdc import Evaluator
-import time
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.rl_rewards import (
@@ -108,9 +108,23 @@ def create_app() -> FastAPI:
         if status == "Error":
             return MolecularVerifierResponse(error="Error in preprocessing")
 
-        result = await app.state.reward_buffer.add_query(query)  # type:ignore
+        result: MolecularVerifierResponse = await app.state.reward_buffer.add_query(
+            query
+        )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
+        if result.meta is not None and "all_smi_rewards" in result.meta:
+            result.next_turn_feedback = (
+                "The score of the provided molecules are:\n"
+                + "\n".join(
+                    [
+                        f"{smi}: {score:.4f}"
+                        for smi, score in zip(
+                            result.meta["all_smi"], result.meta["all_smi_rewards"]
+                        )
+                    ]
+                )
+            )
         return result
 
     @app.post("/prepare_receptor")  # type: ignore

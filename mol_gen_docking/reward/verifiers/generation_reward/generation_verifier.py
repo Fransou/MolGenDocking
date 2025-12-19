@@ -198,22 +198,34 @@ class GenerationVerifier(Verifier):
         rewards_meta = []
         for id_completion, smiles in enumerate(smiles_per_completion):
             meta: Dict[str, List[Any]] = {"properties": [], "individual_rewards": []}
+            compl_reward: List[float] = []
             if len(smiles) > 0:
-                rows_completion = df_properties[
-                    (df_properties["id_completion"] == id_completion)
-                    & (df_properties["smiles"].isin(smiles))
-                ]
-                rewards_l = rows_completion["reward"]
-                reward = np.power(rewards_l.prod(), (1 / len(rewards_l)))  # Geometric mean
+                for idx_s, s in enumerate(smiles):
+                    rows_completion = df_properties[
+                        (df_properties["id_completion"] == id_completion)
+                        & (df_properties["smiles"] == s)
+                    ]
+                    rewards_l = rows_completion["reward"].to_numpy()
+                    reward = np.power(
+                        rewards_l.prod(), (1 / len(rewards_l))
+                    )  # Geometric mean
+                    if idx_s == 0:
+                        for i in range(len(rows_completion["smiles"])):
+                            meta["properties"].append(
+                                rows_completion["property"].iloc[i]
+                            )
+                            meta["individual_rewards"].append(
+                                rows_completion["reward"].iloc[i]
+                            )
 
-                for i in range(len(rows_completion["smiles"])):
-                    meta["properties"].append(rows_completion["property"].iloc[i])
-                    meta["individual_rewards"].append(rows_completion["reward"].iloc[i])
-
-                if self.rescale and not self.debug:
-                    reward = np.clip(reward, 0, 1)
+                    if self.rescale and not self.debug:
+                        reward = np.clip(reward, 0, 1)
+                    compl_reward.append(float(reward))
             else:
                 reward = 0
+                compl_reward = [0.0]
+            meta["all_smi_rewards"] = compl_reward
+            meta["all_smi"] = smiles
             rewards_meta.append(meta)
 
             if np.isnan(reward) or reward is None:
@@ -221,5 +233,7 @@ class GenerationVerifier(Verifier):
                     f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n"
                 )
                 reward = 0
+            if len(smiles) > 1:
+                reward = 0.0
             rewards.append(float(reward))
         return rewards, rewards_meta

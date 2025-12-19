@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
-#SBATCH --array=0-3%2
+#SBATCH --array=0-2
 
 
 source $HOME/.bashrc
@@ -25,7 +25,6 @@ cp data/properties.csv $SLURM_TMPDIR
 
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 source $HOME/OpenRLHF/bin/activate
-port=6379
 
 wandb offline
 export GPUS_PER_NODES=1
@@ -53,4 +52,3 @@ ray job submit \
    --label_key meta \
    --eval_task generate_vllm \
    --output_path $2_$SLURM_ARRAY_TASK_ID
-

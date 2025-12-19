@@ -69,10 +69,8 @@ def is_reward_valid(rewards, smiles, properties):
         if bridged_mask.sum() == 0:
             props = torch.tensor(0.0)
         else:
-            all_props = (props[bridged_mask].float())
-            props = all_props.prod().pow(1 / len(properties)).mean()
-
-
+            all_props = props[bridged_mask].float()
+            props = all_props.prod(-1).pow(1 / len(properties)).mean()
         rewards = torch.tensor(rewards).mean()
         assert torch.isclose(rewards, props, atol=1e-3).all()
 
@@ -109,17 +107,20 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     metadata = [
         {"properties": [property1], "objectives": ["maximize"], "target": [0]}
     ] + [{"properties": [property2], "objectives": ["maximize"], "target": [0]}]
-    smiles = [
-        propeties_csv.sample(1)["smiles"].tolist()
-        for k in range(2)
-    ]
+    n_mols = np.random.choice([1, 2, 3, 4], p=[0.8, 0.05, 0.05, 0.1])
+    smiles = [propeties_csv.sample(n_mols)["smiles"].tolist() for k in range(2)]
     completions = [fill_completion(s, completion) for s in smiles]
 
-    rewards = property_scorer(completions, metadata)[0]
+    rewards, meta = property_scorer(completions, metadata)
 
-    if smiles != []:
+    if smiles != [] and len(smiles[0]) == 1:
         is_reward_valid(rewards[0], smiles[0], [property1])
         is_reward_valid(rewards[1], smiles[1], [property2])
+    elif smiles != [] and len(smiles[0]) > 1:
+        assert sum(rewards) == 0
+        is_reward_valid(meta[0]["all_smi_rewards"], smiles[0], [property1])
+        is_reward_valid(meta[1]["all_smi_rewards"], smiles[1], [property2])
+
     else:
         assert sum(rewards[0]) == 0
 

@@ -25,10 +25,9 @@ PROP_LIST: List[str] = [
 
 
 propeties_csv = pd.read_csv("data/properties.csv", index_col=0)
-SMILES: List[List[str]] = (
-    [["FAKE"]]
-    + [propeties_csv.sample(1)["smiles"].tolist() for k in range(10)]
-)
+SMILES: List[List[str]] = [["FAKE"]] + [
+    propeties_csv.sample(1)["smiles"].tolist() for k in range(10)
+]
 COMPLETIONS: List[str] = [
     "Here is a molecule: {SMILES} what are its properties?",
     "This is an empty completion.",

@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=orz_mol-toolcalls
+#SBATCH --job-name=scoring_compl
 #SBATCH --account=def-ibenayed
-#SBATCH --time=0-04:00:00
+#SBATCH --time=0-03:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --nodes=1
@@ -26,7 +26,13 @@ ray start --head
 
 export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
-python -m mol_gen_docking.score_completions \
-    --input_file $1 \
-    --batch_size 1024
-echo "Finished scoring completions."
+
+for input_file in "$1"/*; do
+    if [ -f "$input_file" ]; then
+        echo "Processing file: $input_file"
+        python -m mol_gen_docking.score_completions \
+            --input_file "$input_file" \
+            --batch_size 1024
+        echo "Finished scoring completions for $input_file."
+    fi
+done
