@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
-#SBATCH --array=0-5%2
+#SBATCH --array=0-3%2
 
 
 source $HOME/.bashrc
