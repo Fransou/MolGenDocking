@@ -125,6 +125,9 @@ class RewardScorer:
             RDLogger.DisableLog("rdApp.*")
             results = []
             for smi in smis:
+                if len(smi) >= 130:
+                    results.append(False)
+                    continue
                 try:
                     mol = Chem.MolFromSmiles(smi)
                     if mol is None:
@@ -153,6 +156,8 @@ class RewardScorer:
         s_spl = [x for (x, val) in zip(s_poss, is_valid) if val]
         if s_spl == [] and reason == "":
             reason = "no_valid_smiles"
+        elif reason == "":
+            reason = s_spl[0]
         return s_spl, reason
 
     def get_all_completions_smiles(
@@ -196,6 +201,8 @@ class RewardScorer:
         scores, metadata = self.generation_verifier.get_score(
             smiles_per_completion, metadata
         )
+        for meta, fail in zip(metadata, failures):
+            meta["smiles_extraction_failure"] = fail
         return scores, metadata
 
     def _get_prop_pred_score(

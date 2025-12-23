@@ -39,6 +39,12 @@ def get_args() -> argparse.Namespace:
         help="Path to the input file containing molecular completions.",
     )
     parser.add_argument(
+        "--output_path",
+        type=str,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "--batch_size",
         type=int,
         default=128,
@@ -49,6 +55,9 @@ def get_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = get_args()
+    if args.output_path is None:
+        args.output_path = args.input_file.replace(".jsonl", "_scored.jsonl")
+    print("=== Computing Properties")
     completions: dict[str, list[dict[str, Any]]] = {}
     with jsonlines.open(args.input_file) as reader:
         for item in reader:
@@ -70,8 +79,10 @@ if __name__ == "__main__":
     ]
 
     all_responses: list[float] = []
+    all_metas: list[dict[str, Any]] = []
     for idx in tqdm(
-        range(0, len(completions_ordered), args.batch_size), desc="Scoring completions"
+        range(0, len(completions_ordered), args.batch_size),
+        desc="Scoring completions",
     ):
         batch = completions_ordered[
             idx : min(idx + args.batch_size, len(completions_ordered))
@@ -84,24 +95,28 @@ if __name__ == "__main__":
         all_targets = [r for r in all_targets if r in receptor_process.pockets]
         print(f"Processing targets:\n{all_targets}")
         receptor_process.process_receptors(
-            all_targets, allow_bad_res=True, use_pbar=True
+            all_targets, allow_bad_res=True, use_pbar=False
         )
         # 2 get reward
-        response, _ = reward_scorer.get_score(
+        response, meta = reward_scorer.get_score(
             completions=[item["output"] for item in batch],
             metadata=[item.get("metadata", {}) for item in batch],
         )
+        print(response, meta)
         all_responses.extend(response)
+        all_metas.extend(meta)
     results = []
-    for item, r in zip(completions_ordered, all_responses):
+    for item, r, r_metadata in zip(completions_ordered, all_responses, all_metas):
         results.append(
             {
                 "output": item["output"],
                 "metadata": item.get("metadata", {}),
                 "reward": r,
+                "reward_meta": r_metadata,
             }
         )
-    with jsonlines.open(
-        args.input_file.replace(".jsonl", "_scored.jsonl"), mode="w"
-    ) as writer:
+
+    print("=== Saving")
+    print(results)
+    with jsonlines.open(args.output_path, mode="w") as writer:
         writer.write_all(results)

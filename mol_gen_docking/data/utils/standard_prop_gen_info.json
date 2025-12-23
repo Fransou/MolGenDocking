@@ -17,7 +17,7 @@
   "SA":{
     "objectives":["minimize", "below"],
     "p_objectives":[0.5, 0.5],
-    "frequency":5
+    "frequency":1
   },
   "QED":{
     "objectives":["maximize", "above"],

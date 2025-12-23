@@ -6,7 +6,7 @@
 #SBATCH --error=logs/%x-%j.err
 #SBATCH --nodes=1
 #SBATCH --mem=248G
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=64
 #SBATCH --gpus=h100:4
 
 export WORKING_DIR=$HOME/MolGenDocking
