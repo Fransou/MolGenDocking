@@ -17,7 +17,7 @@ from mol_gen_docking.reward.verifiers.generation_reward.oracles.docking_utils.pr
     BasePreparator,
     MeekoLigandPreparator,
 )
-
+from rdkit import Chem
 
 def _chunks(lst: List[str], n: int) -> Generator[List[str], None, None]:
     """Yield successive n-sized chunks from lst."""
@@ -190,19 +190,17 @@ class DockingMoleculeGpuOracle:
     def dock_batch_qv2gpu(
         self, smiles: List[str], gpu_ids: List[int] = [0]
     ) -> Tuple[List[float | None], List[Optional[str]]]:
-        """
-        Uses customized QuickVina2-GPU (Tang et al.) implementation to
-        calculate docking score against target of choice.
-
-        Note: Failure at any point in the pipeline (reading molecule, pdbqt conversion,
-            score calculation) returns self.failed_score for that molecule.
-        """
-
         output = self.docking_module_gpu(smiles, gpu_ids=gpu_ids)
         if output is None:
             raise ValueError("Failed to compute docking score")
         scores, docked_pdbqts = output
         assert len(scores) == len(smiles)
+        # Compute QED of all smiles and if < 0.3 return 0.0 for the smiles
+        for idx in range(len(scores)):
+            mol = Chem.MolFromSmiles(smiles[idx])
+            if mol is None or Chem.QED.qed(mol) < 0.3:
+                scores[idx] = 0.
+                docked_pdbqts[idx] = None
 
         if self.n_conformers == 1 or (not scores or not docked_pdbqts):
             return scores, docked_pdbqts
