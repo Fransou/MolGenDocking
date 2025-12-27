@@ -253,13 +253,33 @@ class MolGenerationInstructionsDatasetGenerator:
             self.pockets_info = json.load(f)
 
     def _extract_splits(self, split_docking: List[float]) -> None:
-        np.random.shuffle(self.docking_properties)
+        rng = np.random.default_rng(0)
+        rng.shuffle(self.docking_properties)
         i0 = 0
         for idx, p in enumerate(split_docking):
             i1 = i0 + int(len(self.docking_properties) * p)
             i1 = min(i1, len(self.docking_properties))
             self.docking_properties_split[idx] = self.docking_properties[i0:i1]
             i0 = i1
+        # Verify that there is no leakage
+        assert (
+            np.intersect1d(
+                self.docking_properties_split[0], self.docking_properties_split[1]
+            ).shape[0]
+            == 0
+        )
+        assert (
+            np.intersect1d(
+                self.docking_properties_split[0], self.docking_properties_split[2]
+            ).shape[0]
+            == 0
+        )
+        assert (
+            np.intersect1d(
+                self.docking_properties_split[1], self.docking_properties_split[2]
+            ).shape[0]
+            == 0
+        )
 
     def fill_prompt(
         self, props: List[str], objs: List[str], has_docking: bool

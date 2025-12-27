@@ -6,7 +6,6 @@ from pathlib import Path
 from mol_gen_docking.data.gen_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDatasetGenerator,
-    data_dict_to_hf_dataset,
     data_dict_to_pydantic,
 )
 from mol_gen_docking.data.pydantic_dataset import write_jsonl
@@ -40,11 +39,6 @@ def generate_prompts(config: DatasetConfig, args: argparse.Namespace) -> None:
             Path(os.path.join(args.data_path, name + ".jsonl")), pydantic_dataset
         )
 
-        hf_dataset = data_dict_to_hf_dataset(data_dict)
-        hf_dataset.save_to_disk(os.path.join(args.data_path, name))
-        for i in range(10):
-            print(f"{i}:   ", hf_dataset[i]["prompt"][1]["content"])
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -55,7 +49,7 @@ if __name__ == "__main__":
         "--n-prompts",
         "-n",
         type=int,
-        default=512,
+        default=50000,
         help="The number of prompts to generate",
     )
     parser.add_argument(
@@ -69,7 +63,7 @@ if __name__ == "__main__":
         "--n-props-probs",
         nargs="+",
         type=float,
-        default=[0.4, 0.4, 0.2],
+        default=[0.4, 0.3, 0.3],
         help="Probabilities for the number of properties per prompt",
     )
 
