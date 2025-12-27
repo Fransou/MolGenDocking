@@ -17,12 +17,12 @@
   "SA":{
     "objectives":["minimize", "below"],
     "p_objectives":[0.5, 0.5],
-    "frequency":2
+    "frequency":3
   },
   "QED":{
     "objectives":["maximize", "above"],
     "p_objectives":[0.7, 0.3],
-    "frequency":5
+    "frequency":7
   },
   "CalcExactMolWt":{
     "objectives":["above", "below"],
@@ -52,12 +52,12 @@
     "CalcFractionCSP3":{
     "objectives":["above", "below"],
     "p_objectives":[0.5, 0.5],
-    "frequency":0.3
+    "frequency":0.5
   },
     "CalcTPSA":{
     "objectives":["above", "below"],
     "p_objectives":[0.3, 0.7],
-    "frequency":1
+    "frequency":0.6
   },
     "CalcHallKierAlpha":{
     "objectives":["above", "maximize"],
@@ -67,11 +67,11 @@
     "CalcPhi":{
     "objectives":["maximize", "above", "below", "minimize"],
     "p_objectives":[0.4, 0.4, 0.1, 0.1],
-    "frequency":2
+    "frequency":0.5
   },
     "logP":{
     "objectives":["maximize", "above", "below", "minimize"],
     "p_objectives":[0.1, 0.1, 0.4, 0.4],
-    "frequency":1.5
+    "frequency":2
   }
 }

@@ -439,11 +439,11 @@ class MolGenerationInstructionsDatasetGenerator:
                         for p in allowed_std_props
                     ]
                 )
-
+                probas_std = probas_std / probas_std.sum()
             probas = np.concatenate([probas_docking, probas_std])
             probas = probas / probas.sum()
 
-        property_list = allowed_std_props + allowed_docking_props
+        property_list = allowed_docking_props + allowed_std_props
 
         properties = list(
             random.choice(property_list, n_props, replace=False, p=probas)
