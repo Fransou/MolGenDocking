@@ -216,7 +216,8 @@ class ReceptorProcess:
             receptors = list(self.pockets.keys())
         else:
             assert all(r in self.pockets for r in receptors), (
-                "Some receptors are not in pockets_info.json: " + ",".join([r for r in receptors if r not in self.pockets])
+                "Some receptors are not in pockets_info.json: "
+                + ",".join([r for r in receptors if r not in self.pockets])
             )
 
         remote_tqdm = ray.remote(tqdm_ray.tqdm)

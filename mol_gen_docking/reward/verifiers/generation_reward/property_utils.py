@@ -46,24 +46,6 @@ INTEGER_PROPS = [
     "CalcNumRotatableBonds",
 ]
 
-PROPERTY_ALLOWED_OBJECTIVES = {
-    "GSK3B": (["maximize", "above"], [0.5, 0.5]),
-    "JNK3": (["maximize", "above"], [0.5, 0.5]),
-    "DRD2": (["maximize", "above"], [0.5, 0.5]),
-    "SA": (["minimize", "below"], [0.5, 0.5]),
-    "QED": (["maximize", "above"], [0.7, 0.3]),
-    "CalcExactMolWt": (["above", "below"], [0.3, 0.7]),
-    "CalcNumAromaticRings": (["above", "below", "minimize"], [0.2, 0.5, 0.3]),
-    "CalcNumHBA": (["above", "below"], [0.5, 0.5]),
-    "CalcNumHBD": (["above", "below"], [0.5, 0.5]),
-    "CalcNumRotatableBonds": (["above", "below"], [0.5, 0.5]),
-    "CalcFractionCSP3": (["above", "below"], [0.5, 0.5]),
-    "CalcTPSA": (["above", "below"], [0.3, 0.7]),
-    "CalcHallKierAlpha": (["above", "below"], [0.5, 0.5]),
-    "CalcPhi": (["maximize", "above", "below", "minimize"], [0.25, 0.25, 0.25, 0.25]),
-    "logP": (["maximize", "above", "below", "minimize"], [0.25, 0.25, 0.25, 0.25]),
-}
-
 
 def rescale_property_values(
     prop_name: str, value: float, docking: bool = False

@@ -96,7 +96,7 @@ class RewardScorer:
         Get smiles from completion
         """
         comp = comp.strip()
-        reason : str = ""
+        reason: str = ""
         if not self.parse_whole_completion:
             matches = re.findall(
                 r"(?:<answer>|<\|answer_start\|>)(.*?)(?:</answer>|<\|answer_end\|>)",
@@ -110,7 +110,6 @@ class RewardScorer:
                 reason = "no_answer"
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
-        re.split("\n| |.|\t|:", comp)
         # Then we filter by removing any string that does not contain "C"
         valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
 
@@ -122,11 +121,13 @@ class RewardScorer:
             return False
 
         # Finally we remove any string that is not a valid SMILES
-        @ray.remote(num_cpus=1)
         def test_is_valid_batch(smis: list[str]) -> list[bool]:
             RDLogger.DisableLog("rdApp.*")
             results = []
             for smi in smis:
+                if len(smi) >= 130:
+                    results.append(False)
+                    continue
                 try:
                     mol = Chem.MolFromSmiles(smi)
                     if mol is None:
@@ -141,25 +142,27 @@ class RewardScorer:
                     results.append(False)
             return results
 
-        s_poss = [x for x in comp.split() if filter_smiles(x)]
-        if len(s_poss) != 1:
+        s_poss = [x for x in re.split("\n| |\\.|\t|:|`|'", comp) if filter_smiles(x)]
+
+        if len(s_poss) == 0:
             if reason == "":
                 reason = "no_smiles"
             return [], reason
-        chunk_size = 4
-        tasks = [
-            test_is_valid_batch.remote(s_poss[i : i + chunk_size])
-            for i in range(0, len(s_poss), chunk_size)
-        ]
-        is_valid: List[bool] = sum(ray.get(tasks), [])
-        s_spl = [
-            x for (x, val) in zip(s_poss, is_valid) if val
-        ]
+
+        if len(s_poss) > 1:
+            reason = "multiple_smiles"
+        is_valid: List[bool] = test_is_valid_batch(s_poss)
+
+        s_spl = [x for (x, val) in zip(s_poss, is_valid) if val]
         if s_spl == [] and reason == "":
             reason = "no_valid_smiles"
+        elif reason == "":
+            reason = s_spl[0]
         return s_spl, reason
 
-    def get_all_completions_smiles(self, completions: Any) -> Tuple[List[List[str]], str]:
+    def get_all_completions_smiles(
+        self, completions: Any
+    ) -> Tuple[List[List[str]], List[str]]:
         smiles = []
         failures = []
         for completion in completions:
@@ -198,6 +201,8 @@ class RewardScorer:
         scores, metadata = self.generation_verifier.get_score(
             smiles_per_completion, metadata
         )
+        for meta, fail in zip(metadata, failures):
+            meta["smiles_extraction_failure"] = fail
         return scores, metadata
 
     def _get_prop_pred_score(

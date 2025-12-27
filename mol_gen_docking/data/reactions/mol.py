@@ -1,6 +1,10 @@
 from functools import cached_property
+from typing import Any
 
-from rdkit import Chem
+from rdkit import Chem, DataStructs
+from rdkit.Chem import rdFingerprintGenerator
+
+gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=1024)
 
 
 class Molecule:
@@ -50,3 +54,19 @@ class Molecule:
 
     def __hash__(self) -> int:
         return hash(self._smiles)
+
+    @cached_property
+    def fp(self) -> Any:
+        return gen.GetFingerprint(self._rdmol)
+
+    def tanimoto_similarity(self, other: list["Molecule"]) -> list[float]:
+        similarities: list[float] = DataStructs.BulkTanimotoSimilarity(
+            self.fp, [mol.fp for mol in other]
+        )
+        return similarities
+
+    def inters_similarity(self, other: list["Molecule"]) -> list[float]:
+        similarities: list[float] = DataStructs.BulkTanimotoSimilarity(
+            self.fp, [mol.fp for mol in other]
+        )
+        return similarities

@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -12,7 +13,6 @@ from torch.utils.data import Sampler
 from transformers import AutoTokenizer, EvalPrediction
 from trl import GRPOTrainer
 from trl.trainer.utils import RepeatSampler, nanmax, nanmin, nanstd, pad
-import copy
 
 N_REPEAT_TEST = 8
 
@@ -106,7 +106,7 @@ class ReinventGRPOTrainer(GRPOTrainer):
         }
         self.compute_metrics = compute_metrics
         self.n_repeat_test = n_repeat_test
-        self.training_num_generations = copy.deepcopy(self.num_generations)
+        self.training_num_generations: int = copy.deepcopy(self.num_generations)
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Sampler:
         # See _get_train_sampler for an explanation of the sampler.
@@ -136,14 +136,16 @@ class ReinventGRPOTrainer(GRPOTrainer):
         return torch.tensor(0.0), inputs["completion_ids"], inputs["completion_ids"]
 
     def _generate_and_score_completions(
-            self, inputs: list[dict[str, Union[torch.Tensor, Any]]]
+        self, inputs: list[dict[str, Union[torch.Tensor, Any]]]
     ) -> dict[str, Union[torch.Tensor, Any]]:
         mode = "train" if self.model.training else "eval"
         self.num_generations = self.training_num_generations if mode == "train" else 1
 
-        outputs = super()._generate_and_score_completions(inputs)
+        outputs: dict[str, Union[torch.Tensor, Any]] = (
+            super()._generate_and_score_completions(inputs)
+        )
 
-        completions_text = list(self._logs["completion"]) # Trick get all completions
+        completions_text = list(self._logs["completion"])  # Trick get all completions
         ### MOLECULE SPECIFIC METRICS ###
         for eval_name in self.mol_evaluators:
             self._metrics[mode][eval_name].append(
@@ -151,6 +153,7 @@ class ReinventGRPOTrainer(GRPOTrainer):
             )
         self.num_generations = self.training_num_generations
         return outputs
+
 
 class VanillaReinventTrainer(ReinventGRPOTrainer):
     def __init__(

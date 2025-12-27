@@ -179,10 +179,7 @@ if __name__ == "__main__":
                 generation_config["num_beam_groups"] = 1
                 generation_config["penalty_alpha"] = None
             out_dir = os.path.join(args.output_dir, f"task_{id}")
-            os.makedirs(
-                out_dir,
-                exist_ok=True
-            )
+            os.makedirs(out_dir, exist_ok=True)
             training_args = GRPOConfig(
                 output_dir=out_dir,
                 max_steps=args.num_train_epochs,
@@ -195,7 +192,7 @@ if __name__ == "__main__":
                 learning_rate=args.learning_rate,
                 lr_scheduler_type=args.lr_scheduler_type,
                 warmup_steps=int(args.lr_warmup_ratio * args.num_train_epochs),
-                warmup_ratio = args.lr_warmup_ratio,
+                warmup_ratio=args.lr_warmup_ratio,
                 weight_decay=args.weight_decay,
                 per_device_train_batch_size=args.batch_size,
                 per_device_eval_batch_size=args.eval_batch_size,
@@ -218,9 +215,7 @@ if __name__ == "__main__":
             train_dataset = Dataset.from_dict(
                 {"prompt": ["<s>"] * args.num_train_epochs}
             )
-            eval_dataset = Dataset.from_dict(
-                {"prompt": ["<s>"] * 16}
-            )
+            eval_dataset = Dataset.from_dict({"prompt": ["<s>"] * 16})
 
             trainer = ReinventGRPOTrainer(
                 model=model,
