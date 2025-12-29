@@ -8,7 +8,7 @@ version = "2025.8.4"
 dependencies = [
     "torch>=2.6.0",
     "datasets",
-    "ray",
+    "ray>=2.49.1",
     "pydantic",
     "pydantic_settings",
     "selfies",
@@ -23,7 +23,15 @@ dependencies = [
     "ringtail",
     "prody",
     "biopython",
-    "uvicorn"
+    "uvicorn",
+    "pydantic",
+    "pydantic-settings"
+]
+
+[project.optional-dependencies]
+model = [
+    "vllm==0.10.1.1",
+
 ]
 
 requires-python = ">=3.10"
