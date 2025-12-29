@@ -26,6 +26,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "pdb-tools",
+    "pytdc==1.1.14",
     "jsonlines"
 ]
 
