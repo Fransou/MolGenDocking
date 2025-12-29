@@ -30,8 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 model = [
-    "vllm==0.10.1.1",
-
+    "vllm==0.10.1.1"
 ]
 
 requires-python = ">=3.10"
