@@ -13,7 +13,6 @@ dependencies = [
     "pydantic_settings",
     "selfies",
     "fastapi",
-    "PyTDC==1.1.14",
     "rdkit",
     "pytest",
     "hydra-core",
@@ -34,7 +33,11 @@ description = ""
 
 [project.optional-dependencies]
 model = [
-    "vllm==0.10.1.1"
+    "vllm==0.10.1.1",
+    "transformers==4.57.3",
+    "trl==0.24.0",
+    "wandb",
+    "flash_attn==0.28.0.post2"
 ]
 
 [tool.mypy]
