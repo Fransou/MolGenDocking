@@ -24,7 +24,9 @@ dependencies = [
     "biopython",
     "uvicorn",
     "pydantic",
-    "pydantic-settings"
+    "pydantic-settings",
+    "pdb-tools",
+    "jsonlines"
 ]
 
 requires-python = ">=3.10"
@@ -37,6 +39,7 @@ model = [
     "transformers==4.57.3",
     "trl==0.24.0",
     "wandb",
+    "peft==0.15.2",
     "flash_attn==2.8.0.post2"
 ]
 
