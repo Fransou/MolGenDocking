@@ -37,7 +37,7 @@ model = [
     "transformers==4.57.3",
     "trl==0.24.0",
     "wandb",
-    "flash_attn==0.28.0.post2"
+    "flash_attn==0.2.8.0.post2"
 ]
 
 [tool.mypy]
