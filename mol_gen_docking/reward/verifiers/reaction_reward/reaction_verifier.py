@@ -21,8 +21,10 @@ class ReactionVerifier(Verifier):
         self,
         reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
         rxn_matrix_path: str | None = None,
+        reaction_reward_type: Literal["binary", "tanimoto"] = "tanimoto",
     ):
         super().__init__()
+        self.reaction_reward_type = reaction_reward_type
         self.rxn_matrix: ReactantReactionMatrix
         if rxn_matrix_path is not None:
             with open(rxn_matrix_path, "rb") as f:
@@ -132,7 +134,7 @@ class ReactionVerifier(Verifier):
         Valid steps are considered as such:
             If the first step, uses building blocks and the reaction appears in the Reaction Matrix, and the product is correct.
             Otherwise, there exist a SMARTS describing the reaction.
-        Finally, if the last product is not the target, or some reactants are unknown, return 0.
+        Finally, if the last product is not the target, or some reactants are unknown, return the original reward * the tanimoto similarity**3
         """
         self.logger.info("Running reaction verifier on: {}".format(completion))
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
@@ -207,7 +209,7 @@ class ReactionVerifier(Verifier):
                         p._rdmol, 2, nBits=2048
                     )
                     all_sims.append(DataStructs.TanimotoSimilarity(label_fp, fp_p))
-                reward_mult[i] = max(all_sims)
+                reward_mult[i] = max(all_sims) ** 3
 
         if building_blocks == []:
             building_blocks_mol = list(self.rxn_matrix.reactants)
@@ -317,7 +319,8 @@ class ReactionVerifier(Verifier):
                     meta["building_blocks"],
                     meta["smarts"],
                     n_steps_max=meta["n_steps_max"],
-                    impossible=impossible,
+                    impossible=False,  # We always try to generate a compound
+                    reward_type=self.reaction_reward_type,
                 )
                 rewards.append(r)
                 rewards_meta.append(meta)
