@@ -231,7 +231,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--impossible_proba",
         type=float,
-        default=0.15,
+        default=0.1,
     )
     parser.add_argument(
         "--n_bb_max",

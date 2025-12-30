@@ -8,12 +8,11 @@ version = "2025.8.4"
 dependencies = [
     "torch>=2.6.0",
     "datasets",
-    "ray",
+    "ray>=2.49.1",
     "pydantic",
     "pydantic_settings",
     "selfies",
     "fastapi",
-    "PyTDC==1.1.14",
     "rdkit",
     "pytest",
     "hydra-core",
@@ -22,11 +21,28 @@ dependencies = [
     "scikit-learn==1.2.2",
     "ringtail",
     "prody",
-    "biopython"
+    "biopython",
+    "uvicorn",
+    "pydantic",
+    "pydantic-settings",
+    "pdb-tools",
+    "pytdc==1.1.14",
+    "jsonlines"
 ]
 
 requires-python = ">=3.10"
 description = ""
+
+
+[project.optional-dependencies]
+model = [
+    "vllm==0.10.1.1",
+    "transformers==4.57.3",
+    "trl==0.24.0",
+    "wandb",
+    "peft==0.15.2",
+    "flash_attn==2.8.0.post2"
+]
 
 [tool.mypy]
 disable_error_code = ["type-arg"]
