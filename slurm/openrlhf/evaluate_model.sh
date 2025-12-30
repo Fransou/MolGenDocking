@@ -31,6 +31,12 @@ ray start --head --node-ip-address 0.0.0.0
 export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
 
+if [[ -n "$5" ]]; then
+    TP_SIZE=$5
+else
+    TP_SIZE=4
+fi
+
 #export DEBUG_MODE=1
 ray job submit \
    --address="http://127.0.0.1:8265" \
@@ -51,7 +57,8 @@ ray job submit \
    --eval_task generate_vllm \
    --output_path $2_$SLURM_ARRAY_TASK_ID \
    --top_p 0.95 \
-   --temperature $4
+   --temperature $4 \
+   --tp_size TP_SIZE
 
 python -m mol_gen_docking.score_completions \
     --input_file $2_$SLURM_ARRAY_TASK_ID.jsonl \

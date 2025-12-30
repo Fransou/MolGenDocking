@@ -318,7 +318,7 @@ class ReactionVerifier(Verifier):
                     meta["target"][0],
                     meta["building_blocks"],
                     meta["smarts"],
-                    n_steps_max=meta["n_steps_max"],
+                    n_steps_max=meta.get("n_steps_max", 5),
                     impossible=False,  # We always try to generate a compound
                     reward_type=self.reaction_reward_type,
                 )
@@ -330,7 +330,7 @@ class ReactionVerifier(Verifier):
                     meta["target"][0],
                     meta["building_blocks"],
                     meta["smarts"],
-                    n_steps_max=meta["n_steps_max"],
+                    n_steps_max=meta.get("n_steps_max", 5),
                     reward_type="tanimoto",
                     impossible=False,
                 )
