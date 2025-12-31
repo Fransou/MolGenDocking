@@ -102,7 +102,6 @@ if __name__ == "__main__":
             completions=[item["output"] for item in batch],
             metadata=[item.get("metadata", {}) for item in batch],
         )
-        print(response, meta)
         all_responses.extend(response)
         all_metas.extend(meta)
     results = []
@@ -117,6 +116,5 @@ if __name__ == "__main__":
         )
 
     print("=== Saving")
-    print(results)
     with jsonlines.open(args.output_path, mode="w") as writer:
         writer.write_all(results)
