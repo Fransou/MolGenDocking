@@ -4,7 +4,7 @@
 #SBATCH --time=06:00:00
 #SBATCH --gpus=h100:4
 #SBATCH --mem=248G
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=32
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
@@ -36,7 +36,7 @@ if [[ -n "$5" ]]; then
 else
     TP_SIZE=4
 fi
-
+echo "TP size $TP_SIZE"
 #export DEBUG_MODE=1
 ray job submit \
    --address="http://127.0.0.1:8265" \
@@ -58,7 +58,7 @@ ray job submit \
    --output_path $2_$SLURM_ARRAY_TASK_ID \
    --top_p 0.95 \
    --temperature $4 \
-   --tp_size TP_SIZE
+   --tp_size $TP_SIZE
 
 python -m mol_gen_docking.score_completions \
     --input_file $2_$SLURM_ARRAY_TASK_ID.jsonl \
