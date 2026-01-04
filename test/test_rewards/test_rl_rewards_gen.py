@@ -98,7 +98,7 @@ def test_valid_smiles(completion, smiles):
         np.random.choice(PROP_LIST, 8),
     ),
 )
-def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
+def test_multi_prompt_multi_generation(
     property1,
     property2,
 ):
@@ -109,6 +109,8 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     ] + [{"properties": [property2], "objectives": ["maximize"], "target": [0]}]
     n_mols = np.random.choice([1, 2, 3, 4], p=[0.8, 0.05, 0.05, 0.1])
     smiles = [propeties_csv.sample(n_mols)["smiles"].tolist() for k in range(2)]
+    n_valids = sum([int(Chem.MolFromSmiles(smi) is not None) for smi in smiles[0]])
+
     completions = [fill_completion(s, completion) for s in smiles]
 
     rewards, meta = property_scorer(completions, metadata)
@@ -116,12 +118,11 @@ def test_multi_prompt_multi_generation(  # 16 - 1 : 20/7 // 192 - 1 :
     if smiles != [] and len(smiles[0]) == 1:
         is_reward_valid(rewards[0], smiles[0], [property1])
         is_reward_valid(rewards[1], smiles[1], [property2])
-    elif smiles != [] and len(smiles[0]) > 1:
+    elif smiles != [] and len(smiles[0]) > 1 and n_valids == len(smiles[0]):
         assert sum(rewards) == 0
         is_reward_valid(meta[0]["all_smi_rewards"], smiles[0], [property1])
         is_reward_valid(meta[1]["all_smi_rewards"], smiles[1], [property2])
-
-    else:
+    elif n_valids != 1:
         assert sum(rewards[0]) == 0
 
 

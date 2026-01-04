@@ -14,34 +14,6 @@ from mol_gen_docking.reward.verifiers import (
 RDLogger.DisableLog("rdApp.*")
 
 
-def template_to_regex(template: str) -> str:
-    """
-    Convert a single template string into a regex pattern.
-    """
-    # Escape special regex characters that might appear in text
-    pattern = re.escape(template)
-    # Replace escaped {prop} and {val} with regex groups
-    pattern = pattern.replace(r"\{prop\}", r"(?P<prop>.+?)")
-    if r"\{val\}" in pattern:
-        pattern = pattern.replace(r"\{val\}", r"(?P<val>[-+]?\d+\.?\d*)")
-    else:
-        pattern += r"(?:[.!?]+|$)"
-    return pattern
-
-
-def generate_regex_patterns(templates: Dict[str, List[str]]) -> List[Tuple[str, str]]:
-    """
-    Converts OBJECTIVES_TEMPLATES to a list of regex patterns with associated objective type.
-    Returns: List of (regex_pattern, objective_type)
-    """
-    pattern_list = []
-    for obj_type, template_list in templates.items():
-        for tmpl in template_list:
-            regex = template_to_regex(tmpl)
-            pattern_list.append((regex, obj_type))
-    return pattern_list
-
-
 def has_bridged_bond(mol: Chem.Mol) -> bool:
     """
     Returns True if the molecule contains a bridged ring system.
@@ -112,13 +84,21 @@ class RewardScorer:
         # First we split the completion by newlines and spaces
         # Then we filter by removing any string that does not contain "C"
         valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+        mkd_pattern = re.compile(r"^(\*\*|[-*'])(.+)\1$")
 
-        def filter_smiles(x: str) -> bool:
+        def filter_smiles(x: str) -> str:
+            # Check if the string is encapsulated in some kind of markdown
+            m = mkd_pattern.match(x)
+            x = m.group(2) if m else x
             if "e" in x or len(x) < 3:
-                return False
-            if "C" in x or x.count("c") > 2:
-                return valid_smiles_pattern.fullmatch(x) is not None
-            return False
+                return ""
+            if (
+                "C" in x
+                or x.count("c") > 2
+                and valid_smiles_pattern.fullmatch(x) is not None
+            ):
+                return x
+            return ""
 
         # Finally we remove any string that is not a valid SMILES
         def test_is_valid_batch(smis: list[str]) -> list[bool]:
@@ -142,7 +122,8 @@ class RewardScorer:
                     results.append(False)
             return results
 
-        s_poss = [x for x in re.split("\n| |\\.|\t|:|`|'", comp) if filter_smiles(x)]
+        s_poss = [filter_smiles(x) for x in re.split("\n| |\\.|\t|:|`|'", comp)]
+        s_poss = [x for x in s_poss if x != ""]
 
         if len(s_poss) == 0:
             if reason == "":
