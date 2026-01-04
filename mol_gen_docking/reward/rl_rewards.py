@@ -84,7 +84,7 @@ class RewardScorer:
         # First we split the completion by newlines and spaces
         # Then we filter by removing any string that does not contain "C"
         valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
-        mkd_pattern = re.compile(r"^([\-*'])(.+)\1$")
+        mkd_pattern = re.compile(r"^(\*\*|[-*'])(.+)\1$")
 
         def filter_smiles(x: str) -> str:
             # Check if the string is encapsulated in some kind of markdown
