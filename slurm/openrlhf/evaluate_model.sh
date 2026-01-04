@@ -58,6 +58,7 @@ ray job submit \
    --output_path $2_$SLURM_ARRAY_TASK_ID \
    --top_p 0.95 \
    --temperature $4 \
+   --system_prompt system_prompts/vanilla.json \
    --tp_size $TP_SIZE
 
 python -m mol_gen_docking.score_completions \

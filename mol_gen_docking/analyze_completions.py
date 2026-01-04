@@ -5,21 +5,6 @@ import jsonlines
 import numpy as np
 from transformers import AutoTokenizer
 
-from mol_gen_docking.reward.rl_rewards import (
-    RewardScorer,
-)
-from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierSettings,
-)
-
-verifier_settings = MolecularVerifierSettings()
-reward_scorer = RewardScorer(
-    reward="valid_smiles",
-    path_to_mappings=verifier_settings.data_path,
-    parse_whole_completion=False,
-    reaction_matrix_path=verifier_settings.reaction_matrix_path,
-)
-
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score molecular completions.")
@@ -45,16 +30,12 @@ if __name__ == "__main__":
         input_files = [args.input_files]
     else:
         directory = Path(args.input_files)
-        input_files = [str(f) for f in directory.glob("*.jsonl")]
+        input_files = [str(f) for f in directory.glob("*_scored.jsonl")]
 
     for input_file in input_files:
         with jsonlines.open(input_file) as reader:
             for item in reader:
                 completions.append(item)
-    all_responses, rew_meta = reward_scorer.get_score(
-        completions=[item["output"] for item in completions],
-        metadata=[item.get("metadata", {}) for item in completions],
-    )
     # Compute min, max, mean, median, and quantiles of the length of the outputs
     tokenizer = (
         AutoTokenizer.from_pretrained(args.model_name) if args.model_name else None
@@ -81,16 +62,14 @@ if __name__ == "__main__":
         )
     )
 
-    results: list[str] = []
-    print(
-        f"Generated {sum(all_responses)} valid completions for {len(completions)} inputs ({int(100 * sum(all_responses) / len(completions))}%)."
-    )
     show = input("Show generations?")
     if show == "y":
-        for item, response, fail in zip(completions, all_responses, rew_meta):
-            if response == 0:
+        for item in completions:
+            if float(item["reward"]) == 0 and item["reward_meta"][
+                "smiles_extraction_failure"
+            ] in ["multiple", "no_smiles", "no_valid_smiles", "no_answer"]:
                 print(f"Output: {item['output']}")
-                print(f"Reason: {fail}")
-            print("-----")
-            print("-----")
-            input("Press Enter to continue...")
+                print(f"Reason: {item['reward_meta']['smiles_extraction_failure']}")
+                print("-----")
+                print("-----")
+                input("Press Enter to continue...")

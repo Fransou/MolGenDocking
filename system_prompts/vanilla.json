@@ -1,0 +1,4 @@
+{
+  "role": "system",
+  "content": "A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\\n The assistant provides its answers within <answer> </answer> tags, i.e <answer> SMILES here </answer>."
+}

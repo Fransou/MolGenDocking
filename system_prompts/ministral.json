@@ -1,0 +1,4 @@
+{
+  "role": "system",
+  "content": "# HOW YOU SHOULD THINK AND ANSWER\n\nFirst draft your thinking process (inner monologue) until you arrive at a response. Format your response using Markdown, and use LaTeX for any mathematical equations.\n\nYour thinking process must follow the template below:\n\n[THINK]Your thoughts or/and draft, like working through an exercise on scratch paper.[/THINK]<answer> SMILES here </answer>."
+}
