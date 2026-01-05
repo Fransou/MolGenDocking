@@ -36,10 +36,14 @@ class RewardBuffer:
         """
         Adds a query to the buffer and waits for the corresponding result.
         """
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
-        async with self.lock:
-            self.queue.append((query, future))
-        return await future  # type:ignore
+        try:
+            future: asyncio.Future = asyncio.get_event_loop().create_future()
+            async with self.lock:
+                self.queue.append((query, future))
+            return await future  # type:ignore
+        except Exception as e:
+            logger.error(f"Error in add_query: {e}")
+            raise e
 
     async def _batch_loop(self) -> None:
         """
@@ -50,26 +54,30 @@ class RewardBuffer:
             await self._process_pending_queries()
 
     async def _process_pending_queries(self) -> None:
-        async with self.lock:
-            if not self.queue:
-                return
-
-            batch = [
-                self.queue.popleft()
-                for _ in range(min(len(self.queue), self.max_batch_size))
-            ]
-
-        queries, futures = zip(*batch)
-        logger.info(f"Processing batch of size {len(queries)}")
         try:
-            responses = await self._process_batch(list(queries))
-            for fut, res in zip(futures, responses):
-                if not fut.done():
-                    fut.set_result(res)
+            async with self.lock:
+                if not self.queue:
+                    return
+
+                batch = [
+                    self.queue.popleft()
+                    for _ in range(min(len(self.queue), self.max_batch_size))
+                ]
+
+            queries, futures = zip(*batch)
+            logger.info(f"Processing batch of size {len(queries)}")
+            try:
+                responses = await self._process_batch(list(queries))
+                for fut, res in zip(futures, responses):
+                    if not fut.done():
+                        fut.set_result(res)
+            except Exception as e:
+                for fut in futures:
+                    if not fut.done():
+                        fut.set_exception(e)
         except Exception as e:
-            for fut in futures:
-                if not fut.done():
-                    fut.set_exception(e)
+            logger.error(f"Error in _process_pending_queries: {e}")
+            raise e
 
     async def _process_batch(
         self, queries: List[MolecularVerifierQuery]

@@ -19,6 +19,7 @@ class MolPropVerifier(Verifier):
         parsed_answer: List[float | int | None] = []
         for answer in completions:
             matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
+            self.logger.info(f"Matches: {matches}")
             if len(matches) == 1:
                 try:
                     split_answer = re.split("\n| |\t|:|`|'", matches[0])
@@ -66,4 +67,5 @@ class MolPropVerifier(Verifier):
                 else:
                     self.logger.error(f"Not a valid objective: {meta['objectives'][0]}")
                     raise NotImplementedError
+        self.logger.info(f"Rewards: {rewards}")
         return rewards, [{} for _ in parsed_answer]

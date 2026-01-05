@@ -152,7 +152,7 @@ def create_app() -> FastAPI:
         ]
         targets = list(set(targets))
         if targets == []:
-            return {"status": "No need to prepare receptors for the given batch."}
+            return {"status": "Success"}
 
         missed_receptors_1, missed_receptors_2 = (
             app.state.receptor_processor.process_receptors(
@@ -161,7 +161,10 @@ def create_app() -> FastAPI:
         )
         if len(missed_receptors_2) > 0:
             # Return error if some receptors could not be processed
-            return {"status": "Error"}
+            return {
+                "status": "Error",
+                "info": f"Receptors {missed_receptors_2} could not be processed.",
+            }
         else:
             return {"status": "Success"}
 

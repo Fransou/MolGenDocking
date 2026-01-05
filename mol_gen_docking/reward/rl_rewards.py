@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
@@ -59,6 +60,7 @@ class RewardScorer:
         self.reaction_verifier = ReactionVerifier(
             reward=reward, rxn_matrix_path=reaction_matrix_path
         )
+        self.logger = logging.getLogger("RewardScorer")
 
         if not ray.is_initialized():
             ray.init()
@@ -284,6 +286,7 @@ class RewardScorer:
             for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
                 rewards[i] = r
                 metadata[i] = m
+        self.logger.info(f"Rewards total for given batch: {rewards}")
         return rewards, metadata
 
     def __call__(

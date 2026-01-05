@@ -46,40 +46,50 @@ class ReactionVerifier(Verifier):
         ]
         self.logger = logging.getLogger("ReactionVerifier")
 
-    @staticmethod
-    def r_ground_truth_mols(mol_y: List[Molecule], mol_label: List[Molecule]) -> float:
+    def r_ground_truth_mols(
+        self, mol_y: List[Molecule], mol_label: List[Molecule]
+    ) -> float:
         """Returns 0.1 if the molecules are valid, 0.1 + 0.4*iou if the molecules are not in the same order, 1 otherwise."""
+        self.logger.info(
+            f"Computed molecules: {[mol.smiles for mol in mol_y]} vs labels: {[mol.smiles for mol in mol_label]}"
+        )
         smi_y = [mol.csmiles for mol in mol_y]
         smi_y_true = [mol.csmiles for mol in mol_label]
         intersection = set(smi_y_true).intersection(set(smi_y))
         union = set(smi_y_true).union(set(smi_y))
-
-        return (
+        reward = (
             0.1
             + 0.4 * len(intersection) / len(union)
             + 0.5 * float(smi_y == smi_y_true)
         )
+        self.logger.info(f"Intersection: {intersection}, reward : {reward}")
+        return reward
 
     def ground_truth_reward_mol(
         self, completion: str, labels: List[str], impossible: bool
     ) -> float:
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
+        self.logger.info(f"Matches for ground truth mols: {matches}")
         if len(matches) != 1:
             return 0.0
         if impossible:
             return float(matches[0] == "impossible")
 
         mol_label = [Molecule(smi) for smi in labels]
-        assert all([m.is_valid for m in mol_label])
+        if not all([m.is_valid for m in mol_label]):
+            self.logger.error("Invalid ground truth molecule")
+            return 0.0
         mols = [
             Molecule(smi)
             for smi in matches[0]
-            .replace(", ", "and")
-            .replace(" + ", "and")
+            .replace(", ", " and ")
+            .replace(" + ", " and ")
             .strip()
             .split("and")
         ]
+
         if any([not m.is_valid for m in mols]):
+            self.logger.info("Invalid molecule found in prediction")
             return 0.0
 
         return self.r_ground_truth_mols(mols, mol_label)
@@ -91,7 +101,7 @@ class ReactionVerifier(Verifier):
         reactants: List[str],
         product: str,
         impossible: bool,
-    ) -> Tuple[float, Dict[str, Any]]:  # TODO: run the predicted smarts if non-equal
+    ) -> Tuple[float, Dict[str, Any]]:
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
@@ -103,6 +113,9 @@ class ReactionVerifier(Verifier):
             }
         if matches[0].strip() == gt_smarts:
             return 1.0, {"Reactants_contained": True, "Products_contained": True}
+        self.logger.info(
+            f"Proposed SMARTS: {matches[0].strip()} | GT SMARTS: {gt_smarts}, checking reaction..."
+        )
         try:
             rxnB = Reaction(matches[0].strip())
             p = rxnB([Molecule(r) for r in reactants])
@@ -113,7 +126,10 @@ class ReactionVerifier(Verifier):
                 "Reactants_contained": True,
                 "Products_contained": reward == 0.1,
             }
-        except ValueError:
+        except Exception as e:
+            self.logger.info(
+                f"Error in reaction SMARTS parsing: {e} (proposed: {matches[0]} | gt: {gt_smarts})"
+            )
             return 0.0, {"Reactants_contained": False, "Products_contained": False}
 
     def reward_run_path(
@@ -136,7 +152,6 @@ class ReactionVerifier(Verifier):
             Otherwise, there exist a SMARTS describing the reaction.
         Finally, if the last product is not the target, or some reactants are unknown, return the original reward * the tanimoto similarity**3
         """
-        self.logger.info("Running reaction verifier on: {}".format(completion))
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
             return 0.0, {
@@ -152,10 +167,27 @@ class ReactionVerifier(Verifier):
                 "correct_bb": True,
             }
         # Ensure one reaction per line
+        self.logger.info("Running reaction verifier on: {}".format(matches[0]))
         steps: List[str] = matches[0].split("\n")
-        steps = [s for s in steps if not s.strip() == ""]
-        if not all([len(step.split("->")) == 2 for step in steps]):
+        steps = [step for step in steps if not step.strip() == "" and "->" in step]
+        if len(steps) == 0 or not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
+        basic_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+        if not all(
+            all(
+                [
+                    basic_smiles_pattern.match(smi.strip())
+                    for smi in re.split(r"\+|->", step)
+                ]
+            )
+            for step in steps
+        ):
+            self.logger.info("Invalid SMILES pattern found in reaction steps")
             return 0.0, {
                 "prop_valid": 0.0,
                 "correct_last_product": False,
@@ -172,6 +204,11 @@ class ReactionVerifier(Verifier):
         if any([not r.is_valid for r in sum(reactants, [])]) or any(
             [not p.is_valid for p in sum(products, [])]
         ):
+            invalid_reactants = [r.smiles for r in sum(reactants, []) if not r.is_valid]
+            invalid_products = [p.smiles for p in sum(products, []) if not p.is_valid]
+            self.logger.info(
+                f"Invalid molecule found in synthesis path : reactants {invalid_reactants}, products {invalid_products}"
+            )
             return 0.0, {
                 "prop_valid": 0.0,
                 "correct_last_product": False,
