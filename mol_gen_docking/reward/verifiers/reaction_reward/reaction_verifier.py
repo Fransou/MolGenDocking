@@ -113,6 +113,9 @@ class ReactionVerifier(Verifier):
             }
         if matches[0].strip() == gt_smarts:
             return 1.0, {"Reactants_contained": True, "Products_contained": True}
+        self.logger.info(
+            f"Proposed SMARTS: {matches[0].strip()} | GT SMARTS: {gt_smarts}, checking reaction..."
+        )
         try:
             rxnB = Reaction(matches[0].strip())
             p = rxnB([Molecule(r) for r in reactants])
