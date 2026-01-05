@@ -59,6 +59,7 @@ if __name__ == "__main__":
             str(f)
             for f in directory.glob("*.jsonl")
             if not str(f).endswith("_scored.jsonl")
+            and not Path(str(f).replace(".jsonl", "_scored.jsonl")).exists()
         ]
 
     for input_file in input_files:
