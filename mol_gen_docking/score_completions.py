@@ -16,7 +16,7 @@ from mol_gen_docking.server_utils.utils import (
 verifier_settings = MolecularVerifierSettings()
 reward_scorer = RewardScorer(
     path_to_mappings=verifier_settings.data_path,
-    parse_whole_completion=False,
+    parse_whole_completion=verifier_settings.parse_whole_completion,
     docking_concurrency_per_gpu=verifier_settings.docking_concurrency_per_gpu,
     reaction_matrix_path=verifier_settings.reaction_matrix_path,
     oracle_kwargs=dict(
