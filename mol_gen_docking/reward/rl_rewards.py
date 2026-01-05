@@ -87,6 +87,8 @@ class RewardScorer:
         mkd_pattern = re.compile(r"^(\*\*|[-*'])(.+)\1$")
 
         def filter_smiles(x: str) -> str:
+            if len(x)<3:
+                return ""
             # Check if the string is encapsulated in some kind of markdown
             if x[0] == ">":
                 x = x[1:]
