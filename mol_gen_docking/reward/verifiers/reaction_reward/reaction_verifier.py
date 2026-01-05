@@ -171,6 +171,22 @@ class ReactionVerifier(Verifier):
                 "correct_last_product": False,
                 "correct_bb": False,
             }
+        basic_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+        if not all(
+            all(
+                [
+                    basic_smiles_pattern.match(smi.strip())
+                    for smi in re.split(r"\+|->", step)
+                ]
+            )
+            for step in steps
+        ):
+            self.logger.info("Invalid SMILES pattern found in reaction steps")
+            return 0.0, {
+                "prop_valid": 0.0,
+                "correct_last_product": False,
+                "correct_bb": False,
+            }
         reactants = [
             [Molecule(smi.strip()) for smi in step.split("->")[0].split(" + ")]
             for step in steps
@@ -182,6 +198,11 @@ class ReactionVerifier(Verifier):
         if any([not r.is_valid for r in sum(reactants, [])]) or any(
             [not p.is_valid for p in sum(products, [])]
         ):
+            invalid_reactants = [r.smiles for r in sum(reactants, []) if not r.is_valid]
+            invalid_products = [p.smiles for p in sum(products, []) if not p.is_valid]
+            self.logger.info(
+                f"Invalid molecule found in synthesis path : reactants {invalid_reactants}, products {invalid_products}"
+            )
             return 0.0, {
                 "prop_valid": 0.0,
                 "correct_last_product": False,

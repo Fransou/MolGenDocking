@@ -10,6 +10,7 @@ from mol_gen_docking.reward.rl_rewards import RewardScorer
 from .utils import DATA_PATH, propeties_csv
 
 property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)
+property_scorer_valid = RewardScorer(DATA_PATH, "valid_smiles", rescale=False)
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 DATASET_REAC: list[Sample] = read_jsonl(
@@ -75,26 +76,16 @@ def test_reaction(line):
     completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
 
     rewards = property_scorer(completions, [metadata] * len(answers))[0]
+    property_scorer_valid(completions, [metadata] * len(answers))[0]
     assert (rewards[0] == 1) or metadata["impossible"]
 
 
 @pytest.mark.parametrize("in_out", ADD_SY_EX)
 def test_additional_synth_full_path(in_out):
-    output = in_out["output"]
-
-    metadata = {
-        "properties": ["full_path"],
-        "objectives": ["full_path"],
-        "target": [in_out["target"]],
-        "full_reaction": "",
-        "or_smarts": [],
-        "impossible": False,
-        "smarts": [],
-        "building_blocks": [],
-    }
-    completions = [output]
-    rewards = property_scorer(completions, [metadata])[0]
-    print(rewards)
+    metadata = in_out["metadata"]
+    completions = [in_out["output"]]
+    property_scorer(completions, [metadata])[0]
+    property_scorer_valid(completions, [metadata])[0]
 
 
 @pytest.mark.parametrize("line, examples", zip(DATASET_ANALOG, REFS_COMP_ANALOG))
