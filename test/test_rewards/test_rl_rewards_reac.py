@@ -26,6 +26,14 @@ with open(
     REFS_COMP_ANALOG: list[list[str, float]] = json.load(f)
 
 
+with open(
+    os.path.join(
+        os.path.dirname(current_path), "data", "reaction_full_sythn_test_examples.json"
+    )
+) as f:
+    ADD_SY_EX: list[dict[str, str]] = json.load(f)
+
+
 @pytest.mark.parametrize("line", DATASET_REAC)
 def test_reaction(line):
     metadata = line.conversations[0].meta
@@ -68,6 +76,25 @@ def test_reaction(line):
 
     rewards = property_scorer(completions, [metadata] * len(answers))[0]
     assert (rewards[0] == 1) or metadata["impossible"]
+
+
+@pytest.mark.parametrize("in_out", ADD_SY_EX)
+def test_additional_synth_full_path(in_out):
+    output = in_out["output"]
+
+    metadata = {
+        "properties": ["full_path"],
+        "objectives": ["full_path"],
+        "target": [in_out["target"]],
+        "full_reaction": "",
+        "or_smarts": [],
+        "impossible": False,
+        "smarts": [],
+        "building_blocks": [],
+    }
+    completions = [output]
+    rewards = property_scorer(completions, [metadata])[0]
+    print(rewards)
 
 
 @pytest.mark.parametrize("line, examples", zip(DATASET_ANALOG, REFS_COMP_ANALOG))

@@ -163,8 +163,8 @@ class ReactionVerifier(Verifier):
         # Ensure one reaction per line
         self.logger.info("Running reaction verifier on: {}".format(matches[0]))
         steps: List[str] = matches[0].split("\n")
-        steps = [s for s in steps if not s.strip() == ""]
-        if not all([len(step.split("->")) == 2 for step in steps]):
+        steps = [step for step in steps if not step.strip() == "" and "->" in step]
+        if len(steps) == 0 or not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
             return 0.0, {
                 "prop_valid": 0.0,
