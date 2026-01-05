@@ -34,7 +34,7 @@ receptor_process = ReceptorProcess(
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score molecular completions.")
     parser.add_argument(
-        "--input_file",
+        "--input_files",
         type=str,
         required=True,
         help="Path to the input file containing molecular completions.",
