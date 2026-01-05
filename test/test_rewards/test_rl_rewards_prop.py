@@ -12,7 +12,9 @@ property_scorer = RewardScorer(DATA_PATH, "property", rescale=False)
 def test_regression():
     target = np.random.random()
     completions = [
-        "<answer> {} </answer>".format(v * np.sign(np.random.random() - 0.5) + target)
+        "<answer> Here is an answer: {} </answer>".format(
+            v * np.sign(np.random.random() - 0.5) + target
+        )
         for v in [0, 0.01, 0.5, 1]
     ] + ["ksdjgf"]
     metadata = [
@@ -20,11 +22,13 @@ def test_regression():
     ] * 5
     rewards = property_scorer(completions, metadata)[0]
     assert sorted(rewards)[::-1] == rewards
+    assert sum(rewards) > 0.0
 
 
 def test_classification():
     completions = [
-        "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, "bbfhdsbfsj"]
+        "<answer> My answer is {} </answer>".format(v)
+        for v in [1, 1, 0, 0, "bbfhdsbfsj"]
     ]
     metadata = [
         {"objectives": ["classification"], "properties": [""], "target": [1]}
