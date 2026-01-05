@@ -69,6 +69,7 @@ def test_reaction(line):
         fakes = [
             property_scorer.reaction_verifier.rxn_matrix._reactions[0].smarts,
             property_scorer.reaction_verifier.rxn_matrix._reactions[10].smarts,
+            "[#6:1]-[N:5]=[N+:6]=[N-:7].[#6:2]-[C:3]>>[#6:2][cH0+0:3]1[cH1+0:4][nH0+0:5][nH0+0:6][nH0+0:7]1",
         ]
         answers = (
             [target] + fakes + ["impossible", target.replace("O", "n"), "dfhdshjkh"]

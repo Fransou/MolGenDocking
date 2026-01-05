@@ -101,7 +101,7 @@ class ReactionVerifier(Verifier):
         reactants: List[str],
         product: str,
         impossible: bool,
-    ) -> Tuple[float, Dict[str, Any]]:  # TODO: run the predicted smarts if non-equal
+    ) -> Tuple[float, Dict[str, Any]]:
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
@@ -123,7 +123,10 @@ class ReactionVerifier(Verifier):
                 "Reactants_contained": True,
                 "Products_contained": reward == 0.1,
             }
-        except ValueError:
+        except Exception as e:
+            self.logger.info(
+                f"Error in reaction SMARTS parsing: {e} (proposed: {matches[0]} | gt: {gt_smarts})"
+            )
             return 0.0, {"Reactants_contained": False, "Products_contained": False}
 
     def reward_run_path(
