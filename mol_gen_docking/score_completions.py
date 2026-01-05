@@ -34,7 +34,7 @@ receptor_process = ReceptorProcess(
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score molecular completions.")
     parser.add_argument(
-        "--input_files",
+        "--input_file",
         type=str,
         required=True,
         help="Path to the input file containing molecular completions.",
@@ -51,10 +51,10 @@ def get_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = get_args()
 
-    if Path(args.input_files).is_file():
-        input_files = [args.input_files]
+    if Path(args.input_file).is_file():
+        input_files = [args.input_file]
     else:
-        directory = Path(args.input_files)
+        directory = Path(args.input_file)
         input_files = [
             str(f)
             for f in directory.glob("*.jsonl")
