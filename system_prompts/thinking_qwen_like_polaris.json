@@ -1,0 +1,4 @@
+{
+  "role": "system",
+  "content": "A conversation between User and Assistant. The User asks a question, and the Assistant solves it.\\n The reasoning process is enclosed within <think> </think> and the answer is enclosed within <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think> <answer> answer here (yes/no/value) </answer>."
+}

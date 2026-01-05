@@ -9,14 +9,14 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
-#SBATCH --array=0-2
+#SBATCH --array=0-0
 
 export WORKING_DIR=$HOME/MolGenDocking
 
 source $HOME/.bashrc
 source $HOME/OpenRLHF/bin/activate
 
-export DATASET=molgendata
+export DATASET=polaris
 cp $SCRATCH/MolGenData/$DATASET.tar.gz $SLURM_TMPDIR
 cd $SLURM_TMPDIR
 tar -xzf $DATASET.tar.gz
@@ -44,21 +44,21 @@ ray job submit \
    -- python3 -m openrlhf.cli.batch_inference \
    --pretrain $PRETRAIN \
    --max_len 4096 \
-   --max_new_tokens 32768 \
+   --max_new_tokens 16384 \
    --zero_stage 3 \
    --bf16 \
-   --best_of_n 128 \
-   --rollout_batch_size 100 \
+   --best_of_n 3 \
+   --rollout_batch_size 5000 \
    --iter $SLURM_ARRAY_TASK_ID \
    --apply_chat_template \
-   --dataset $DATA_PATH/$3 \
+   --dataset $DATA_PATH/eval_concatenated.jsonl \
    --input_key messages \
    --label_key meta \
    --eval_task generate_vllm \
    --output_path $2_$SLURM_ARRAY_TASK_ID \
    --top_p 0.95 \
-   --temperature $4 \
-   --system_prompt system_prompts/vanilla.json \
+   --temperature $3 \
+   --system_prompt system_prompts/$4 \
    --tp_size $TP_SIZE
 
 python -m mol_gen_docking.score_completions \

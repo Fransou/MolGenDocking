@@ -16,19 +16,29 @@ class MolPropVerifier(Verifier):
     def get_score(
         self, completions: List[Any], metadata: List[Dict[str, Any]]
     ) -> Tuple[List[float], List[Dict[str, Any]]]:
-        parsed_answer = []
+        parsed_answer: List[float | int | None] = []
         for answer in completions:
             matches = re.findall(r"<answer>(.*?)</answer>", answer, flags=re.DOTALL)
             if len(matches) == 1:
                 try:
-                    y = matches[0]
-                    if y.lower() in ["true", "yes"]:
-                        y = 1
-                    elif y.lower() in ["false", "no"]:
-                        y = 0
-                    else:
-                        y = float(y)
-                    parsed_answer.append(y)
+                    split_answer = re.split("\n| |\t|:|`|'", matches[0])
+                    ys: List[float | int | None] = []
+                    for spl in split_answer:
+                        if spl.lower() in ["true", "yes"]:
+                            ys.append(1)
+                        elif spl.lower() in ["false", "no"]:
+                            ys.append(0)
+                        else:
+                            if re.match(r"\d+(\.\d+)?", spl):
+                                ys.append(float(spl))
+                    if len(ys) == 0:
+                        parsed_answer.append(None)
+                        continue
+                    if len(ys) > 1:
+                        self.logger.info(f"Too many values found in answer: {matches}")
+                        parsed_answer.append(None)
+                        continue
+                    parsed_answer.append(ys[0])
                 except ValueError:
                     parsed_answer.append(None)
             else:
