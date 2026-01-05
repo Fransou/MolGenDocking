@@ -87,6 +87,9 @@ class RewardScorer:
         mkd_pattern = re.compile(r"^(\*\*|[-*'])(.+)\1$")
 
         def filter_smiles(x: str) -> str:
+            x = x.replace("<|im_end|>", "")
+            if len(x) < 3:
+                return ""
             # Check if the string is encapsulated in some kind of markdown
             m = mkd_pattern.match(x)
             x = m.group(2) if m else x
@@ -124,6 +127,7 @@ class RewardScorer:
 
         s_poss = [filter_smiles(x) for x in re.split("\n| |\\.|\t|:|`|'", comp)]
         s_poss = [x for x in s_poss if x != ""]
+        s_poss = list(set(s_poss))
 
         if len(s_poss) == 0:
             if reason == "":

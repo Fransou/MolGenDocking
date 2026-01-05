@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 from typing import Any
 
 import jsonlines
@@ -39,12 +40,6 @@ def get_args() -> argparse.Namespace:
         help="Path to the input file containing molecular completions.",
     )
     parser.add_argument(
-        "--output_path",
-        type=str,
-        required=False,
-        default=None,
-    )
-    parser.add_argument(
         "--batch_size",
         type=int,
         default=128,
@@ -55,66 +50,83 @@ def get_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = get_args()
-    if args.output_path is None:
-        args.output_path = args.input_file.replace(".jsonl", "_scored.jsonl")
-    print("=== Computing Properties")
-    completions: dict[str, list[dict[str, Any]]] = {}
-    with jsonlines.open(args.input_file) as reader:
-        for item in reader:
-            props = item["metadata"]["properties"]
-            found = False
-            for p in props:
-                if p in receptor_process.pockets:
-                    if p not in completions:
-                        completions[p] = []
-                    completions[p].append(item)
-                    found = True
-                    break
-            if not found:
-                if "no_docking" not in completions:
-                    completions["no_docking"] = []
-                completions["no_docking"].append(item)
-    completions_ordered: list[dict[str, Any]] = [
-        item for sublist in completions.values() for item in sublist
-    ]
 
-    all_responses: list[float] = []
-    all_metas: list[dict[str, Any]] = []
-    for idx in tqdm(
-        range(0, len(completions_ordered), args.batch_size),
-        desc="Scoring completions",
-    ):
-        batch = completions_ordered[
-            idx : min(idx + args.batch_size, len(completions_ordered))
+    if Path(args.input_file).is_file():
+        input_files = [args.input_file]
+    else:
+        directory = Path(args.input_file)
+        input_files = [
+            str(f)
+            for f in directory.glob("*.jsonl")
+            if not str(f).endswith("_scored.jsonl")
+            and not Path(str(f).replace(".jsonl", "_scored.jsonl")).exists()
         ]
-        # 1 pre-process
-        all_targets = []
-        for item in batch:
-            all_targets.extend(item["metadata"]["properties"])
-        all_targets = list(set(all_targets))
-        all_targets = [r for r in all_targets if r in receptor_process.pockets]
-        print(f"Processing targets:\n{all_targets}")
-        receptor_process.process_receptors(
-            all_targets, allow_bad_res=True, use_pbar=False
-        )
-        # 2 get reward
-        response, meta = reward_scorer.get_score(
-            completions=[item["output"] for item in batch],
-            metadata=[item.get("metadata", {}) for item in batch],
-        )
-        all_responses.extend(response)
-        all_metas.extend(meta)
-    results = []
-    for item, r, r_metadata in zip(completions_ordered, all_responses, all_metas):
-        results.append(
-            {
-                "output": item["output"],
-                "metadata": item.get("metadata", {}),
-                "reward": r,
-                "reward_meta": r_metadata,
-            }
-        )
 
-    print("=== Saving")
-    with jsonlines.open(args.output_path, mode="w") as writer:
-        writer.write_all(results)
+    for input_file in input_files:
+        output_path = input_file.replace(".jsonl", "_scored.jsonl")
+        print("=== Computing Properties")
+        completions: dict[str, list[dict[str, Any]]] = {}
+
+        # Group completions by target property
+        with jsonlines.open(input_file) as reader:
+            for item in reader:
+                props = item["metadata"]["properties"]
+                found = False
+                for p in props:
+                    if p in receptor_process.pockets:
+                        if p not in completions:
+                            completions[p] = []
+                        completions[p].append(item)
+                        found = True
+                        break
+                if not found:
+                    if "no_docking" not in completions:
+                        completions["no_docking"] = []
+                    completions["no_docking"].append(item)
+        completions_ordered: list[dict[str, Any]] = [
+            item for sublist in completions.values() for item in sublist
+        ]
+
+        # Computing rewards
+        all_responses: list[float] = []
+        all_metas: list[dict[str, Any]] = []
+        for idx in tqdm(
+            range(0, len(completions_ordered), args.batch_size),
+            desc="Scoring completions",
+        ):
+            batch = completions_ordered[
+                idx : min(idx + args.batch_size, len(completions_ordered))
+            ]
+            # 1 pre-process
+            all_targets = []
+            for item in batch:
+                all_targets.extend(item["metadata"]["properties"])
+            all_targets = list(set(all_targets))
+            all_targets = [r for r in all_targets if r in receptor_process.pockets]
+            print(f"Processing targets:\n{all_targets}")
+            receptor_process.process_receptors(
+                all_targets, allow_bad_res=True, use_pbar=False
+            )
+            # 2 get reward
+            response, meta = reward_scorer.get_score(
+                completions=[item["output"] for item in batch],
+                metadata=[item.get("metadata", {}) for item in batch],
+            )
+            all_responses.extend(response)
+            all_metas.extend(meta)
+
+        # Save results
+        results = []
+        for item, r, r_metadata in zip(completions_ordered, all_responses, all_metas):
+            results.append(
+                {
+                    "output": item["output"],
+                    "metadata": item.get("metadata", {}),
+                    "reward": r,
+                    "reward_meta": r_metadata,
+                }
+            )
+
+        print("=== Saving")
+        with jsonlines.open(output_path, mode="w") as writer:
+            writer.write_all(results)
