@@ -44,7 +44,6 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mol-generation",
-        type=bool,
         action="store_true",
         default=False,
     )
