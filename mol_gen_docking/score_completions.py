@@ -26,9 +26,7 @@ reward_scorer = RewardScorer(
         vina_mode=verifier_settings.vina_mode,
     ),
 )
-receptor_process = ReceptorProcess(
-    data_path=verifier_settings.data_path, pre_process_receptors=True
-)
+receptor_process: None | ReceptorProcess = None
 
 
 def get_args() -> argparse.Namespace:
@@ -44,12 +42,22 @@ def get_args() -> argparse.Namespace:
         type=int,
         default=128,
     )
+    parser.add_argument(
+        "--mol-generation",
+        type=bool,
+        action="store_true",
+        default=False,
+    )
     args = parser.parse_args()
     return args
 
 
 if __name__ == "__main__":
     args = get_args()
+    if args.mol_generation:
+        receptor_process = ReceptorProcess(
+            data_path=verifier_settings.data_path, pre_process_receptors=True
+        )
 
     if Path(args.input_file).is_file():
         input_files = [args.input_file]
@@ -70,19 +78,26 @@ if __name__ == "__main__":
         # Group completions by target property
         with jsonlines.open(input_file) as reader:
             for item in reader:
-                props = item["metadata"]["properties"]
-                found = False
-                for p in props:
-                    if p in receptor_process.pockets:
-                        if p not in completions:
-                            completions[p] = []
-                        completions[p].append(item)
-                        found = True
-                        break
-                if not found:
-                    if "no_docking" not in completions:
-                        completions["no_docking"] = []
-                    completions["no_docking"].append(item)
+                if not args.mol_generation:
+                    id = item["metadata"]["prompt_id"]
+                    if id not in completions:
+                        completions[id] = []
+                    completions[id].append(item)
+                else:
+                    props = item["metadata"]["properties"]
+                    found = False
+                    assert receptor_process is not None
+                    for p in props:
+                        if p in receptor_process.pockets:
+                            if p not in completions:
+                                completions[p] = []
+                            completions[p].append(item)
+                            found = True
+                            break
+                    if not found:
+                        if "no_docking" not in completions:
+                            completions["no_docking"] = []
+                        completions["no_docking"].append(item)
         completions_ordered: list[dict[str, Any]] = [
             item for sublist in completions.values() for item in sublist
         ]
@@ -98,15 +113,18 @@ if __name__ == "__main__":
                 idx : min(idx + args.batch_size, len(completions_ordered))
             ]
             # 1 pre-process
-            all_targets = []
-            for item in batch:
-                all_targets.extend(item["metadata"]["properties"])
-            all_targets = list(set(all_targets))
-            all_targets = [r for r in all_targets if r in receptor_process.pockets]
-            print(f"Processing targets:\n{all_targets}")
-            receptor_process.process_receptors(
-                all_targets, allow_bad_res=True, use_pbar=False
-            )
+            if args.mol_generation:
+                all_targets = []
+                for item in batch:
+                    all_targets.extend(item["metadata"]["properties"])
+                all_targets = list(set(all_targets))
+
+                assert receptor_process is not None
+                all_targets = [r for r in all_targets if r in receptor_process.pockets]
+                print(f"Processing targets:\n{all_targets}")
+                receptor_process.process_receptors(
+                    all_targets, allow_bad_res=True, use_pbar=False
+                )
             # 2 get reward
             response, meta = reward_scorer.get_score(
                 completions=[item["output"] for item in batch],
