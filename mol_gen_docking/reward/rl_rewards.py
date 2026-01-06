@@ -43,27 +43,53 @@ class RewardScorer:
         oracle_kwargs: Dict[str, Any] = {},
         docking_concurrency_per_gpu: int = 2,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
     ):
-        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
+        self.path_to_mappings = path_to_mappings
         self.reward = reward
+        self.rescale = rescale
         self.parse_whole_completion = parse_whole_completion
+        self.reaction_matrix_path = reaction_matrix_path
+        self.oracle_kwargs = oracle_kwargs
+        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
+
         self.__name__ = f"RewardScorer/{reward}"
         self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
-        self.generation_verifier = GenerationVerifier(
-            path_to_mappings=path_to_mappings,
-            reward=reward,
-            rescale=rescale,
-            oracle_kwargs=oracle_kwargs,
-            docking_concurrency_per_gpu=docking_concurrency_per_gpu,
-        )
-        self.mol_prop_verifier = MolPropVerifier(reward=reward)
-        self.reaction_verifier = ReactionVerifier(
-            reward=reward, rxn_matrix_path=reaction_matrix_path
-        )
+        self._generation_verifier: None | GenerationVerifier = None
+        self._mol_prop_verifier: None | MolPropVerifier = None
+        self._reaction_verifier: None | ReactionVerifier = None
         self.logger = logging.getLogger("RewardScorer")
 
         if not ray.is_initialized():
             ray.init()
+
+    @property
+    def generation_verifier(self) -> GenerationVerifier:
+        if self._generation_verifier is not None:
+            return self._generation_verifier
+        self._generation_verifier = GenerationVerifier(
+            path_to_mappings=self.path_to_mappings,
+            reward=self.reward,
+            rescale=self.rescale,
+            oracle_kwargs=self.oracle_kwargs,
+            docking_concurrency_per_gpu=self.docking_concurrency_per_gpu,
+        )
+        return self._generation_verifier
+
+    @property
+    def mol_prop_verifier(self) -> MolPropVerifier:
+        if self._mol_prop_verifier is not None:
+            return self._mol_prop_verifier
+        self._mol_prop_verifier = MolPropVerifier(reward=self.reward)
+        return self._mol_prop_verifier
+
+    @property
+    def reaction_verifier(self) -> ReactionVerifier:
+        if self._reaction_verifier is not None:
+            return self._reaction_verifier
+        self._reaction_verifier = ReactionVerifier(
+            reward=self.reward, rxn_matrix_path=self.reaction_matrix_path
+        )
+        return self._reaction_verifier
 
     def get_smiles_from_completion(self, comp: str) -> Tuple[List[str], str]:
         """
