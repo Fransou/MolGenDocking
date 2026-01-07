@@ -303,15 +303,16 @@ class RewardScorer:
         rewards = [0.0 for _ in range(len(metadata))]
         metadata = [{} for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
-            rewards_obj, metadata_obj = fn(
-                completions_per_obj[key],
-                metadata_per_obj[key],
-                debug,
-                use_pbar,
-            )
-            for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
-                rewards[i] = r
-                metadata[i] = m
+            if len(completions_per_obj[key]) > 0:
+                rewards_obj, metadata_obj = fn(
+                    completions_per_obj[key],
+                    metadata_per_obj[key],
+                    debug,
+                    use_pbar,
+                )
+                for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
+                    rewards[i] = r
+                    metadata[i] = m
         self.logger.info(f"Rewards total for given batch: {rewards}")
         return rewards, metadata
 
