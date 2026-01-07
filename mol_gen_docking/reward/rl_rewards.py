@@ -209,7 +209,7 @@ class RewardScorer:
             ]
         if debug:
             self.generation_verifier.debug = True
-        else:
+        elif self._generation_verifier is not None:
             self.generation_verifier.debug = False
         scores, metadata = self.generation_verifier.get_score(
             smiles_per_completion, metadata
