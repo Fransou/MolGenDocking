@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
-#SBATCH --array=0-0
+#SBATCH --array=0-2
 
 export WORKING_DIR=$HOME/MolGenDocking
 
@@ -47,8 +47,8 @@ ray job submit \
    --max_new_tokens 16384 \
    --zero_stage 3 \
    --bf16 \
-   --best_of_n 3 \
-   --rollout_batch_size 10000 \
+   --best_of_n 5 \
+   --rollout_batch_size 5000 \
    --iter $SLURM_ARRAY_TASK_ID \
    --apply_chat_template \
    --dataset $DATA_PATH/eval_concatenated.jsonl \
