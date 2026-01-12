@@ -99,7 +99,7 @@ class RewardScorer:
         reason: str = ""
         if not self.parse_whole_completion:
             matches = re.findall(
-                r"(?:<answer>|<\|answer_start\|>)(.*?)(?:</answer>|<\|answer_end\|>)",
+                r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
                 comp,
                 flags=re.DOTALL,
             )
@@ -108,6 +108,11 @@ class RewardScorer:
             else:
                 comp = ""
                 reason = "no_answer"
+        else:
+            # We just need to not match any special token (which we will assume to be in the format: <...>) so we
+            # replace < and > by spaces
+            comp = re.sub(r"<|>", " ", comp)
+
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
         # Then we filter by removing any string that does not contain "C"

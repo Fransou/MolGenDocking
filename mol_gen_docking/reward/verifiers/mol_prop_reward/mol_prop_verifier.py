@@ -68,4 +68,4 @@ class MolPropVerifier(Verifier):
                     self.logger.error(f"Not a valid objective: {meta['objectives'][0]}")
                     raise NotImplementedError
         self.logger.info(f"Rewards: {rewards}")
-        return rewards, [{} for _ in parsed_answer]
+        return rewards, [{"extracted_answer": y} for y in parsed_answer]
