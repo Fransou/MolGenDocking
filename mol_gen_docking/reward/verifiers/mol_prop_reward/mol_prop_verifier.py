@@ -30,7 +30,7 @@ class MolPropVerifier(Verifier):
                         elif spl.lower() in ["false", "no"]:
                             ys.append(0)
                         else:
-                            if re.match(r"\d+(\.\d+)?", spl):
+                            if re.match(r"(\+|-)?\d+(\.\d+)?", spl):
                                 ys.append(float(spl))
                     if len(ys) == 0:
                         parsed_answer.append(None)
@@ -68,4 +68,4 @@ class MolPropVerifier(Verifier):
                     self.logger.error(f"Not a valid objective: {meta['objectives'][0]}")
                     raise NotImplementedError
         self.logger.info(f"Rewards: {rewards}")
-        return rewards, [{} for _ in parsed_answer]
+        return rewards, [{"extracted_answer": y} for y in parsed_answer]

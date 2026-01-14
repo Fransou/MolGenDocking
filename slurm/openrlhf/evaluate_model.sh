@@ -63,4 +63,5 @@ ray job submit \
 
 python -m mol_gen_docking.score_completions \
     --input_file $2_$SLURM_ARRAY_TASK_ID.jsonl \
-    --batch_size 1024
+    --batch_size 1024 \
+    --mol-generation

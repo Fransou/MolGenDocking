@@ -99,7 +99,7 @@ class RewardScorer:
         reason: str = ""
         if not self.parse_whole_completion:
             matches = re.findall(
-                r"(?:<answer>|<\|answer_start\|>)(.*?)(?:</answer>|<\|answer_end\|>)",
+                r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
                 comp,
                 flags=re.DOTALL,
             )
@@ -108,6 +108,11 @@ class RewardScorer:
             else:
                 comp = ""
                 reason = "no_answer"
+        else:
+            # We just need to not match any special token (which we will assume to be in the format: <...>) so we
+            # replace < and > by spaces
+            comp = re.sub(r"<|>", " ", comp)
+
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces
         # Then we filter by removing any string that does not contain "C"
@@ -209,7 +214,7 @@ class RewardScorer:
             ]
         if debug:
             self.generation_verifier.debug = True
-        else:
+        elif self._generation_verifier is not None:
             self.generation_verifier.debug = False
         scores, metadata = self.generation_verifier.get_score(
             smiles_per_completion, metadata
@@ -303,15 +308,16 @@ class RewardScorer:
         rewards = [0.0 for _ in range(len(metadata))]
         metadata = [{} for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
-            rewards_obj, metadata_obj = fn(
-                completions_per_obj[key],
-                metadata_per_obj[key],
-                debug,
-                use_pbar,
-            )
-            for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
-                rewards[i] = r
-                metadata[i] = m
+            if len(completions_per_obj[key]) > 0:
+                rewards_obj, metadata_obj = fn(
+                    completions_per_obj[key],
+                    metadata_per_obj[key],
+                    debug,
+                    use_pbar,
+                )
+                for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
+                    rewards[i] = r
+                    metadata[i] = m
         self.logger.info(f"Rewards total for given batch: {rewards}")
         return rewards, metadata
 

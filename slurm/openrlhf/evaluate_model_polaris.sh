@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=batch_inference_molgen
 #SBATCH --account=def-ibenayed
-#SBATCH --time=06:00:00
+#SBATCH --time=03:00:00
 #SBATCH --gpus=h100:4
 #SBATCH --mem=248G
 #SBATCH --cpus-per-task=32
@@ -47,8 +47,8 @@ ray job submit \
    --max_new_tokens 16384 \
    --zero_stage 3 \
    --bf16 \
-   --best_of_n 3 \
-   --rollout_batch_size 5000 \
+   --best_of_n 5 \
+   --rollout_batch_size 15000 \
    --iter $SLURM_ARRAY_TASK_ID \
    --apply_chat_template \
    --dataset $DATA_PATH/eval_concatenated.jsonl \

@@ -281,8 +281,13 @@ class PandasTableFormatter:
             for c in df_agg.columns
             if c[-1] in special_format_agg
         }
-        if remove_col_names:
-            df_agg.columns = df_agg.columns.set_names([None, None, None])
+        if remove_col_names and len(df_agg.columns.names) > 0:
+            df_agg.columns = df_agg.columns.set_names(
+                [
+                    None,
+                ]
+                * len(df_agg.columns.names)
+            )
 
         if row_order is not None:
             df_agg = df_agg.loc[row_order]
@@ -290,7 +295,6 @@ class PandasTableFormatter:
             formatter,  # type: ignore
             precision=self.n_decimals,
         )
-
         # Apply the highlight function to the specified columns
         for i in range(1, k + 1):
             style.apply(

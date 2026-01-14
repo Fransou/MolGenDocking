@@ -26,7 +26,6 @@ ray start --head
 
 export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
-export parse_whole_completion=true
 
 python -m mol_gen_docking.score_completions \
     --input_file $1 \

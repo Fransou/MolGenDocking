@@ -3,9 +3,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal
 
-import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 from polaris.hub.client import PolarisHubClient
 from tqdm import tqdm
 
@@ -13,6 +11,7 @@ from mol_gen_docking.data.pydantic_dataset import (
     Conversation,
     Message,
     Sample,
+    read_jsonl,
     write_jsonl,
 )
 
@@ -76,7 +75,7 @@ def data_dict_to_pydantic(
 
 
 POLARIS_DATASET_PROP_NAME = {
-    "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (SARS-CoV-2 Mpro)": "pIC50 against SARS-CoV-2 main protease",
+    # "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (SARS-CoV-2 Mpro)": "pIC50 against SARS-CoV-2 main protease",
     "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (MERS-CoV Mpro)": "pIC50 against MERS-CoV main protease",
     # "leash-bio/belka-v1|molecule_smiles|binds_HSA": "binding to HSA",
     # "leash-bio/belka-v1|molecule_smiles|binds_sEH": "binding to sEH",
@@ -171,12 +170,20 @@ def polaris_iterator(
     smiles_key: str | None = None,
     key: str | None = None,
     downscale: float = 1.0,
+    label: bool = True,
 ) -> Iterator[Any]:
     if type == "benchmark":
-        for smiles, y in dataset:
-            if downscale < 1 and np.random.random() < downscale:
-                continue
-            yield smiles, y
+        if label:
+            for smiles, y in dataset:
+                if downscale < 1 and np.random.random() < downscale:
+                    continue
+                yield smiles, y
+        else:
+            for smiles in dataset:
+                if downscale < 1 and np.random.random() < downscale:
+                    continue
+                yield smiles, 0.0
+
     elif type == "dataset":
         for i in range(dataset.size()[0]):
             if downscale < 1 and np.random.random() > downscale:
@@ -232,7 +239,7 @@ if __name__ == "__main__":
         if len(property_dataset_k_split) == 1:
             property_dataset = property_dataset_k
             benchmark = po.load_benchmark(property_dataset)
-            train, test = benchmark.get_train_test_split()
+            data = list(benchmark.get_train_test_split())
             dataset_type = "benchmark"
             obj: str
             targettype = list(benchmark.target_types.values())[0]
@@ -248,7 +255,7 @@ if __name__ == "__main__":
             smiles_key = property_dataset_k_split[1]
             key = property_dataset_k_split[2]
             dataset_type = "dataset"
-            train = po.load_dataset(property_dataset)
+            data = [po.load_dataset(property_dataset)]
             if property_dataset_k in DATASETS_CLS:
                 obj = "classification"
             else:
@@ -257,88 +264,109 @@ if __name__ == "__main__":
         else:
             raise NotImplementedError(f"{property_dataset_k_split} not covered")
 
-        for i, (smiles, y) in tqdm(
-            enumerate(
-                polaris_iterator(
-                    train,
-                    dataset_type,
-                    smiles_key=smiles_key,
-                    key=key,
-                    downscale=DOWNSCALE.get(property_dataset_k, 1.0),
+        for split, split_name in zip(data, ["train", "test"]):
+            print(property_dataset, split_name)
+            for i, (smiles, y) in tqdm(
+                enumerate(
+                    polaris_iterator(
+                        split,
+                        dataset_type,
+                        smiles_key=smiles_key,
+                        key=key,
+                        downscale=DOWNSCALE.get(property_dataset_k, 1.0),
+                        label=split_name == "train",
+                    )
+                ),
+                total=len(split),
+            ):
+                if smiles is None:
+                    continue
+                prop_name = POLARIS_DATASET_PROP_NAME[property_dataset_k]
+                y = float(y)
+                if REGRESSION_TRANSFORMER.get(property_dataset, None) == "log":
+                    y = np.log(y)
+                    prop_name = "log-" + prop_name
+                elif property_dataset in REGRESSION_TRANSFORMER:
+                    raise NotImplementedError(
+                        f"{REGRESSION_TRANSFORMER[property_dataset]} not covered"
+                    )
+
+                template = np.random.choice(PROMPT_TEMPLATES[obj])
+                prompt_text = template.format(mol=smiles, property=prop_name)
+                prompt = [
+                    {
+                        "role": "system",
+                        "content": SYSTEM_PROMPT,
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt_text,
+                    },
+                ]
+                data_dict["prompt"].append(prompt)
+                data_dict["properties"].append([property_dataset])
+                data_dict["objectives"].append([obj])
+                data_dict["target"].append([y])
+                data_dict["smiles"].append([smiles])
+                data_dict["prompt_id"].append(
+                    f"{property_dataset.replace('/', ':')}_{split_name}_{i}"
                 )
-            ),
-            total=len(train),
-        ):
-            if smiles is None:
-                continue
-            prop_name = POLARIS_DATASET_PROP_NAME[property_dataset_k]
-            y = float(y)
-            if REGRESSION_TRANSFORMER.get(property_dataset, None) == "log":
-                y = np.log(y)
-                prop_name = "log-" + prop_name
-            elif property_dataset in REGRESSION_TRANSFORMER:
-                raise NotImplementedError(
-                    f"{REGRESSION_TRANSFORMER[property_dataset]} not covered"
-                )
+                final_ys.append(y)
 
-            template = np.random.choice(PROMPT_TEMPLATES[obj])
-            prompt_text = template.format(mol=smiles, property=prop_name)
-            prompt = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": prompt_text,
-                },
-            ]
-            data_dict["prompt"].append(prompt)
-            data_dict["properties"].append([property_dataset])
-            data_dict["objectives"].append([obj])
-            data_dict["target"].append([y])
-            data_dict["smiles"].append([smiles])
-            data_dict["prompt_id"].append(
-                f"{property_dataset.replace('/', ':')}_train_{i}"
-            )
-            final_ys.append(y)
-        n_tot = len(data_dict["prompt"])
-        n_train = int(len(data_dict["prompt"]) * 0.8)
-        idx_train = np.random.choice(n_tot, n_train, replace=False)
-        idx_val = [idx for idx in range(n_tot) if idx not in idx_train]
-
-        pydantic_dataset = data_dict_to_pydantic(data_dict, final_ys=final_ys)
-
-        train_dataset = [pydantic_dataset[i] for i in idx_train]
-        val_dataset = [pydantic_dataset[i] for i in idx_val]
-
-        os.makedirs(os.path.join(args.data_path, "polaris"), exist_ok=True)
-        data_path = os.path.join(args.data_path, "polaris")
-        for p in property_dataset.split("/"):
-            os.makedirs(os.path.join(data_path, p), exist_ok=True)
-            data_path = os.path.join(data_path, p)
-        if key is not None:
-            data_path = os.path.join(data_path, key)
+            data_path = os.path.join(args.data_path, "polaris")
             os.makedirs(data_path, exist_ok=True)
-        write_jsonl(
-            Path(os.path.join(data_path, "train.jsonl")),
-            train_dataset,
-        )
-        write_jsonl(
-            Path(os.path.join(data_path, "eval.jsonl")),
-            train_dataset,
-        )
-        length[property_dataset] = len(train_dataset)
+            for p in property_dataset.split("/"):
+                os.makedirs(os.path.join(data_path, p), exist_ok=True)
+                data_path = os.path.join(data_path, p)
+            if key is not None:
+                data_path = os.path.join(data_path, key)
+                os.makedirs(data_path, exist_ok=True)
 
-        # Plot some stats about the data
-        sns.histplot(final_ys)
-        plt.title(
-            property_dataset
-            + "\n"
-            + train_dataset[0].conversations[0].messages[1].content.replace(":", "\n"),
-            fontdict={"fontsize": 7},
-        )
-        plt.show()
+            n_tot = len(data_dict["prompt"])
+            n_train = int(len(data_dict["prompt"]) * 0.8)
+            if split_name == "train":
+                main_path = Path(os.path.join(data_path, "train.jsonl"))
+                if main_path.exists():
+                    train_dataset = read_jsonl(main_path)
+                    idx_train = [
+                        int(sample.identifier.split("_")[-1])
+                        for sample in train_dataset
+                    ]
+                else:
+                    idx_train = np.random.choice(n_tot, n_train, replace=False).tolist()
+                idx_val = [idx for idx in range(n_tot) if idx not in idx_train]
+
+                pydantic_dataset = data_dict_to_pydantic(data_dict, final_ys=final_ys)
+
+                train_dataset = [pydantic_dataset[i] for i in idx_train]
+                val_dataset = [pydantic_dataset[i] for i in idx_val]
+
+                if not main_path.exists():
+                    write_jsonl(
+                        main_path,
+                        train_dataset,
+                    )
+                write_jsonl(
+                    Path(os.path.join(data_path, "eval.jsonl")),
+                    val_dataset,
+                )
+            else:
+                main_path = Path(os.path.join(data_path, "test.jsonl"))
+                write_jsonl(
+                    main_path,
+                    val_dataset,
+                )
+            length[property_dataset] = len(train_dataset)
+
+            # Plot some stats about the data
+            # sns.histplot(final_ys)
+            # plt.title(
+            #     property_dataset
+            #     + "\n"
+            #     + train_dataset[0].conversations[0].messages[1].content.replace(":", "\n"),
+            #     fontdict={"fontsize": 7},
+            # )
+            # plt.show()
 
     print("#" * 10)
     print("All length: {}".format("\n".join([f"{k}:{v}" for k, v in length.items()])))
