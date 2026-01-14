@@ -30,7 +30,7 @@ class MolPropVerifier(Verifier):
                         elif spl.lower() in ["false", "no"]:
                             ys.append(0)
                         else:
-                            if re.match(r"\d+(\.\d+)?", spl):
+                            if re.match(r"(\+|-)?\d+(\.\d+)?", spl):
                                 ys.append(float(spl))
                     if len(ys) == 0:
                         parsed_answer.append(None)
