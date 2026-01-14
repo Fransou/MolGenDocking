@@ -12,6 +12,9 @@ from tqdm import tqdm
 
 from mol_gen_docking.reward.diversity_aware_top_k import diversity_aware_top_k
 
+tqdm.pandas()
+
+
 RDLogger.DisableLog("rdApp.*")
 
 
@@ -86,6 +89,7 @@ def fp_name_to_fn(
         - maccs
         - rdkit
         - Gobbi2d
+        -
         - Avalon
     """
 
@@ -128,7 +132,9 @@ def fp_name_to_fn(
         raise ValueError(f"Unknown fingerprint name: {fp_name}")
 
 
-def agg_topk(k: int = 100, n_rollout: int = 2) -> Callable[[pd.Series], float]:
+def agg_topk(
+    k: int = 100, n_rollout: int = 2, pbar: None | tqdm = None
+) -> Callable[[pd.Series], float]:
     def w_fn(x: pd.Series) -> float:
         # print(len(x))
         x = x[:n_rollout]
@@ -136,31 +142,41 @@ def agg_topk(k: int = 100, n_rollout: int = 2) -> Callable[[pd.Series], float]:
         # Pad with 0s
         x_np = np.pad(x, (0, 100), "constant")
         out_val: float = x_np[:k].mean()
+        if pbar is not None:
+            pbar.update(1)
         return out_val
 
     return w_fn
 
 
-def uniqueness_(k: int = 100) -> Callable[[pd.Series], float]:
+def uniqueness_(k: int = 100, pbar: None | tqdm = None) -> Callable[[pd.Series], float]:
     def w_fn(x: pd.Series) -> float:
         x = x[:k]
         tot = len(x)
+        if pbar is not None:
+            pbar.update(1)
         return len(x.drop_duplicates()) / tot
 
     return w_fn
 
 
 def tanim_sim_(
-    k: int = 100, fp_name: str = "ecfp4-2048"
+    k: int = 100,
+    fp_name: str = "ecfp4-2048",
+    is_fp: bool = False,
+    pbar: None | tqdm = None,
 ) -> Callable[[pd.Series], float]:
     fp_fn = fp_name_to_fn(fp_name)
 
     def w_fn(x: pd.Series) -> float:
         x = x[:k]
         if len(x) == 1:
-            return 1.0
-        mols = [Chem.MolFromSmiles(smi) for smi in x]
-        fps = [fp_fn(m) for m in mols]
+            return 0.0
+        if not is_fp:
+            mols = [Chem.MolFromSmiles(smi) for smi in x]
+            fps = [fp_fn(m) for m in mols]
+        else:
+            fps = x.to_list()
         # Compute pairwise tanimoto similarity
         dist = [
             1 - np.array(DataStructs.BulkTanimotoSimilarity(fp, fps[i + 1 :]))
@@ -171,18 +187,25 @@ def tanim_sim_(
         for i in range(dist_npy.shape[0]):
             dist_npy[i, i] = np.nan
         out_val: float = np.nanmean(dist_npy, axis=0).mean()
+        if pbar is not None:
+            pbar.update(1)
         return out_val
 
     return w_fn
 
 
-def aggregate_molgen_fn(fn_name: str, k: int, **kwargs: Any) -> Callable:
+def aggregate_molgen_fn(
+    fn_name: str, k: int, pbar: None | tqdm = None, **kwargs: Any
+) -> Callable:
     if fn_name == "topk":
-        return agg_topk(k=k, **kwargs)
+        return agg_topk(k=k, pbar=pbar, **kwargs)
     elif fn_name == "uniqueness":
-        return uniqueness_(k=k)
-    elif fn_name == "murcko_sim":
-        return tanim_sim_(k=k, **kwargs)
+        return uniqueness_(
+            k=k,
+            pbar=pbar,
+        )
+    elif fn_name == "diversity":
+        return tanim_sim_(k=k, pbar=pbar, **kwargs)
     raise ValueError(f"Unknown fn_name: {fn_name}")
 
 
@@ -190,78 +213,82 @@ def aggregate_molgen_fn(fn_name: str, k: int, **kwargs: Any) -> Callable:
 
 
 def sim_topk(
-    k: int = 100, div: float = 0.7, n_rollout: int = 100, fp_name: str = "ecfp4-2048"
-) -> Callable[[pd.DataFrame], float]:
-    fp_fn = fp_name_to_fn(fp_name)
-
-    def w_fn(df: pd.DataFrame) -> float:
-        x = df["smiles"].to_numpy()[:n_rollout]
+    k: int = 100, sim: float = 0.7, n_rollout: int = 100, fp_name: str = "ecfp4-2048"
+) -> Callable[[pd.DataFrame], List[float]]:
+    def w_fn(df: pd.DataFrame) -> List[float]:
+        fps = df[f"fp-{fp_name}"].to_numpy()[:n_rollout]
         rewards = df["reward"].to_numpy()[:n_rollout]
 
-        if len(x) == 1:
+        if len(fps) == 1:
             cluster_rewards = [rewards[0]]
         else:
-            mols = [Chem.MolFromSmiles(smi) for smi in x]
-            fps = [fp_fn(m) for m in mols]
             # Compute pairwise tanimoto similarity
             dist_l = [
                 1 - np.array(DataStructs.BulkTanimotoSimilarity(fp, fps[i + 1 :]))
                 for i, fp in enumerate(fps[:-1])
             ]
             dist = np.concatenate(dist_l)
-            idxs = diversity_aware_top_k(dist=dist, weights=rewards, k=k, t=div)
+            idxs = diversity_aware_top_k(dist=dist, weights=rewards, k=k, t=1 - sim)
             cluster_rewards = [rewards[i] for i in idxs]
         cluster_rewards_npy = np.array(cluster_rewards)
         cluster_rewards_npy = np.sort(cluster_rewards_npy)[::-1]
         cluster_rewards_npy = np.pad(cluster_rewards_npy, (0, k), "constant")[:k]
-        out_val: float = cluster_rewards_npy.mean()
-        return out_val
+
+        # Average reward in the topk (div_top_k[k] = top-k score)
+        div_top_k: List[float] = (
+            cluster_rewards_npy.cumsum() / np.ones_like(cluster_rewards_npy).cumsum()
+        ).tolist()
+        return div_top_k
 
     return w_fn
 
 
+SIM_VALUES_DEF = [0.01] + [0.05 * i for i in range(1, 20)] + [0.99]
+
+
 def get_top_k_div_df(
     df: pd.DataFrame,
-    div_values: List[float] = [0.01, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+    sim_values: List[float] = SIM_VALUES_DEF,
     rollouts: List[int] = [50, 75, 100],
-    ks: List[int] = [5, 10, 20, 30],
+    k_max: int = 30,
     fp_name: str = "ecfp4-2048",
 ) -> pd.DataFrame:
     div_clus_df_list = []
-
-    pbar = tqdm(total=len(div_values) * len(rollouts) * len(ks))
-    for div in div_values:
+    if f"fp-{fp_name}" not in df.columns:
+        fp_fn = fp_name_to_fn(fp_name)
+        df[f"fp-{fp_name}"] = df["smiles"].progress_apply(
+            lambda x: fp_fn(Chem.MolFromSmiles(x))
+        )
+    pbar = tqdm(total=len(sim_values) * len(rollouts))
+    for sim in sim_values:
         for n_rollout in rollouts:
-            new_pbar_desc = f"div: {div}, n_rollout: {n_rollout}"
+            new_pbar_desc = f"sim: {sim}, n_rollout: {n_rollout}"
             pbar.set_description(new_pbar_desc)
             pbar.refresh()
-            for k in ks:
-                div_clus_df_single = (
-                    df.groupby(["model", "prompt_id"])
-                    .apply(sim_topk(k=k, div=div, n_rollout=n_rollout, fp_name=fp_name))
-                    .to_frame("value")
-                    .reset_index()
-                )
-                div_clus_df_single["k"] = k
-                div_clus_df_single["n_rollout"] = n_rollout
-                div_clus_df_single["div"] = div
-                div_clus_df_list.append(div_clus_df_single)
-                pbar.update(1)
+            div_clus_df_single = (
+                df.groupby(["Model", "prompt_id"])
+                .apply(sim_topk(k=k_max, sim=sim, n_rollout=n_rollout, fp_name=fp_name))
+                .to_frame("value")
+                .reset_index()
+            )
+            div_clus_df_single["k"] = df.Model.apply(
+                lambda x: [i + 1 for i in range(k_max)]
+            )
+            div_clus_df_single["n_rollout"] = n_rollout
+            div_clus_df_single["sim"] = sim
+
+            div_clus_df_single = div_clus_df_single.explode(["k", "value"]).reset_index(
+                drop=True
+            )
+            div_clus_df_list.append(div_clus_df_single)
+            pbar.update(1)
     pbar.close()
 
     div_clus_df = pd.concat(div_clus_df_list).reset_index()
     div_clus_df = (
-        div_clus_df.groupby(["model", "n_rollout", "div", "k"])["value"]
+        div_clus_df.groupby(["Model", "n_rollout", "sim", "k"])["value"]
         .mean()
         .reset_index()
-    )
-    div_clus_df["sim"] = 1 - div_clus_df["div"]
-    div_clus_df["Model"] = div_clus_df["model"].apply(
-        lambda x: re.sub(r"-\d+(B|b)", "", x[:-1])
-        .replace("-2507", "")
-        .replace("Distill", "D.")
-        .replace("-it", "")
-        .replace("Thinking", "Think.")
     )
 
     return div_clus_df
