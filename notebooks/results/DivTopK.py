@@ -28,7 +28,7 @@ files = [
 ]
 files = sorted(files)
 print("Total files:", len(files))
-df = load_molgen_results(files[:])
+df = load_molgen_results(files)
 
 sub_sample_prompts = df[df.model == "MiniMax-M2_"].prompt_id.unique()[:]
 df = df[df.prompt_id.isin(sub_sample_prompts)]
@@ -55,6 +55,7 @@ def plot_div_topk(
     column_name: str = "k",
     xlabel: str = "Similarity threshold between candidate clusters",
     xlabel_x: float = 0.3,
+    ylabel_x: float = -0.01,
     legend_bbox: tuple[float, float] = (0.3, -0.2),
     legend_ncols: int = 4,
     **kwargs: Any,
@@ -62,80 +63,62 @@ def plot_div_topk(
     def draw(data: pd.DataFrame, **kwargs: Any) -> None:
         # Separate highlighted and non-highlighted models
         highlighted_data = data[data["Model"].isin(HIGHLIGHT_MODELS)]
-        non_highlighted_data = data[~data["Model"].isin(HIGHLIGHT_MODELS)]
-
-        # Draw non-highlighted models with normal styling
-        if len(non_highlighted_data) > 0:
-            sns.lineplot(
-                non_highlighted_data,
+        kwargs.update(
+            dict(
                 x=x,
                 y="value",
                 hue="Model",
-                sizes=1,
-                alpha=0.7,
+                dashes=False,
                 palette=CMAP_MODELS,
                 hue_order=CMAP_MODELS.keys(),
-                dashes=False,
-                legend=legend,
-                linewidth=1.0,
-                **kwargs,
             )
-            sns.lineplot(
-                non_highlighted_data.iloc[2::3],
-                x=x,
-                y="value",
-                hue="Model",
-                style="Model",
-                sizes=1,
-                alpha=0.7,
-                palette=CMAP_MODELS,
-                hue_order=CMAP_MODELS.keys(),
-                markers=MARKER_MODELS,
-                dashes=False,
-                legend=legend,
-                markersize=4.0,
-                linewidth=0.0,
-                markeredgewidth=0.0,
-                **kwargs,
-            )
+        )
+        sns.lineplot(
+            data,
+            sizes=1,
+            alpha=0.7,
+            linewidth=1.0,
+            legend=False,
+            **kwargs,
+        )
+        sns.lineplot(
+            data.iloc[2::3],
+            style="Model",
+            sizes=1,
+            alpha=0.7,
+            markers=MARKER_MODELS,
+            markersize=4.0,
+            linewidth=0.0,
+            markeredgewidth=0.0,
+            legend=legend,
+            **kwargs,
+        )
 
         # Draw highlighted models with enhanced styling (thicker lines, larger markers)
         if len(highlighted_data) > 0:
             sns.lineplot(
                 highlighted_data,
-                x=x,
-                y="value",
-                hue="Model",
                 sizes=1,
                 alpha=1,
-                palette=CMAP_MODELS,
-                hue_order=HIGHLIGHT_MODELS,
-                dashes=False,
-                legend=legend,
                 linewidth=1.4,
+                legend=False,
                 **kwargs,
             )
             sns.lineplot(
                 highlighted_data.iloc[2::3],
-                x=x,
-                y="value",
-                hue="Model",
                 style="Model",
                 sizes=1,
                 alpha=1,
-                palette=CMAP_MODELS,
-                hue_order=HIGHLIGHT_MODELS,
                 markers=MARKER_MODELS,
-                dashes=False,
-                legend=legend,
                 markersize=4.8,
                 linewidth=0.0,
                 markeredgewidth=0.0,
+                legend=False,
                 **kwargs,
             )
 
     div_clus_df = get_top_k_div_df(
-        df[df.prompt_id.isin(sub_sample_prompts[:5])], fp_name=fp_name, **kwargs
+        df[df.prompt_id.isin(sub_sample_prompts[:])], fp_name=fp_name, **kwargs
     )
     if cols_vals is not None:
         div_clus_df = div_clus_df[div_clus_df[col].isin(cols_vals)]
@@ -148,6 +131,7 @@ def plot_div_topk(
         margin_titles=True,
         height=1.5,
         aspect=1.7,
+        gridspec_kws={"wspace": 0.05, "hspace": 0.05},
     )
     g.map_dataframe(draw)
     # Add legend to the top right
@@ -159,7 +143,7 @@ def plot_div_topk(
         row_template="$n_r$={row_name}", col_template=column_name + "={col_name}"
     )
     g.fig.supxlabel(xlabel, y=0.0, x=xlabel_x)
-    g.fig.supylabel("Diversity-Aware Top-k Score", x=0.04)
+    g.fig.supylabel("Diversity-Aware Top-k Score", x=ylabel_x)
     if legend:
         g.add_legend(
             title="Model",
@@ -171,7 +155,7 @@ def plot_div_topk(
         )
     # Add grid
     for ax in g.axes.flatten():
-        ax.grid(True, which="both", linestyle="--", linewidth=0.05, alpha=0.3)
+        ax.grid(True, which="both", linestyle="--", linewidth=0.05, alpha=0.5)
     return g
 
 
@@ -192,7 +176,8 @@ if __name__ == "__main__":
             20,
         ],
         legend=True,
-        xlabel_x=0.3,
+        xlabel_x=0.33,
+        ylabel_x=0.08,
         legend_bbox=(0.3, -0.2),
         **common_kwargs,
     )
