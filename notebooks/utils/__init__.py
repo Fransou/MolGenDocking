@@ -9,35 +9,60 @@ from .molgen_utils import (
 from .molprop_utils import load_molprop_results
 from .pandas_to_latex import PandasTableFormatter
 
+N_COLORS = 13
 CMAP_MODELS = {
     # Chem models — muted reds
-    "ChemDFM-R": sns.color_palette("husl", n_colors=11)[0],
-    "ChemDFM-v2.0": sns.color_palette("husl", n_colors=11)[1],
-    "ether0": sns.color_palette("husl", n_colors=11)[2],
-    # Reasoning models — cool blues / teals
-    "Qwen3-A3B-Think.": sns.color_palette("husl", n_colors=11)[4],
-    "gpt-oss": sns.color_palette("husl", n_colors=11)[5],
-    "DeepSeek-R1-D.-Llama": sns.color_palette("husl", n_colors=11)[6],
-    "DeepSeek-R1-D.-Qwen": sns.color_palette("husl", n_colors=11)[7],
-    # Non-reasoning models — warm greens / golds
-    "Llama-3.3-Instruct": sns.color_palette("husl", n_colors=11)[8],
-    "gemma-3": sns.color_palette("husl", n_colors=11)[9],
+    "ChemDFM-R": sns.color_palette("husl", n_colors=N_COLORS)[0],
+    "ChemDFM-v2.0": sns.color_palette("husl", n_colors=N_COLORS)[1],
+    "ether0": sns.color_palette("husl", n_colors=N_COLORS)[2],
 }
+
+CMAP_MODELS.update(
+    {
+        # Reasoning models — cool blues / teals
+        "MiniMax-M2": sns.color_palette("husl", n_colors=N_COLORS)[
+            len(CMAP_MODELS) + 1
+        ],
+        "Qwen3-Think.": sns.color_palette("husl", n_colors=N_COLORS)[
+            len(CMAP_MODELS) + 2
+        ],
+        "Qwen3-Next-Think.": sns.color_palette("husl", n_colors=N_COLORS)[
+            len(CMAP_MODELS) + 3
+        ],
+        "gpt-oss": sns.color_palette("husl", n_colors=N_COLORS)[len(CMAP_MODELS) + 4],
+        "R1-Llama": sns.color_palette("husl", n_colors=N_COLORS)[len(CMAP_MODELS) + 5],
+        "R1-Qwen": sns.color_palette("husl", n_colors=N_COLORS)[len(CMAP_MODELS) + 6],
+    }
+)
+
+CMAP_MODELS.update(
+    {
+        # Non-reasoning models — warm greens / golds
+        "Llama-3.3": sns.color_palette("husl", n_colors=N_COLORS)[len(CMAP_MODELS) + 1],
+        "gemma-3": sns.color_palette("husl", n_colors=N_COLORS)[len(CMAP_MODELS) + 2],
+    }
+)
 MARKER_MODELS = {
     # Chem models
     "ChemDFM-R": "^",  # triangle up
     "ChemDFM-v2.0": "o",  # circle
     "ether0": "v",  # triangle down
     # Reasoning models
-    "Qwen3-A3B-Think.": "s",  # square
+    "MiniMax-M2": "h",  # hexagon
+    "Qwen3-Think.": "s",  # square
+    "Qwen3-Next-Think.": "^",  # triangle up
     "gpt-oss": "D",  # diamond
-    "DeepSeek-R1-D.-Llama": "P",  # filled plus
-    "DeepSeek-R1-D.-Qwen": "X",  # filled x
+    "R1-Llama": "P",  # filled plus
+    "R1-Qwen": "X",  # filled x
     # Non-reasoning models
-    "Llama-3.3-Instruct": "p",  # pentagon
+    "Llama-3.3": "p",  # pentagon
     "gemma-3": "*",  # star
 }
 
+HIGHLIGHT_MODELS = [
+    "ChemDFM-R",
+    "MiniMax-M2",
+]
 
 __all__ = [
     "PandasTableFormatter",

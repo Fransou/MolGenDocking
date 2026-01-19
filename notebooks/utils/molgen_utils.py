@@ -1,16 +1,18 @@
 import json
-import re
 from pathlib import Path
 from typing import Any, Callable, List
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from rdkit import Chem, DataStructs, RDLogger
 from rdkit.Chem import AllChem
 from scipy.spatial.distance import squareform
 from tqdm import tqdm
 
 from mol_gen_docking.reward.diversity_aware_top_k import diversity_aware_top_k
+
+from .utils import process_model_name
 
 tqdm.pandas()
 
@@ -65,15 +67,7 @@ def load_molgen_results(
                 )
 
     df = pd.DataFrame(generations)
-
-    df["Model"] = df["model"].apply(
-        lambda x: re.sub(r"-\d+(B|b)", "", x[:-1])
-        .replace("-2507", "")
-        .replace("Distill", "D.")
-        .replace("-it", "")
-        .replace("Thinking", "Think.")
-    )
-
+    df["Model"] = df["model"].apply(process_model_name)
     return df
 
 
@@ -133,14 +127,19 @@ def fp_name_to_fn(
 
 
 def agg_topk(
-    k: int = 100, n_rollout: int = 2, pbar: None | tqdm = None
-) -> Callable[[pd.Series], float]:
-    def w_fn(x: pd.Series) -> float:
+    k: int = 100,
+    n_rollout: int = 2,
+    by: str = "reward",
+    by_dupl: str = "smiles",
+    pbar: None | tqdm = None,
+) -> Callable[[pd.DataFrame], float]:
+    def w_fn(sub_df: pd.DataFrame) -> float:
         # print(len(x))
-        x = x[:n_rollout]
-        x = x.sort_values(ascending=False)
+        sub_df = sub_df[:n_rollout]
+        sub_df = sub_df.sort_values(by=by, ascending=False)
+        sub_df = sub_df.drop_duplicates(subset=by_dupl)
         # Pad with 0s
-        x_np = np.pad(x, (0, 100), "constant")
+        x_np = np.pad(sub_df[by].to_numpy(), (0, k + 1), "constant")
         out_val: float = x_np[:k].mean()
         if pbar is not None:
             pbar.update(1)
@@ -246,6 +245,17 @@ def sim_topk(
 SIM_VALUES_DEF = [0.01] + [0.05 * i for i in range(1, 20)] + [0.99]
 
 
+def compute_fps(fp_name: str, df: pd.DataFrame) -> pd.DataFrame:
+    # Compute fingerprints for all molecules in the dataframe with multiprocessing
+    fp_fn = fp_name_to_fn(fp_name)
+    fps = Parallel(n_jobs=8)(
+        delayed(fp_fn)(Chem.MolFromSmiles(smi))
+        for smi in tqdm(df["smiles"], desc="Computing fingerprints")
+    )
+    df[f"fp-{fp_name}"] = fps
+    return df
+
+
 def get_top_k_div_df(
     df: pd.DataFrame,
     sim_values: List[float] = SIM_VALUES_DEF,
@@ -255,10 +265,7 @@ def get_top_k_div_df(
 ) -> pd.DataFrame:
     div_clus_df_list = []
     if f"fp-{fp_name}" not in df.columns:
-        fp_fn = fp_name_to_fn(fp_name)
-        df[f"fp-{fp_name}"] = df["smiles"].progress_apply(
-            lambda x: fp_fn(Chem.MolFromSmiles(x))
-        )
+        df = compute_fps(fp_name, df)
     pbar = tqdm(total=len(sim_values) * len(rollouts))
     for sim in sim_values:
         for n_rollout in rollouts:
