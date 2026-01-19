@@ -1,10 +1,11 @@
 import json
-import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
+from .utils import process_model_name
 
 PROP_NAME = {
     # ASAP
@@ -67,7 +68,9 @@ def load_molprop_results(
                         0.0
                         if not valid
                         else np.clip(
-                            1 - ((float(extracted) - target) / norm_var) ** 2, -1, 1
+                            1 - ((float(extracted) - target) / norm_var) ** 2,
+                            a_max=1,
+                            a_min=-100,
                         )
                     )
                 else:
@@ -96,23 +99,5 @@ def load_molprop_results(
     df = pd.DataFrame(generations)
     df["gen_id"] = df.index % 3
 
-    def find_valid_reward(values: pd.Series) -> float:
-        valid_ansers = [x for x in values if not x < 0]
-        if len(valid_ansers) == 0:
-            return 0.0
-        out_val: float = np.mean(valid_ansers)
-        return out_val
-
-    df["agg_reward@5"] = df.reward - ~df.validity
-    df["agg_reward@5"] = df.groupby(["model", "Task", "prompt_id"])[
-        "agg_reward@5"
-    ].transform(find_valid_reward)
-    df["Model"] = df["model"].apply(
-        lambda x: re.sub(r"-\d+(B|b)", "", x)
-        .replace("-2507", "")
-        .replace("Distill", "D.")
-        .replace("-it", "")
-        .replace("Thinking", "Think.")
-    )
-    df["Model"] = df["Model"].apply(lambda x: x.replace("_", ""))
+    df["Model"] = df["model"].apply(process_model_name)
     return df

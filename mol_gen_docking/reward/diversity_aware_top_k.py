@@ -1,23 +1,7 @@
-import math
 from typing import List
 
 import numpy as np
-
-
-def squareform_ij(n: int, i: int, j: int) -> int:
-    """
-    Returns the index in the condensed distance matrix for the pair (i, j)
-    :param n: Number of elements
-    :param i: First index
-    :param j: Second index
-    :return: Index in the condensed distance matrix
-    """
-    if i == j:
-        return 0
-    if i > j:
-        i, j = j, i
-    idx = math.comb(n, 2) - math.comb(n - i, 2) + (j - i - 1)
-    return idx
+from scipy.spatial.distance import squareform
 
 
 def diversity_aware_top_k(
@@ -38,11 +22,13 @@ def diversity_aware_top_k(
     )
     selected: List[int] = []
     sorted_indices = np.argsort(-weights)  # Sort indices by descending weights
+    dist = dist < t  # Convert to boolean matrix for distance thresholding
+    dist_mat = squareform(dist)
 
     for idx in sorted_indices:
         if len(selected) >= k:
             break
-        is_idx_too_close = any(dist[squareform_ij(n, idx, k)] < t for k in selected)
+        is_idx_too_close = dist_mat[idx, selected].any() if selected else False
         if not is_idx_too_close:
             selected.append(idx)
     return np.array(selected)

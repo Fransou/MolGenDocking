@@ -18,6 +18,7 @@ class PandasTableFormatter:
         hide_agg_labels: bool = True,
         already_rotated: bool = False,
         global_agg: bool = True,
+        color_mapping: Union[Callable[[float], str], None] = None,
     ):
         """
         PandasTableFormatter is a class that formats a Pandas DataFrame into a LaTeX
@@ -28,12 +29,16 @@ class PandasTableFormatter:
         will be the one highlighted in the latex table.
 
         If main_subset is specified, a column ($NAME, agg$) will be created with the aggregation method
+
+        :param color_mapping: Optional callable that takes a float value and returns a color string (e.g., '#FF5733').
+                            This function will be applied to each cell to assign background colors based on values.
         """
         self.n_decimals = n_decimals
         self.aggregation_methods = aggregation_methods
         self.hide_agg_labels = hide_agg_labels
         self.already_rotated = already_rotated
         self.global_agg = global_agg
+        self.color_mapping = color_mapping
 
         for agg in self.aggregation_methods:
             if not isinstance(agg, str) and not callable(agg):
@@ -73,10 +78,33 @@ class PandasTableFormatter:
 
         :return: A list of strings with the highlighted values.
         """
-        ps = np.where(s == fn(s), True, False)
-        for _ in range(1, k):
-            ps = np.where(s == fn(s[~ps]), True, False)
-        return [props if p else "" for p in ps]
+        ps_list = [np.where(s == fn(s), True, False)]
+        for i in range(1, k):
+            previous_ps = np.concatenate(ps_list).reshape(i, -1).any(axis=0)
+            ps_list.append(np.where(s == fn(s[~previous_ps]), True, False))
+        return [props if p else "" for p in ps_list[-1]]
+
+    def _apply_color_mapping(self, s: np.ndarray | pd.Series) -> List[str]:
+        """
+        Apply color mapping to a series of values based on the color_mapping function.
+
+        :param s: The input array or series to be processed.
+        :return: A list of CSS background-color properties for each value.
+        """
+        if self.color_mapping is None:
+            return [""] * len(s)
+
+        colors = []
+        for val in s:
+            if pd.isna(val):
+                colors.append("")
+            else:
+                try:
+                    color = self.color_mapping(float(val))
+                    colors.append(f"background-color: {color};")
+                except (ValueError, TypeError):
+                    colors.append("")
+        return colors
 
     def _aggregate_results_and_pivot(
         self,
@@ -301,6 +329,10 @@ class PandasTableFormatter:
                 partial(self._find_k_th_fn, fn=highlight_fn, k=i, props=props[i - 1]),
                 subset=([c for c in df_agg.columns if c[-1] == self.main_agg]),
             )
+
+        # Apply color mapping to all cells if color_mapping is provided
+        if self.color_mapping is not None:
+            style.apply(self._apply_color_mapping)
 
         if self.hide_agg_labels:
             style = style.hide(axis="columns", level=df_agg.columns.nlevels - 1)

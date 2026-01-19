@@ -34,7 +34,16 @@ MODEL_META = {
         "Chem.": False,
     },
     "gpt-oss": {
-        "thinking": False,
+        "thinking": True,
         "Chem.": False,
+    },
+    "Qwen3-Next-80B-A3B-Thinking": {
+        "thinking": True,
+        "Chem.": False,
+    },
+    "MiniMax-M2": {
+        "thinking": True,
+        "Chem.": False,
+        "size": "229B",
     },
 }
