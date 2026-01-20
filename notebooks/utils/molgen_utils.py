@@ -10,7 +10,7 @@ from rdkit.Chem import AllChem
 from scipy.spatial.distance import squareform
 from tqdm import tqdm
 
-from mol_gen_docking.reward.diversity_aware_top_k import diversity_aware_top_k
+from mol_gen_docking.reward.diversity_aware_top_k import div_aware_top_k_from_dist
 
 from .utils import process_model_name
 
@@ -227,7 +227,7 @@ def sim_topk(
                 for i, fp in enumerate(fps[:-1])
             ]
             dist = np.concatenate(dist_l)
-            idxs = diversity_aware_top_k(dist=dist, weights=rewards, k=k, t=1 - sim)
+            idxs = div_aware_top_k_from_dist(dist=dist, weights=rewards, k=k, t=1 - sim)
             cluster_rewards = [rewards[i] for i in idxs]
         cluster_rewards_npy = np.array(cluster_rewards)
         cluster_rewards_npy = np.sort(cluster_rewards_npy)[::-1]

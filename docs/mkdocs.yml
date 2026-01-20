@@ -1,0 +1,34 @@
+site_name: MolGenDocking Documentation
+site_description: Molecular Generation and Docking Benchmarks and Datasets
+site_url: https://github.com/Fransou/MolGenDocking
+site_author: Philippe
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: blue
+      accent: cyan
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.indexes
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Datasets:
+      - Overview: datasets/main.md
+  - Reward Server:
+      - Getting Started: reward_server/getting_started.md
+      - Server Configuration: reward_server/server_configuration.md
+      - Query / Answer Format: reward_server/query_answer_format.md
+      - API Reference: reward_server/api.md
+  - Contributing: contributing.md
+
+plugins:
+  - search
+  - table-reader
