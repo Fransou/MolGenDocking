@@ -1,5 +1,17 @@
 # Data Access
 
+## Overview
+
+MolGenDocking addresses the challenge of *de novo* molecular generation, with a benchmark designed for Large Language Models (LLMs) and other generative architectures.
+Our dataset currently supports 3 downstream tasks:
+
+| Dataset                            | Size           | Source                                                                                                       | Purpose                                                            |
+|------------------------------------|----------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| ***De Novo* Molecular Generation** | ~50k prompts   | [SAIR](https://huggingface.co/datasets/SandboxAQ/SAIR) and [SIU](https://huggingface.co/datasets/bgao95/SIU) | Generate molecules optimizing a set of up to three properties      |
+| **Molecular Property prediction**  | ~50k prompts   | [Polaris](https://polarishub.io/)                                                                            | Predict the properties of a molecule (regression + classification) |
+| **RetroSynthesis Tasks**           | ~50k reactions | [Enamine](https://enamine.net/building-blocks/building-blocks-catalog)                                       | Retro-synthesis planning, reactants, products, SMARTS prediction   |
+
+
 ## Downloading Datasets
 Our dataset is available on [huggingface.](https://huggingface.co/datasets/Franso/MolGenData)
 The three tasks are separated into three compressed folders: `molgendata.tar.gz`, `polaris.tar.gz`, and `synthesis.tar.gz`.
