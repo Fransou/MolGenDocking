@@ -67,7 +67,8 @@ The Reward Server provides REST endpoints for molecular scoring and docking calc
 }
 ```
 
-**Note:** This endpoint is automatically called before reward calculation when using the AutoDock GPU oracle. It validates and preprocesses PDB receptor files. This results in larger time overhead during the first docking request for new receptors, but subsequent requests will be faster.
+!!!note
+    This endpoint is automatically called before reward calculation when using the AutoDock GPU oracle. It validates and preprocesses PDB receptor files. This results in larger time overhead during the first docking request for new receptors, but subsequent requests will be faster.
 
 ---
 
@@ -107,7 +108,5 @@ print(f"Feedback: {result['next_turn_feedback']}")
 
 ## Performance Considerations
 
-- **Batching**: The server uses a buffering system (default 20 seconds) to batch multiple requests together for efficient GPU utilization
-- **Concurrency**: Up to 2 docking runs per GPU by default
-- **Timeout**: Requests are processed when buffer is full or buffer time expires
-- **Ray Actors**: Reward computation runs in Ray actors for distributed processing
+- **Batching**: The server uses a buffering system (default 20 seconds) to batch multiple requests together for efficient GPU utilization. This can increase the time to perform a request. If you are working in a synchronous setting, consider decreasing the buffer time.
+- **Concurrency**: Up to 2 docking runs per GPU by default.

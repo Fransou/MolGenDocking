@@ -34,20 +34,21 @@ Example:
 }
 ```
 
-### Field Descriptions
 
-- **query** (str): The completion containing generated molecule(s)
-  - Should include `<answer>SMILES</answer>` tags
-  - Parser extracts content between these tags if the rewarder is not set to parse the whole completion.
+???parameters
+    Field Descriptions
 
-- **prompt** (str): The original prompt used to generate the completion (optional).
+      - **query** (str): The completion containing generated molecule(s)
+        - Should include `<answer>SMILES</answer>` tags
+        - Parser extracts content between these tags if the rewarder is not set to parse the whole completion.
 
-- **metadata** (list): List of evaluation contexts
-  - Each dictionary can contain:
-    - **properties** (list): List of property names to compute
-    - **objectives** (list): List of objectives for each property (e.g., "above", "below", "minimize", "maximize")
-    - **target** (list): Target values for each property (above, below).
-    - other optional information as needed.
+    - **prompt** (str): The original prompt used to generate the completion (optional).
+
+      - **metadata** (list): List of evaluation contexts. Each dictionary can contain:
+          - **properties** (list): List of property names to compute
+          - **objectives** (list): List of objectives for each property (e.g., "above", "below", "minimize", "maximize")
+          - **target** (list): Target values for each property (above, below).
+          - other optional information as needed.
 
 ## Response Format
 Similarly, we provide a pydantic model for the response:
@@ -70,6 +71,15 @@ class MolecularVerifierResponse(BaseModel):
     next_turn_feedback: str | None = None
 ```
 
+???parameters
+    Field Descriptions:
+
+      - **reward** (float): Overall reward score combining all properties
+      - **reward_list** (list): List of individual reward scores for each property
+      - **error** (str, optional): Error message if any issues occurred
+      - **meta** (dict, optional): Additional metadata about the scoring
+      - **next_turn_feedback** (str, optional): Feedback for the next turn in a conversation (for multi-turn scenarios)
+
 Example Response:
 ```json
 {
@@ -82,11 +92,3 @@ Example Response:
   "next_turn_feedback": 0.0
 }
 ```
-
-### Field Descriptions
-
-- **reward** (float): Overall reward score combining all properties
-- **reward_list** (list): List of individual reward scores for each property
-- **error** (str, optional): Error message if any issues occurred
-- **meta** (dict, optional): Additional metadata about the scoring
-- **next_turn_feedback** (str, optional): Feedback for the next turn in a conversation (for multi-turn scenarios)

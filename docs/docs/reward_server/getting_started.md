@@ -2,20 +2,13 @@
 
 The Reward Server is a FastAPI application that evaluates molecular structures based on various scoring functions including docking, drug-likeness, and bioactivity predictions.
 
-## Quick Start
+## Starting the Server
 
-### Installation
+!!! note
+    For GPU-accelerated docking, ensure AutoDock-GPU is installed (follow https://github.com/ccsb-scripps/AutoDock-GPU for installation instructions).
 
-For GPU-accelerated docking, ensure AutoDock-GPU is installed:
 
-```bash
-# Install AutoDock-GPU (see https://github.com/ccsb-scripps/AutoDock-GPU)
-# The installation process depends on your system
-```
-
-### Starting the Server
-
-Set required environment variables ([see here for all options](#server-configuration))
+Set required environment variables ([see here for all options](server_configuration.md)):
 
 ```bash
 export DOCKING_ORACLE=autodock_gpu
