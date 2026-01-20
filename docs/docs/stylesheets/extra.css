@@ -12,9 +12,40 @@
   --md-footer-fg-color: #000000;
 }
 
-/* Custom styling for headers */
+/* Increase header height */
 .md-header {
   background-color: var(--md-primary-fg-color);
+  height: 4rem;
+}
+
+/* Increase logo size */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 3rem;
+  width: auto;
+}
+
+/* Adjust header inner container */
+.md-header__inner {
+  height: 4rem;
+}
+
+/* Adjust header title font size */
+.md-header__title {
+  font-size: 1.2rem;
+}
+
+/* Make GitHub icon and text white */
+.md-header__source {
+  color: white;
+}
+
+.md-header__source .md-source__icon svg {
+  fill: white;
+}
+
+.md-header__source .md-source__repository {
+  color: white;
 }
 
 /* Custom styling for the main navigation tabs */

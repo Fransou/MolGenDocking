@@ -2,21 +2,7 @@
 
 Welcome to MolGenDocking, a comprehensive framework for molecular generation tasks with integrated protein-ligand docking evaluation. This project provides datasets, benchmarks, and a reward server for training and evaluating models that generate drug-like molecules optimized for specific biological targets.
 
-## Overview
 
-MolGenDocking addresses the challenge of *de novo* molecular generation, with a benchmark designed for Large Language Models (LLMs) and other generative architectures.
-Our dataset currently supports 3 downstream tasks:
-
-| Dataset                            | Size           | Source                                                                                                       | Purpose                                                            |
-|------------------------------------|----------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| ***De Novo* Molecular Generation** | ~50k prompts   | [SAIR](https://huggingface.co/datasets/SandboxAQ/SAIR) and [SIU](https://huggingface.co/datasets/bgao95/SIU) | Generate molecules optimizing a set of up to three properties      |
-| **Molecular Property prediction**  | ~50k prompts   | [Polaris](https://polarishub.io/)                                                                            | Predict the properties of a molecule (regression + classification) |
-| **RetroSynthesis Tasks**           | ~50k reactions | [Enamine](https://enamine.net/building-blocks/building-blocks-catalog)                                       | Retro-synthesis planning, reactants, products, SMARTS prediction   |
-
-
-⚙️ **Reward Server API**
-We use AutoDock-GPU for fast GPU-accelerated docking calculations.
-The Molecular Verifier server is built using FastAPI, and supports concurrent requests, ensuring efficient handling of multiple docking evaluations, and asynchroneous pipelines.
 
 ## Quick Start
 
@@ -57,6 +43,10 @@ response = requests.post(
     }
 )
 ```
+
+⚙️ **Reward Server API**
+We use AutoDock-GPU for fast GPU-accelerated docking calculations.
+The Molecular Verifier server is built using FastAPI, and supports concurrent requests, ensuring efficient handling of multiple docking evaluations, and asynchroneous pipelines.
 
 ## Citation
 
