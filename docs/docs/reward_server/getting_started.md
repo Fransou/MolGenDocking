@@ -60,3 +60,7 @@ response = requests.post(
 
 
 ## Next Steps
+
+- Explore how to configure the server in [Server Configuration](server_configuration.md)
+- Understand the query and response formats in [Query and Answer Format](query_answer_format.md)
+- Learn about the full API in [API Documentation](api.md)
