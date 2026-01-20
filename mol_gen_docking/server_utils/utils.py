@@ -8,6 +8,17 @@ from pydantic_settings import BaseSettings
 class MolecularVerifierSettings(BaseSettings):
     """
     Protocol for molecular docking.
+    Args:
+        scorer_exhaustiveness (int): Exhaustiveness parameter for the docking scorer.
+        scorer_ncpus (int): Number of CPUs to use for the docking scorer.
+        docking_concurrency_per_gpu (int): Number of concurrent docking runs per GPU.
+        max_concurrent_requests (int): Maximum number of concurrent requests to handle.
+        reaction_matrix_path (str): Path to the reaction matrix file.
+        docking_oracle (Literal["pyscreener", "autodock_gpu"]): Docking oracle to use.
+        vina_mode (str): Command used to run autodock gpu.
+        data_path (str): Path to the data directory.
+        buffer_time (int): Buffer time in seconds used to gather concurrent requests before computation.
+        parse_whole_completion (bool): Whether to parse the whole completion output.
     """
 
     scorer_exhaustiveness: int = 8
@@ -43,6 +54,10 @@ class MolecularVerifierSettings(BaseSettings):
 class MolecularVerifierQuery(BaseModel):
     """
     Query model for the MolecularVerifier.
+    Args:
+        metadata (list[dict[str, Any]]): List of metadata dictionaries for prompt.
+        query (list[str]): List of generated completions.
+        prompts (Optional[list[str]]): Optional list of prompts for each molecule.
     """
 
     metadata: list[dict[str, Any]]
@@ -53,6 +68,12 @@ class MolecularVerifierQuery(BaseModel):
 class MolecularVerifierResponse(BaseModel):
     """
     Response model for the VerifierServer.
+    Args:
+        reward (float): Overall reward score.
+        reward_list (list[float]): List of individual reward scores.
+        error (Optional[str]): Optional error message.
+        meta (Optional[dict[str, list[Any]]]): Optional metadata dictionary.
+        next_turn_feedback (Optional[str]): Optional feedback for the next turn.
     """
 
     reward: float

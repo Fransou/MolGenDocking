@@ -1,10 +1,15 @@
 import numpy as np
 import pytest
+from rdkit import Chem
 from scipy.spatial.distance import squareform
 
-from mol_gen_docking.reward.diversity_aware_top_k import diversity_aware_top_k
+from mol_gen_docking.evaluation.diversity_aware_top_k import (
+    div_aware_top_k_from_dist,
+    diversity_aware_top_k,
+)
+from mol_gen_docking.evaluation.fingeprints_utils import get_sim_matrix
 
-TEST_DIV_AWARE_TOPK = [
+TEST_DIV_AWARE_TOPK_FROM_DIST = [
     {
         "dist": squareform(
             np.array(
@@ -58,11 +63,61 @@ TEST_DIV_AWARE_TOPK = [
 ]
 
 
-@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK)
-def test_diversity_aware_top_k(data):
+@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK_FROM_DIST)
+def test_div_aware_top_k_from_dist(data):
     for k, t in data["results"].keys():
-        results = diversity_aware_top_k(data["dist"], data["weights"], k=k, t=t)
+        results = div_aware_top_k_from_dist(data["dist"], data["weights"], k=k, t=t)
         gt = data["results"][(k, t)]
         assert len(results) == len(gt) and all(results == gt), (
             f"Error with k,t={k, t}:\nresult: {results}\nexpected: {gt}"
         )
+
+
+TEST_DIV_AWARE_TOPK = [
+    {
+        "k": 2,
+        "t": 0.5,
+        "mols": ["CCC", "CC", "CC(C)C", "CCNC", "CCNC"],
+        "scores": [0.9, 0.6, 0.8, 1, 1],
+        "expected": 0.95,
+    },
+    {
+        "k": 2,
+        "t": 0.3,
+        "mols": ["CCC", "CC", "CC(C)C", "CCNC", "CCNC"],
+        "scores": [0.9, 0.6, 0.8, 1, 1],
+        "expected": 0.9,
+    },
+    {
+        "k": 3,
+        "t": 0.1,
+        "mols": ["CCC", "CC", "CC(C)C", "CCNC", "CCNC"],
+        "scores": [0.9, 0.6, 0.8, 1, 1],
+        "expected": 0.6,
+    },
+    {
+        "k": 3,
+        "t": 0.3,
+        "mols": ["CCC", "CC", "CC(C)C", "CCNC", "CCNC"],
+        "scores": [0.9, 0.6, 0.8, 1, 1],
+        "expected": 0.8,
+    },
+]
+
+
+@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK)
+def test_div_aware_top_k(data):
+    mols = [Chem.MolFromSmiles(smi) for smi in data["mols"]]
+    sim_mat = squareform(get_sim_matrix(mols, fingerprint_name="ecfp4-128"))
+    sim_mat = sim_mat + np.eye(len(mols))  # to make sure diagonal is 1.0
+    results = [
+        diversity_aware_top_k(
+            mols=x,
+            scores=data["scores"],
+            k=data["k"],
+            t=data["t"],
+            fingerprint_name="ecfp4-128",
+        )
+        for x in (data["mols"], mols, sim_mat)
+    ]
+    assert all(np.isclose(res, data["expected"]) for res in results)
