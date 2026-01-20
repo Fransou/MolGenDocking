@@ -19,7 +19,7 @@ RDLogger.DisableLog("rdApp.*")
 class ReactionVerifier(Verifier):
     def __init__(
         self,
-        reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
+        reward: Literal["property", "valid_smiles"] = "property",
         rxn_matrix_path: str | None = None,
         reaction_reward_type: Literal["binary", "tanimoto"] = "tanimoto",
     ):

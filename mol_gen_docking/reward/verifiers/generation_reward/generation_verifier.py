@@ -24,7 +24,7 @@ class GenerationVerifier(Verifier):
     def __init__(
         self,
         path_to_mappings: Optional[str] = None,
-        reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
+        reward: Literal["property", "valid_smiles"] = "property",
         rescale: bool = True,
         oracle_kwargs: Dict[str, Any] = {},
         docking_concurrency_per_gpu: int = 2,
