@@ -7,16 +7,16 @@ Welcome to MolGenDocking, a comprehensive framework for molecular generation tas
 MolGenDocking addresses the challenge of *de novo* molecular generation, with a benchmark designed for Large Language Models (LLMs) and other generative architectures.
 Our dataset currently supports 3 downstream tasks:
 
-| Dataset                           | Size             | Source                                                                                                       | Purpose                                                            |
-|-----------------------------------|------------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| ***De Novo* Molecular Generation**          | ~4,500 complexes | [SAIR](https://huggingface.co/datasets/SandboxAQ/SAIR) and [SIU](https://huggingface.co/datasets/bgao95/SIU) | Generate molecules optimizing a set of up to three properties      |
-| **Molecular Property prediction** | ~100,000 tasks   | [Polaris](https://polarishub.io/)                                                                            | Predict the properties of a molecule (regression + classification) |
-| **RetroSynthesis Tasks**                     | ~200,000 reactions | [Enamine](https://enamine.net/building-blocks/building-blocks-catalog)         | Retro-synthesis planning, reactants, products, SMARTS prediction   |
+| Dataset                            | Size           | Source                                                                                                       | Purpose                                                            |
+|------------------------------------|----------------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| ***De Novo* Molecular Generation** | ~50k prompts   | [SAIR](https://huggingface.co/datasets/SandboxAQ/SAIR) and [SIU](https://huggingface.co/datasets/bgao95/SIU) | Generate molecules optimizing a set of up to three properties      |
+| **Molecular Property prediction**  | ~50k prompts   | [Polaris](https://polarishub.io/)                                                                            | Predict the properties of a molecule (regression + classification) |
+| **RetroSynthesis Tasks**           | ~50k reactions | [Enamine](https://enamine.net/building-blocks/building-blocks-catalog)                                       | Retro-synthesis planning, reactants, products, SMARTS prediction   |
 
 
 ⚙️ **Reward Server API**
-We use AutoDock-GPU for fast GPU-accelerated docking calculations, and we also support Vina for CPU-based docking.
-The Molecular Verifier server is built using FastAPI, ad supports concurrent requests, ensuring efficient handling of multiple docking evaluations.
+We use AutoDock-GPU for fast GPU-accelerated docking calculations.
+The Molecular Verifier server is built using FastAPI, and supports concurrent requests, ensuring efficient handling of multiple docking evaluations, and asynchroneous pipelines.
 
 ## Quick Start
 
@@ -36,6 +36,7 @@ export DOCKING_ORACLE=autodock_gpu
 export DATA_PATH=... # Path to your data directory
 uvicorn --host 0.0.0.0 --port 8000 mol_gen_docking.server:app
 ```
+*Find more details in section [Datasets](datasets/main.md)*
 
 ### Using the API
 
@@ -63,12 +64,7 @@ response = requests.post(
 If you use MolGenDocking in your research, please cite:
 
 ```bibtex
-@software{molgendocking2025,
-  title={MolGenDocking: Molecular Generation and Docking Benchmarks},
-  author={Your Name},
-  year={2025},
-  url={https://github.com/Fransou/MolGenDocking}
-}
+...
 ```
 
 ## License

@@ -21,10 +21,11 @@ theme:
 nav:
   - Home: index.md
   - Datasets:
-      - Overview: datasets/overview.md
+      - Overview: datasets/main.md
   - Reward Server:
       - Getting Started: reward_server/getting_started.md
-      - Configuration: reward_server/configuration.md
+      - Server Configuration: reward_server/server_configuration.md
+      - Query / Answer Format: reward_server/query_answer_format.md
       - API Reference: reward_server/api.md
   - Contributing: contributing.md
 

@@ -1,7 +1,7 @@
 # Data Access
 
 ## Downloading Datasets
-Our dataset is available on [huggingface here.](https://huggingface.co/datasets/Franso/MolGenData)
+Our dataset is available on [huggingface.](https://huggingface.co/datasets/Franso/MolGenData)
 The three tasks are separated into three compressed folders: `molgendata.tar.gz`, `polaris.tar.gz`, and `synthesis.tar.gz`.
 
 ```bash
@@ -10,6 +10,8 @@ tar -xzf molgendata.tar.gz
 tar -xzf analog_gen.tar.gz
 tar -xzf synthesis.tar.gz
 ```
+
+To perform *de novo* molecular generation with docking constraints, the path to the `molgendata` folder should be provided to the reward server via the `DATA_PATH` environment variable. (See [Reward Server Configuration](../reward_server/getting_started.md) for more details.)
 
 ## Data Organization
 
@@ -75,6 +77,6 @@ Each line in a JSONL file represents a `Sample` object with the following struct
         }
       ]
     }
-  ],
+  ]
 }
 ```
