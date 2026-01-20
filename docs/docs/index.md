@@ -36,7 +36,6 @@ export DOCKING_ORACLE=autodock_gpu
 export DATA_PATH=... # Path to your data directory
 uvicorn --host 0.0.0.0 --port 8000 mol_gen_docking.server:app
 ```
-*Find more details in section [Datasets](datasets/main.md)*
 
 ### Using the API
 

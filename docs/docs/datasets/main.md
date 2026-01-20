@@ -10,8 +10,8 @@ tar -xzf molgendata.tar.gz
 tar -xzf analog_gen.tar.gz
 tar -xzf synthesis.tar.gz
 ```
-
-To perform *de novo* molecular generation with docking constraints, the path to the `molgendata` folder should be provided to the reward server via the `DATA_PATH` environment variable. (See [Reward Server Configuration](../reward_server/getting_started.md) for more details.)
+!!! warning
+    To perform *de novo* molecular generation with docking constraints, the path to the `molgendata` folder should be provided to the reward server via the `DATA_PATH` environment variable. (See [Reward Server Configuration](../reward_server/getting_started.md) for more details.)
 
 ## Data Organization
 
@@ -45,6 +45,47 @@ polaris/                 # Multi-task benchmarks
 ### Data Format
 
 Our data are stored in JSONL format, represented by a pydantic base model ([source](https://github.com/Fransou/MolGenDocking/blob/main/mol_gen_docking/data/pydantic_dataset.py)):
+
+```python
+class Message(BaseModel):
+    """Represents a single message in a conversation"""
+
+    role: Literal["system", "user", "assistant"]
+    content: str
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    identifier: Optional[str] = None
+    multimodal_document: Optional[Dict[str, Any]] = None
+
+
+class Conversation(BaseModel):
+    """Complete conversation structure"""
+
+    meta: Dict[
+        str, Any
+    ]
+    messages: List[Message]
+    system_prompt: Optional[str] = None
+    available_tools: Optional[List[str]] = None
+    truncate_at_max_tokens: Optional[int] = None
+    truncate_at_max_image_tokens: Optional[int] = None
+    output_modalities: Optional[List[str]] = None
+    identifier: str
+    references: List[Any] = Field(default_factory=list)
+    rating: Optional[float] = None
+    source: Optional[str] = None
+    training_masks_strategy: str
+    custom_training_masks: Optional[Dict[str, Any]] = None
+
+
+class Sample(BaseModel):
+    """Root model containing all conversations"""
+
+    identifier: str
+    conversations: List[Conversation]
+    trajectories: List[Any] = Field(default_factory=list)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    source: Optional[str] = None
+```
 
 **JSONL Format**
 

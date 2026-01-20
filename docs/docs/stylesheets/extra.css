@@ -1,0 +1,53 @@
+/* Custom color variables */
+:root {
+  --md-primary-fg-color: #a28eff;        /* Primary blue */
+  --md-primary-fg-color--light: #b5a3fc;
+  --md-primary-fg-color--dark: #9682e6;
+  --md-accent-fg-color: #2e2c38;         /* Accent cyan */
+  --dummy: #ff0000;
+
+
+  /* Secondary colors */
+  --md-footer-bg-color: #a28eff;
+  --md-footer-fg-color: #000000;
+}
+
+/* Custom styling for headers */
+.md-header {
+  background-color: var(--md-primary-fg-color);
+}
+
+/* Custom styling for the main navigation tabs */
+.md-tabs {
+  background-color: var(--md-primary-fg-color--light);
+}
+
+/* Custom styling for links */
+a {
+  color: var(--md-accent-fg-color);
+}
+
+a:hover {
+  color: var(--md-primary-fg-color--light);
+}
+
+/* Custom styling for buttons */
+.md-button {
+  background-color: var(--md-primary-fg-color);
+  color: white;
+}
+
+.md-button:hover {
+  background-color: var(--md-primary-fg-color--dark);
+}
+
+/* Custom home page styling */
+.md-content--home {
+  max-width: 100%;
+}
+
+.md-content--home h1 {
+  color: var(--md-primary-fg-color);
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}

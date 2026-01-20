@@ -2,14 +2,11 @@ site_name: MolGenDocking Documentation
 site_description: Molecular Generation and Docking Benchmarks and Datasets
 site_url: https://github.com/Fransou/MolGenDocking
 site_author: Philippe
+repo_url: https://github.com/Fransou/MolGenDocking
 
 theme:
   name: material
   language: en
-  palette:
-    - scheme: default
-      primary: blue
-      accent: cyan
   features:
     - navigation.instant
     - navigation.tabs
@@ -17,6 +14,13 @@ theme:
     - toc.integrate
     - search.suggest
     - search.highlight
+    - content.code.copy
+    - content.code.select
+  icon:
+    admonition:
+      parameter: fontawesome/solid/book
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
@@ -32,3 +36,14 @@ nav:
 plugins:
   - search
   - table-reader
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - admonition
+  - pymdownx.details
+  - pymdownx.snippets
+  - pymdownx.superfences
