@@ -27,6 +27,11 @@ logger.setLevel(logging.INFO)
 server_settings: MolecularVerifierSettings
 RemoteRewardScorer: Any = ray.remote(RewardScorer)
 
+server_settings_log = "Server settings:\n"
+for field_name, field_value in MolecularVerifierSettings().model_dump().items():
+    server_settings_log += f"  {field_name}: {field_value}\n"
+logger.info(server_settings_log)
+
 _reward_model = None
 _valid_reward_model = None
 

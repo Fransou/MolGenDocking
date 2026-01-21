@@ -9,7 +9,7 @@ from rdkit import Chem
 
 from mol_gen_docking.reward.rl_rewards import RewardScorer, has_bridged_bond
 
-from .utils import (
+from ..utils import (
     compare_obj_reward_to_max,
     get_unscaled_obj,
     is_reward_valid,
@@ -38,18 +38,6 @@ def property_scorer(data_path: str) -> RewardScorer:
         data_path,
         "property",
         parse_whole_completion=False,
-        rescale=False,
-    )
-
-
-@pytest.fixture(scope="module")
-def property_scorer_rescale(data_path: str) -> RewardScorer:
-    """Create a RewardScorer for property scoring with rescaling."""
-    return RewardScorer(
-        data_path,
-        "property",
-        parse_whole_completion=False,
-        rescale=True,
     )
 
 
@@ -300,7 +288,7 @@ class TestObjectiveBasedRewards:
 
     def test_all_objectives(
         self,
-        property_scorer_rescale: RewardScorer,
+        property_scorer: RewardScorer,
         completions_smile: tuple[List[str], List[str]],
         objective_to_test: str,
         prop: str,
@@ -322,7 +310,7 @@ class TestObjectiveBasedRewards:
             }
         ] * len(completions)
 
-        rewards, _ = property_scorer_rescale(completions + completions, metadata)
+        rewards, _ = property_scorer(completions + completions, metadata)
         assert len(rewards) == len(completions) * 2
         mask = []
         for completion, smiles in zip(completions, smiles_chunks):

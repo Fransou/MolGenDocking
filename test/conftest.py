@@ -4,7 +4,7 @@ import random
 import string
 import subprocess
 import time
-from typing import Generator, Literal
+from typing import Generator, List, Literal
 
 import pandas as pd
 import pytest
@@ -40,7 +40,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Skip docking tests when set.",
     )
     parser.addoption(
-        "--include-docking",
+        "--docking",
         dest="skip_docking",
         action="store_false",
     )
@@ -56,7 +56,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 # Data Fixtures
 # =============================================================================
 
-N_SMILES = 8
+N_SMILES = 32
 N_RANDOM_SMILES = 4
 COMPLETIONS_PATTERN = [
     "Here is a molecule: <answer> {SMILES} </answer> what are its properties?",
@@ -65,7 +65,6 @@ COMPLETIONS_PATTERN = [
     "[N] molecule:  <answer>{SMILES} what are its properties?",
     "[N] No SMILES here!",
 ]
-N_PROPS_TO_TEST = 12
 
 
 @pytest.fixture(
@@ -114,6 +113,20 @@ def properties_csv():
     return df
 
 
+@pytest.fixture(scope="session")
+def docking_targets(data_path: str) -> list[str]:
+    """
+    Pytest fixture returning the docking targets list.
+
+    Example:
+        def test_example(docking_targets: list[str]) -> None:
+            ...
+    """
+    with open(os.path.join(data_path, "docking_targets.json")) as f:
+        docking_targets: list = json.load(f)
+    return docking_targets[:16]
+
+
 @pytest.fixture(scope="session", params=list(range(N_RANDOM_SMILES + N_SMILES)))
 def idx_smiles(request: pytest.FixtureRequest) -> int:
     """
@@ -128,19 +141,20 @@ def idx_smiles(request: pytest.FixtureRequest) -> int:
 
 @pytest.fixture(scope="session")
 def prop(
-    data_path: str, idx_smiles: int, request: pytest.FixtureRequest
+    data_path: str,
+    idx_smiles: int,
+    docking_targets: List[str],
+    request: pytest.FixtureRequest,
 ) -> pd.DataFrame:
     with open(os.path.join(data_path, "names_mapping.json")) as f:
         properties_names_simple: dict = json.load(f)
-    with open(os.path.join(data_path, "docking_targets.json")) as f:
-        docking_prop_list: list = json.load(f)
     prop_list = [
         k
         for k in properties_names_simple.values()
-        if k not in docking_prop_list and k in CLASSICAL_PROPERTIES_NAMES.values()
+        if k not in docking_targets and k in CLASSICAL_PROPERTIES_NAMES.values()
     ]
     random.shuffle(prop_list)
-    return prop_list[idx_smiles]
+    return prop_list[idx_smiles % len(prop_list)]
 
 
 @pytest.fixture(scope="session")

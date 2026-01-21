@@ -36,6 +36,7 @@ def is_reward_valid(
         AssertionError: If rewards don't match expected values.
     """
     # Get the bridged_bond mask
+    smiles = list(set(smiles))
     mols = [Chem.MolFromSmiles(smi) for smi in smiles]
     bridged_mask = torch.tensor(
         [not has_bridged_bond(mol) if mol is not None else False for mol in mols]
@@ -45,6 +46,17 @@ def is_reward_valid(
         props = torch.tensor(
             properties_csv.set_index("smiles").loc[smiles, properties].values
         )
+        assert props.shape == (len(smiles), len(properties))
+        # Rescale properties to [0, 1]
+        for i, prop in enumerate(properties):
+            props[:, i] = torch.tensor(
+                rescale_property_values(
+                    prop,
+                    props[:, i].numpy(),
+                    prop not in CLASSICAL_PROPERTIES_NAMES.values(),
+                )
+            )
+        props = props.clip(0, 1)
         if bridged_mask.sum() == 0:
             props = torch.tensor(0.0)
         else:
@@ -52,9 +64,10 @@ def is_reward_valid(
             props = all_props.prod(-1).pow(1 / len(properties)).mean()
         rewards = torch.tensor(rewards).mean()
         try:
-            assert torch.isclose(rewards, props, atol=1e-3).all()
-        except AssertionError:
-            print("hey")
+            assert torch.isclose(rewards, props, atol=1e-3)
+        except AssertionError as e:
+            print(f"Rewards: {rewards}, Props: {props}")
+            raise e
 
 
 def compare_obj_reward_to_max(

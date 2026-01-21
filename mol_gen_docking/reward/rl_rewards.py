@@ -212,7 +212,7 @@ class RewardScorer:
             self.reward == "valid_smiles"
         ):  # TODO: Currently always return 1 if at least one valid smiles
             return [float(len(smis) == 1) for smis in smiles_per_completion], [
-                {"failure": fail} for fail in failures
+                {"smiles_extraction_failure": fail} for fail in failures
             ]
         if debug:
             self.generation_verifier.debug = True
