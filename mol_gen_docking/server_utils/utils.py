@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
@@ -60,9 +60,45 @@ class MolecularVerifierQuery(BaseModel):
         prompts (Optional[list[str]]): Optional list of prompts for each molecule.
     """
 
-    metadata: list[dict[str, Any]]
-    query: list[str]
-    prompts: Optional[list[str]] = None
+    metadata: List[dict[str, Any]]
+    query: List[str]
+    prompts: Optional[List[str]] = None
+
+
+class MolecularVerifierMetadata(BaseModel):
+    """
+    Metadata model for the MolecularVerifier.
+    Args:
+        smiles_extraction_failure (Optional[str]): Error message for SMILES extraction failure.
+        all_smi_rewards (Optional[list[float]]): List of rewards for all SMILES.
+        all_smi (Optional[list[str]]): List of all SMILES strings.
+        individual_rewards (Optional[list[float]]): List of individual rewards.
+        properties (Optional[list[str]]): List of properties evaluated.
+        extracted_answer (Optional[str]): Extracted answer from molecule property prediction.
+        prop_valid (Optional[float]): Validity score of the property prediction.
+        correct_last_product (Optional[bool]): Whether the last product is correct.
+        correct_bb (Optional[bool]): Whether the building block is correct.
+        Reactants_contained (Optional[bool]): Whether reactants are contained in the prediction.
+        Products_contained (Optional[bool]): Whether products are contained in the prediction.
+    """
+
+    # MOL GENERATION ARGS
+    smiles_extraction_failure: Optional[str] = None
+    all_smi_rewards: Optional[List[float]] = None
+    all_smi: Optional[List[str]] = None
+    individual_rewards: Optional[List[float]] = None
+    properties: Optional[List[str]] = None
+
+    # MOL PROP PRED ARGS
+    extracted_answer: Optional[str] = None
+
+    # CHEMICAL REACTION ARGS
+    prop_valid: Optional[float] = None
+    correct_last_product: Optional[bool] = None
+    correct_bb: Optional[bool] = None
+
+    Reactants_contained: Optional[bool] = None
+    Products_contained: Optional[bool] = None
 
 
 class MolecularVerifierResponse(BaseModel):
@@ -77,7 +113,7 @@ class MolecularVerifierResponse(BaseModel):
     """
 
     reward: float
-    reward_list: list[float]
-    error: str | None = None
-    meta: dict[str, list[Any]] | None = None
-    next_turn_feedback: str | None = None
+    reward_list: List[float]
+    error: Optional[str] = None
+    meta: Optional[List[MolecularVerifierMetadata]] = None
+    next_turn_feedback: Optional[str] = None

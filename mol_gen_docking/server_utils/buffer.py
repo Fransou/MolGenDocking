@@ -3,10 +3,10 @@ import logging
 from collections import deque
 from typing import Any, Dict, List, Tuple
 
-import numpy as np
 import ray
 
 from mol_gen_docking.server_utils.utils import (
+    MolecularVerifierMetadata,
     MolecularVerifierQuery,
     MolecularVerifierResponse,
 )
@@ -116,9 +116,6 @@ class RewardBuffer:
         rewards_job = reward_actor.get_score.remote(
             completions=all_completions, metadata=all_metadata
         )
-        valid_reward = valid_scorer.get_score(
-            completions=all_completions, metadata=all_metadata
-        )
         final_smiles: List[str] = valid_scorer.get_all_completions_smiles(
             completions=all_completions
         )[0]
@@ -144,69 +141,10 @@ class RewardBuffer:
                 continue
             rewards_i = grouped_results[i]
             metadata_i = grouped_meta[i]
-            smiles_i = grouped_smiles[i]
-            metadata = q.metadata
-            prompts = []
-            for meta in metadata:
-                assert all(k in meta for k in ["properties", "objectives", "target"])
-                prompts.append(
-                    "|".join(
-                        [
-                            f"{p}, {o}, {t}"
-                            for p, o, t in zip(
-                                meta["properties"], meta["objectives"], meta["target"]
-                            )
-                        ]
-                    )
-                )
-
-            # diversity + uniqueness per query
-            unique_prompts = list(set(prompts))
-            group_prompt_smiles = {
-                p: [
-                    s[-1]
-                    for s, p_ in zip(smiles_i, prompts)
-                    if (p_ == p) and not s == []  # type: ignore
-                ]
-                for p in unique_prompts
-            }
-
-            diversity_scores_dict = {
-                p: app.state.diversity_evaluator(group_prompt_smiles[p])
-                if len(group_prompt_smiles[p]) > 1
-                else 0
-                for p in unique_prompts
-            }
-            diversity_score = [float(diversity_scores_dict[p]) for p in prompts]
-            diversity_score = [d if not np.isnan(d) else 0 for d in diversity_score]
-
-            uniqueness_scores_dict = {
-                p: app.state.uniqueness_evaluator(group_prompt_smiles[p])
-                if len(group_prompt_smiles[p]) > 1
-                else 0
-                for p in unique_prompts
-            }
-            uniqueness_score = [float(uniqueness_scores_dict[p]) for p in prompts]
-            uniqueness_score = [u if not np.isnan(u) else 0 for u in uniqueness_score]
-
-            max_per_prompt_dict = {
-                p: max([float(r) for r, p_ in zip(rewards_i, prompts) if p_ == p])
-                for p in unique_prompts
-            }
-            max_per_prompt = [max_per_prompt_dict[p] for p in prompts]
-
             response = MolecularVerifierResponse(
                 reward=0.0 if len(rewards_i) == 0 else sum(rewards_i) / len(rewards_i),
                 reward_list=rewards_i,
-                meta={
-                    "property_scores": rewards_i,
-                    "validity": valid_reward,
-                    "uniqueness": uniqueness_score,
-                    "diversity": diversity_score,
-                    "pass_at_n": max_per_prompt,
-                    "rewards": rewards_i,
-                    "verifier_metadata_output": metadata_i,
-                },
+                meta=[MolecularVerifierMetadata(**m) for m in metadata_i],
                 error=None,
             )
             responses.append(response)
