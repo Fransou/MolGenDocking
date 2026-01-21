@@ -1,29 +1,18 @@
 """Tests for the RL Rewards generation functionality."""
 
-from itertools import product
-from typing import Any, Dict, List
+from typing import List
 
 import numpy as np
 import pytest
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.data.gen_dataset import DatasetConfig
 from mol_gen_docking.reward.rl_rewards import RewardScorer, has_bridged_bond
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
-    rescale_property_values,
-)
 
 from .utils import (
-    COMPLETIONS,
-    DATA_PATH,
-    OBJECTIVES_TO_TEST,
-    PROP_LIST,
-    PROPERTIES_NAMES_SIMPLE,
-    SMILES,
-    fill_completion,
+    compare_obj_reward_to_max,
     get_unscaled_obj,
-    propeties_csv,
+    is_reward_valid,
 )
 
 # =============================================================================
@@ -32,27 +21,21 @@ from .utils import (
 
 
 @pytest.fixture(scope="module")
-def dataset_config() -> DatasetConfig:
-    """Create a DatasetConfig instance."""
-    return DatasetConfig(data_path=DATA_PATH)
-
-
-@pytest.fixture(scope="module")
-def valid_scorer() -> RewardScorer:
+def valid_scorer(data_path: str) -> RewardScorer:
     """Create a RewardScorer for valid SMILES checking."""
     return RewardScorer(
-        DATA_PATH,
+        data_path,
         "valid_smiles",
-        parse_whole_completion=True,
+        parse_whole_completion=False,
         rescale=False,
     )
 
 
 @pytest.fixture(scope="module")
-def property_scorer() -> RewardScorer:
+def property_scorer(data_path: str) -> RewardScorer:
     """Create a RewardScorer for property scoring without rescaling."""
     return RewardScorer(
-        DATA_PATH,
+        data_path,
         "property",
         parse_whole_completion=False,
         rescale=False,
@@ -60,111 +43,14 @@ def property_scorer() -> RewardScorer:
 
 
 @pytest.fixture(scope="module")
-def property_scorer_rescale() -> RewardScorer:
+def property_scorer_rescale(data_path: str) -> RewardScorer:
     """Create a RewardScorer for property scoring with rescaling."""
     return RewardScorer(
-        DATA_PATH,
+        data_path,
         "property",
         parse_whole_completion=False,
         rescale=True,
     )
-
-
-@pytest.fixture
-def sample_smiles() -> List[str]:
-    """Get a sample of SMILES from the properties CSV."""
-    return propeties_csv.sample(4)["smiles"].tolist()
-
-
-@pytest.fixture
-def sample_metadata() -> Dict[str, Any]:
-    """Create sample metadata for testing."""
-    return {
-        "properties": [PROP_LIST[0]],
-        "objectives": ["maximize"],
-        "target": [0],
-    }
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
-def is_reward_valid(
-    rewards: List[float],
-    smiles: List[str],
-    properties: List[str],
-) -> None:
-    """
-    Check if the reward is valid.
-
-    Args:
-        rewards: List of reward values.
-        smiles: List of SMILES strings.
-        properties: List of property names.
-
-    Raises:
-        AssertionError: If rewards don't match expected values.
-    """
-    # Remove "FAKE" from smiles
-    smiles = [s for s in smiles if s != "FAKE"]
-
-    # Get the bridged_bond mask
-    mols = [Chem.MolFromSmiles(smi) for smi in smiles]
-    bridged_mask = torch.tensor(
-        [not has_bridged_bond(mol) if mol is not None else False for mol in mols]
-    )
-
-    if len(smiles) > 0:
-        property_names = [PROPERTIES_NAMES_SIMPLE.get(p, p) for p in properties]
-        props = torch.tensor(
-            propeties_csv.set_index("smiles").loc[smiles, property_names].values
-        )
-        if bridged_mask.sum() == 0:
-            props = torch.tensor(0.0)
-        else:
-            all_props = props[bridged_mask].float()
-            props = all_props.prod(-1).pow(1 / len(properties)).mean()
-        rewards = torch.tensor(rewards).mean()
-        assert torch.isclose(rewards, props, atol=1e-3).all()
-
-
-def compute_expected_reward(
-    objective: str,
-    target: float,
-    rewards_max: torch.Tensor,
-    mask: torch.Tensor,
-    prop: str,
-) -> torch.Tensor:
-    """
-    Compute expected reward based on objective type.
-
-    Args:
-        objective: The optimization objective (maximize, minimize, below, above, equal).
-        target: Target value for threshold objectives.
-        rewards_max: Raw reward values from maximize objective.
-        mask: Mask for valid molecules (no bridged bonds).
-        prop: Property name for rescaling.
-
-    Returns:
-        Expected reward tensor.
-    """
-    if objective == "maximize":
-        val = rewards_max
-    elif objective == "minimize":
-        val = 1 - rewards_max
-    else:
-        target = rescale_property_values(prop, target, False)
-        if objective == "below":
-            val = (rewards_max <= target).float()
-        elif objective == "above":
-            val = (rewards_max >= target).float()
-        elif objective == "equal":
-            val = torch.tensor(np.clip(1 - 100 * (rewards_max - target) ** 2, 0, 1))
-        else:
-            raise ValueError(f"Unknown objective: {objective}")
-    return val * mask
 
 
 # =============================================================================
@@ -174,29 +60,6 @@ def compute_expected_reward(
 
 class TestValidSmiles:
     """Tests for valid SMILES reward scoring."""
-
-    @pytest.mark.parametrize("completion, smiles", product(COMPLETIONS, SMILES))
-    def test_valid_smiles_scoring(
-        self,
-        valid_scorer: RewardScorer,
-        completion: str,
-        smiles: List[str],
-    ) -> None:
-        """Test the valid SMILES reward function."""
-        completions = ["<answer> " + " ".join(smiles) + " </answer>"]
-        completions = [completion.format(SMILES=c) for c in completions]
-
-        rewards = np.array(
-            valid_scorer(
-                completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
-        )
-        expected = float(
-            "SMILES" in completion
-            and not all(has_bridged_bond(Chem.MolFromSmiles(s)) for s in smiles)
-        )
-        assert rewards.sum() == expected
 
     def test_valid_smiles_with_fake_molecule(
         self,
@@ -217,7 +80,7 @@ class TestValidSmiles:
         valid_scorer: RewardScorer,
     ) -> None:
         """Test that valid SMILES return non-zero reward."""
-        valid_smiles = propeties_csv.sample(1)["smiles"].tolist()[0]
+        valid_smiles = "CCC"
         completions = [f"Here is a molecule: <answer> {valid_smiles} </answer>"]
 
         rewards = np.array(
@@ -228,6 +91,115 @@ class TestValidSmiles:
         )
         assert rewards.sum() == 1.0
 
+    def test_valid_smiles_scoring_single(
+        self,
+        valid_scorer: RewardScorer,
+        completion_smile: tuple[str, str],
+    ) -> None:
+        """Test the valid SMILES reward function with a single SMILES."""
+        completion, smiles = completion_smile
+        completions = [completion]
+
+        rewards = np.array(
+            valid_scorer(
+                completions,
+                metadata=[{"objectives": ["maximize"]}],
+            )[0]
+        )
+
+        # Check if completion pattern is valid (doesn't start with [N])
+        # and if the SMILES produces a valid molecule without bridged bonds
+        mol = Chem.MolFromSmiles(smiles)
+        is_valid_pattern = not completion.startswith("[N]")
+        is_valid_mol = mol is not None and not has_bridged_bond(mol)
+        expected = float(is_valid_pattern and is_valid_mol)
+
+        assert rewards.sum() == expected
+
+    def test_valid_smiles_scoring_multiple_in_one(
+        self,
+        valid_scorer: RewardScorer,
+        completion_smiles: tuple[str, list[str]],
+    ) -> None:
+        """Test the valid SMILES reward function with multiple SMILES in one completion."""
+        completion, smis = completion_smiles
+        completions = [completion]
+
+        rewards = np.array(
+            valid_scorer(
+                completions,
+                metadata=[{"objectives": ["maximize"]}],
+            )[0]
+        )
+
+        are_smi_valid = [
+            int(
+                Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+            )
+            for smi in smis
+        ]
+        if sum(are_smi_valid) != 1 or completion.startswith("[N]"):
+            assert rewards.sum() == 0.0
+        else:
+            assert rewards.sum() == 1.0
+
+    def test_valid_smiles_scoring_batch_single_smiles(
+        self,
+        valid_scorer: RewardScorer,
+        completions_smile: tuple[List[str], List[str]],
+    ) -> None:
+        """Test the valid SMILES reward function with a batch of completions, each with one SMILES."""
+        completions, smiles_list = completions_smile
+
+        rewards = np.array(
+            valid_scorer(
+                completions,
+                metadata=[{"objectives": ["maximize"]}] * len(completions),
+            )[0]
+        )
+
+        assert len(rewards) == len(completions)
+
+        # Each reward should be 0 or 1
+        for i, (completion, smi) in enumerate(zip(completions, smiles_list)):
+            mol = Chem.MolFromSmiles(smi)
+            is_valid_pattern = not completion.startswith("[N]")
+            is_valid_mol = mol is not None and not has_bridged_bond(mol)
+            expected = float(is_valid_pattern and is_valid_mol)
+            assert rewards[i] == expected, f"Mismatch at index {i}: {completion}"
+
+    def test_valid_smiles_scoring_batch_multiple_smiles(
+        self,
+        valid_scorer: RewardScorer,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the valid SMILES reward function with a batch of completions, each with multiple SMILES."""
+        completions, smiles_chunks = completions_smiles
+
+        rewards = np.array(
+            valid_scorer(
+                completions,
+                metadata=[{"objectives": ["maximize"]}] * len(completions),
+            )[0]
+        )
+
+        assert len(rewards) == len(completions)
+
+        # Each reward should be between 0 and 1
+        for reward, smiles, completion in zip(rewards, smiles_chunks, completions):
+            are_smi_valid = [
+                int(
+                    Chem.MolFromSmiles(smi) is not None
+                    and not has_bridged_bond(Chem.MolFromSmiles(smi))
+                )
+                for smi in smiles
+            ]
+            if sum(are_smi_valid) == 1 and not completion.startswith("[N]"):
+                assert reward == 1.0
+            else:
+                assert reward == 0.0
+
 
 # =============================================================================
 # Multi-Prompt Multi-Generation Tests
@@ -237,64 +209,85 @@ class TestValidSmiles:
 class TestMultiPromptMultiGeneration:
     """Tests for multiple prompts with multiple generations."""
 
-    @pytest.mark.parametrize(
-        "property1, property2",
-        product(
-            PROP_LIST,
-            np.random.choice(PROP_LIST, 8),
-        ),
-    )
-    def test_multi_prompt_multi_generation(
-        self,
-        property_scorer: RewardScorer,
-        property1: str,
-        property2: str,
-    ) -> None:
-        """Test the reward function for a set of 2 prompts and multiple generations."""
-        completion = "Here is a molecule: [SMILES] what are its properties?"
-        metadata = [
-            {"properties": [property1], "objectives": ["maximize"], "target": [0]},
-            {"properties": [property2], "objectives": ["maximize"], "target": [0]},
-        ]
-        n_mols = np.random.choice([1, 2, 3, 4], p=[0.8, 0.05, 0.05, 0.1])
-        smiles = [propeties_csv.sample(n_mols)["smiles"].tolist() for k in range(2)]
-        n_valids = [
-            sum([int(has_bridged_bond(Chem.MolFromSmiles(smi))) for smi in smiles[i]])
-            for i in range(2)
-        ]
-        completions = [fill_completion(s, completion) for s in smiles]
-        rewards, meta = property_scorer(completions, metadata)
-        for i in range(2):
-            if len(smiles[i]) == 1 and n_valids[i] == 1:
-                is_reward_valid(
-                    rewards[i], smiles[i], [property1 if i == 0 else property2]
-                )
-            elif len(smiles[i]) > 1:
-                if n_valids[i] != 1:
-                    assert (
-                        rewards[i] == 0
-                    )  # Known edge case, if one valid molecule, reward is not 0
-                is_reward_valid(
-                    meta[i]["all_smi_rewards"],
-                    smiles[i],
-                    [property1 if i == 0 else property2],
-                )
-
     def test_single_molecule_single_property(
         self,
         property_scorer: RewardScorer,
+        completion_smile: tuple[str, str],
     ) -> None:
         """Test reward calculation for a single molecule with a single property."""
-        prop = PROP_LIST[0]
-        smiles = propeties_csv.sample(1)["smiles"].tolist()
-        completion = "Here is a molecule: [SMILES] what are its properties?"
-
+        prop = "QED"
+        completion, smiles = completion_smile
         metadata = [{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
-        completions = [fill_completion(smiles, completion)]
+        rewards, _ = property_scorer([completion], metadata)
+        assert len(rewards) == 1
+        is_smi_valid = Chem.MolFromSmiles(smiles) is not None and not has_bridged_bond(
+            Chem.MolFromSmiles(smiles)
+        )
+        is_pattern_valid = not completion.startswith("[N]")
 
-        rewards, _ = property_scorer(completions, metadata)
+        if not is_pattern_valid or not is_smi_valid:
+            # Invalid molecule should have zero reward
+            assert rewards[0] == 0.0
+        else:
+            is_reward_valid(rewards, [smiles], [prop])
 
-        is_reward_valid(rewards[0], smiles, [prop])
+    def test_multi_prompt_single_smiles(
+        self,
+        property_scorer: RewardScorer,
+        completions_smile: tuple[List[str], List[str]],
+    ) -> None:
+        """Test the reward function for multiple prompts with single SMILES each."""
+        prop = "QED"
+        completions, smiles_list = completions_smile
+
+        metadata = [
+            {"properties": [prop], "objectives": ["maximize"], "target": [0]}
+            for _ in range(len(completions))
+        ]
+
+        rewards, meta = property_scorer(completions, metadata)
+
+        assert len(rewards) == len(completions)
+        for i, (reward, smi, completion) in enumerate(
+            zip(rewards, smiles_list, completions)
+        ):
+            is_smi_valid = Chem.MolFromSmiles(smi) is not None and not has_bridged_bond(
+                Chem.MolFromSmiles(smi)
+            )
+            is_pattern_valid = not completion.startswith("[N]")
+            if not is_pattern_valid or not is_smi_valid:
+                assert reward == 0.0
+            else:
+                is_reward_valid([reward], [smi], [prop])
+
+    def test_multi_prompt_multiple_smiles(
+        self,
+        property_scorer: RewardScorer,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the reward function for multiple prompts with multiple SMILES each."""
+        completions, smiles_chunks = completions_smiles
+        properties = ["QED", "logP", "SA", "CalcNumHBA"][: len(completions)]
+        metadata = [
+            {"properties": [p], "objectives": ["maximize"], "target": [0]}
+            for p in properties
+        ]
+        rewards, metas_r = property_scorer(completions, metadata)
+        for i, (meta, smiles_list, completion) in enumerate(
+            zip(metas_r, smiles_chunks, completions)
+        ):
+            if completion.startswith("[N]"):
+                continue
+            reward = meta["all_smi_rewards"]
+            smiles_v = [
+                smi
+                for smi in smiles_list
+                if Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+            ]
+            if len(smiles_v) > 0:
+                # Invalid molecule should have zero reward
+                is_reward_valid(reward, smiles_v, [properties[i]])
 
 
 # =============================================================================
@@ -305,110 +298,85 @@ class TestMultiPromptMultiGeneration:
 class TestObjectiveBasedRewards:
     """Tests for different optimization objectives."""
 
-    @pytest.mark.parametrize(
-        "prop, obj, smiles",
-        list(
-            product(
-                PROP_LIST,
-                OBJECTIVES_TO_TEST[1:],  # Skip "maximize" for this test
-                [propeties_csv.sample(4)["smiles"].tolist() for _ in range(8)],
-            )
-        ),
-    )
     def test_all_objectives(
         self,
         property_scorer_rescale: RewardScorer,
+        completions_smile: tuple[List[str], List[str]],
+        objective_to_test: str,
         prop: str,
-        obj: str,
-        smiles: List[str],
     ) -> None:
         """
         Test the reward function with various optimization objectives.
 
         Assumes the value of the reward function when using maximize is correct.
         """
-        mols = [Chem.MolFromSmiles(s) for s in smiles]
-        mask = torch.tensor(
-            [not has_bridged_bond(m) if m is not None else False for m in mols]
-        ).float()
-
-        obj_func, target = get_unscaled_obj(obj, prop)
-        n_generations = len(smiles)
-
-        # Create metadata for both objective and maximize baseline
+        completions, smiles_chunks = completions_smile
+        obj_func, target = get_unscaled_obj(objective_to_test, prop)
         metadata = [
             {"properties": [prop], "objectives": [obj_func], "target": [target]}
-        ] * n_generations + [
-            {"properties": [prop], "objectives": ["maximize"], "target": [target]}
-        ] * n_generations
+        ] * len(completions) + [
+            {
+                "properties": [prop],
+                "objectives": ["maximize"],
+                "target": [target],
+            }
+        ] * len(completions)
 
-        smiles_doubled = smiles * 2
-        completions = [
-            fill_completion(
-                [s], "Here is a molecule: [SMILES] does it have the right properties?"
-            )
-            for s in smiles_doubled
-        ]
-
-        rewards = property_scorer_rescale(completions, metadata, debug=True)[0]
-
-        assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
+        rewards, _ = property_scorer_rescale(completions + completions, metadata)
+        assert len(rewards) == len(completions) * 2
+        mask = []
+        for completion, smiles in zip(completions, smiles_chunks):
+            if completion.startswith("[N]"):
+                mask.append(False)
+            else:
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is None or has_bridged_bond(mol):
+                    mask.append(False)
+                else:
+                    mask.append(True)
+        mask = torch.tensor(mask).float()
         rewards = torch.Tensor(rewards)
         assert not rewards.isnan().any()
 
-        rewards_prop = rewards[:n_generations]
-        rewards_max = rewards[n_generations:]
+        rewards_prop = rewards[: len(completions)]
+        rewards_max = rewards[len(completions) :]
 
         objective = obj_func.split()[0]
-        expected_val = compute_expected_reward(
+        expected_val = compare_obj_reward_to_max(
             objective, target, rewards_max, mask, prop
         )
-
         assert torch.isclose(rewards_prop, expected_val, atol=1e-4).all()
 
     def test_maximize_objective(
         self,
-        property_scorer_rescale: RewardScorer,
+        property_scorer: RewardScorer,
+        prop: str,
+        completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
         """Test the maximize objective specifically."""
-        prop = PROP_LIST[0]
-        smiles = propeties_csv.sample(2)["smiles"].tolist()
-        completion = "Here is a molecule: [SMILES] does it have the right properties?"
-
+        completions, smiles_batch = completions_smiles
         metadata = [
             {"properties": [prop], "objectives": ["maximize"], "target": [0]}
-            for _ in smiles
+            for _ in smiles_batch
         ]
-        completions = [fill_completion([s], completion) for s in smiles]
+        rewards, meta_rs = property_scorer(completions, metadata)
+        assert len(rewards) == len(completions)
 
-        rewards, _ = property_scorer_rescale(completions, metadata)
-
-        assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
-        assert (rewards >= 0).all()
-        assert (rewards <= 1).all()
-
-    def test_minimize_objective(
-        self,
-        property_scorer_rescale: RewardScorer,
-    ) -> None:
-        """Test the minimize objective specifically."""
-        prop = PROP_LIST[0]
-        smiles = propeties_csv.sample(2)["smiles"].tolist()
-        completion = "Here is a molecule: [SMILES] does it have the right properties?"
-
-        metadata = [
-            {"properties": [prop], "objectives": ["minimize"], "target": [0]}
-            for _ in smiles
-        ]
-        completions = [fill_completion([s], completion) for s in smiles]
-
-        rewards, _ = property_scorer_rescale(completions, metadata)
-
-        assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
+        for reward, meta_r, completion, smiles in zip(
+            rewards, meta_rs, completions, smiles_batch
+        ):
+            smi_valid = [
+                Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+                for smi in smiles
+            ]
+            pattern_valid = not completion.startswith("[N]")
+            if sum(smi_valid) == 0 or not pattern_valid:
+                assert reward == 0.0
+            else:
+                smis_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
+                all_smi_rewards = meta_r["all_smi_rewards"]
+                is_reward_valid(all_smi_rewards, smis_v, [prop])
 
 
 # =============================================================================
@@ -431,147 +399,14 @@ class TestBridgedBondHandling:
         # Should handle None gracefully
         assert result is True or result is False
 
-    def test_bridged_bond_mask_in_rewards(
+    def test_bridged_bond_with_gt(
         self,
-        property_scorer: RewardScorer,
     ) -> None:
         """Test that bridged bond molecules are properly masked in rewards."""
         # Use known valid SMILES
-        smiles = propeties_csv.sample(2)["smiles"].tolist()
-        completion = "Here is a molecule: [SMILES] what are its properties?"
-        prop = PROP_LIST[0]
-
-        metadata = [
-            {"properties": [prop], "objectives": ["maximize"], "target": [0]}
-            for _ in smiles
+        mols = [
+            Chem.MolFromSmiles("N1(C(=O)C2=C(N=CN2)N(C)C1=O)CCC1CC2CC1CC2"),
+            Chem.MolFromSmiles("C1=CC=C(CC2CC=C34CC(C=C3)C=C4C=2)C=C1"),
+            Chem.MolFromSmiles("C1CCCCC2(CC3CC(CC3)C2)C1"),
         ]
-        completions = [fill_completion([s], completion) for s in smiles]
-
-        rewards, _ = property_scorer(completions, metadata)
-
-        # Verify rewards are computed
-        assert len(rewards) == len(smiles)
-
-
-# =============================================================================
-# Edge Cases and Error Handling
-# =============================================================================
-
-
-class TestEdgeCases:
-    """Tests for edge cases and error handling."""
-
-    def test_empty_completion(
-        self,
-        valid_scorer: RewardScorer,
-    ) -> None:
-        """Test handling of empty completions."""
-        completions = ["This is an empty completion."]
-        rewards = np.array(
-            valid_scorer(
-                completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
-        )
-        assert rewards.sum() == 0.0
-
-    def test_multiple_properties(
-        self,
-        property_scorer: RewardScorer,
-    ) -> None:
-        """Test reward calculation with multiple properties."""
-        props = PROP_LIST[:2] if len(PROP_LIST) >= 2 else PROP_LIST
-        smiles = propeties_csv.sample(1)["smiles"].tolist()
-        completion = "Here is a molecule: [SMILES] what are its properties?"
-
-        metadata = [
-            {
-                "properties": props,
-                "objectives": ["maximize"] * len(props),
-                "target": [0] * len(props),
-            }
-        ]
-        completions = [fill_completion(smiles, completion)]
-
-        rewards, _ = property_scorer(completions, metadata)
-
-        assert len(rewards) == 1
-
-    def test_invalid_smiles_handling(
-        self,
-        property_scorer: RewardScorer,
-    ) -> None:
-        """Test handling of invalid SMILES strings."""
-        completion = "Here is a molecule: <answer> INVALID_SMILES </answer>"
-        prop = PROP_LIST[0]
-
-        metadata = [{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
-
-        rewards, _ = property_scorer([completion], metadata)
-
-        # Invalid SMILES should result in zero or handled reward
-        assert len(rewards) == 1
-
-
-# =============================================================================
-# Integration Tests
-# =============================================================================
-
-
-class TestIntegration:
-    """Integration tests combining multiple features."""
-
-    def test_full_reward_pipeline(
-        self,
-        valid_scorer: RewardScorer,
-        property_scorer: RewardScorer,
-    ) -> None:
-        """Test complete reward calculation pipeline."""
-        # Get valid SMILES
-        smiles = propeties_csv.sample(3)["smiles"].tolist()
-        prop = PROP_LIST[0]
-
-        completion_template = "Here is a molecule: [SMILES] what are its properties?"
-        completions = [fill_completion([s], completion_template) for s in smiles]
-
-        # First check validity
-        valid_metadata = [{"objectives": ["maximize"]} for _ in smiles]
-        valid_rewards, _ = valid_scorer(completions, valid_metadata)
-
-        # Then check properties
-        prop_metadata = [
-            {"properties": [prop], "objectives": ["maximize"], "target": [0]}
-            for _ in smiles
-        ]
-        prop_rewards, _ = property_scorer(completions, prop_metadata)
-
-        assert len(valid_rewards) == len(smiles)
-        assert len(prop_rewards) == len(smiles)
-
-    def test_different_objectives_same_molecule(
-        self,
-        property_scorer_rescale: RewardScorer,
-    ) -> None:
-        """Test different objectives on the same molecule."""
-        smiles = propeties_csv.sample(1)["smiles"].tolist()[0]
-        prop = PROP_LIST[0]
-        completion = f"Here is a molecule: <answer> {smiles} </answer>"
-
-        objectives = ["maximize", "minimize", "above 0.5", "below 0.5"]
-        all_rewards = []
-
-        for obj in objectives:
-            obj_func, target = get_unscaled_obj(obj, prop)
-            metadata = [
-                {"properties": [prop], "objectives": [obj_func], "target": [target]}
-            ]
-            rewards, _ = property_scorer_rescale([completion], metadata)
-            all_rewards.append(rewards[0])
-
-        # Check that rewards are valid numbers
-        for reward in all_rewards:
-            assert (
-                not np.isnan(reward).any()
-                if hasattr(reward, "__iter__")
-                else not np.isnan(reward)
-            )
+        assert all(has_bridged_bond(mol) for mol in mols)

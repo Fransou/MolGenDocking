@@ -1,9 +1,18 @@
+import json
+import os
+import random
+import string
 import subprocess
 import time
 from typing import Generator, Literal
 
+import pandas as pd
 import pytest
 import requests
+
+from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+    CLASSICAL_PROPERTIES_NAMES,
+)
 
 # Define allowed accelerator types
 AcceleratorType = Literal["cpu", "gpu"]
@@ -11,6 +20,12 @@ AcceleratorType = Literal["cpu", "gpu"]
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register custom pytest CLI options."""
+    parser.addoption(
+        "--data-path",
+        action="store",
+        default="data/molgendata",
+        help="Path to the data directory.",
+    )
     parser.addoption(
         "--accelerator",
         action="store",
@@ -38,13 +53,219 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 # =============================================================================
+# Data Fixtures
+# =============================================================================
+
+N_SMILES = 8
+N_RANDOM_SMILES = 4
+COMPLETIONS_PATTERN = [
+    "Here is a molecule: <answer> {SMILES} </answer> what are its properties?",
+    "This one looks interesting: COOC. Here is a molecule: <answer> {SMILES} </answer>",
+    "Here is a {SMILES} molecule: <answer> {SMILES} </answer> what are {SMILES} its properties?",
+    "[N] molecule:  <answer>{SMILES} what are its properties?",
+    "[N] No SMILES here!",
+]
+N_PROPS_TO_TEST = 12
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "minimize",
+        "above 0.5",
+        "below 0.5",
+        "equal 0.5",
+    ],
+)
+def objective_to_test(request: pytest.FixtureRequest) -> str:
+    """
+    Pytest fixture returning a single objective to test.
+
+    Example:
+        def test_example(objective_to_test: str) -> None:
+            ...
+    """
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def data_path(request: pytest.FixtureRequest) -> str:
+    """
+    Pytest fixture returning the data path.
+
+    Example:
+        def test_example(data_path: str) -> None:
+            ...
+    """
+    return request.config.getoption("--data-path")
+
+
+@pytest.fixture(scope="session")
+def properties_csv():
+    """
+    Pytest fixture returning the properties CSV dataframe.
+
+    Example:
+        def test_example(properties_csv) -> None:
+            ...
+    """
+
+    df = pd.read_csv("data/properties.csv", index_col=0)
+    return df
+
+
+@pytest.fixture(scope="session", params=list(range(N_RANDOM_SMILES + N_SMILES)))
+def idx_smiles(request: pytest.FixtureRequest) -> int:
+    """
+    Pytest fixture returning an index of a SMILES string.
+
+    Example:
+        def test_example(idx_smiles: int) -> None:
+            ...
+    """
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def prop(
+    data_path: str, idx_smiles: int, request: pytest.FixtureRequest
+) -> pd.DataFrame:
+    with open(os.path.join(data_path, "names_mapping.json")) as f:
+        properties_names_simple: dict = json.load(f)
+    with open(os.path.join(data_path, "docking_targets.json")) as f:
+        docking_prop_list: list = json.load(f)
+    prop_list = [
+        k
+        for k in properties_names_simple.values()
+        if k not in docking_prop_list and k in CLASSICAL_PROPERTIES_NAMES.values()
+    ]
+    random.shuffle(prop_list)
+    return prop_list[idx_smiles]
+
+
+@pytest.fixture(scope="session")
+def smiles_list(properties_csv) -> list[str]:
+    """
+    Pytest fixture returning a list of SMILES strings.
+
+    Example:
+        def test_example(smiles_list: list[str]) -> None:
+            ...
+    """
+    characters = string.ascii_letters + string.digits
+    full_list = properties_csv["smiles"].sample(N_SMILES).tolist() + [
+        "".join(random.choices(characters, k=random.randint(5, 15)))
+        for _ in range(N_RANDOM_SMILES)
+    ]
+    # shuffle
+    random.shuffle(full_list)
+    return full_list
+
+
+@pytest.fixture(scope="session", params=list(range(len(COMPLETIONS_PATTERN))))
+def completion_smile(
+    smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
+) -> tuple[str, str]:
+    """
+    Pytest fixture returning a single completion string with one SMILES.
+
+    Example:
+        def test_example(completions_list: list[str]) -> None:
+            ...
+    """
+    smi = smiles_list[idx_smiles]
+    pattern = COMPLETIONS_PATTERN[request.param]
+    completion = pattern.replace("{SMILES}", smi)
+    return completion, smi
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        (n_smi, i_pattern)
+        for n_smi in [2, 4]
+        for i_pattern in range(len(COMPLETIONS_PATTERN))
+    ],
+)  # N smiles, 4 repetitions, N_patterns
+def completion_smiles(
+    smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
+) -> tuple[str, list[str]]:
+    """
+    Pytest fixture returning a single completion string with multiple SMILES.
+
+    Example:
+        def test_example(completions_list_multi_smiles: list[str]) -> None:
+            ...
+    """
+    (n_smi, i_pattern) = request.param
+    smi_chunk = smiles_list[idx_smiles : idx_smiles + n_smi]
+    smi_joined = " ".join(smi_chunk)
+    pattern = COMPLETIONS_PATTERN[i_pattern]
+    completion = pattern.replace("{SMILES}", smi_joined)
+    return completion, smi_chunk
+
+
+@pytest.fixture(
+    scope="session",
+    params=[2, 4],
+)  # N_patterns, i_patterns, i_smi
+def completions_smile(
+    smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
+) -> tuple[list[str], list[str]]:
+    """
+    Pytest fixture returning a single completion string with one SMILES.
+
+    Example:
+        def test_example(completions_list: list[str]) -> None:
+            ...
+    """
+    n_pattern = request.param
+    patterns = random.sample(COMPLETIONS_PATTERN, n_pattern)
+    double_smi_list = smiles_list + smiles_list  # to avoid index error
+    smis = double_smi_list[idx_smiles : idx_smiles + n_pattern]
+    return [p.replace("{SMILES}", s) for p, s in zip(patterns, smis)], smis
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        (n_pattern, n_smi)
+        for n_pattern in [2, 4]
+        for n_smi in [2, 8]  # 4 repetitions
+    ],
+)  # N_patterns, N_smi, i_smi
+def completions_smiles(
+    smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
+) -> tuple[list[str], list[list[str]]]:
+    """
+    Pytest fixture returning a single completion string with multiple SMILES.
+
+    Example:
+        def test_example(completions_list_multi_smiles: list[str]) -> None:
+            ...
+    """
+    (n_pattern, n_smi) = request.param
+    patterns = random.sample(COMPLETIONS_PATTERN, n_pattern)
+    double_smi_list = smiles_list + smiles_list  # to avoid index error
+    smis_chunks = [
+        double_smi_list[i : i + n_smi]
+        for i in range(idx_smiles, idx_smiles + n_pattern * n_smi, n_smi)
+    ]
+    completions = [
+        p.replace("{SMILES}", ", ".join(smi_chunk))
+        for p, smi_chunk in zip(patterns, smis_chunks)
+    ]
+    return completions, smis_chunks
+
+
+# =============================================================================
 # Server Management
 # =============================================================================
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 5001
 SERVER_STARTUP_TIMEOUT = 30  # seconds
-SERVER_HEALTH_CHECK_INTERVAL = 0.5  # seconds
+SERVER_HEALTH_CHECK_INTERVAL = 5  # seconds
 
 
 def _wait_for_server_ready(host: str, port: int, timeout: float) -> bool:
@@ -67,7 +288,8 @@ def _wait_for_server_ready(host: str, port: int, timeout: float) -> bool:
             response = requests.get(url, timeout=1)
             if response.status_code == 200:
                 return True
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            print(e)
             pass
         time.sleep(SERVER_HEALTH_CHECK_INTERVAL)
 
@@ -119,9 +341,11 @@ def uvicorn_server(
 
     # Start the uvicorn server
     print(f"\nStarting uvicorn server on {SERVER_HOST}:{SERVER_PORT}...")
+    os.environ["buffer_time"] = "0"
+    os.environ["data_path"] = "data/molgendata"  #
     process = subprocess.Popen(
         [
-            "buffer_time=1uvicorn",
+            "uvicorn",
             "--host",
             SERVER_HOST,
             "--port",
