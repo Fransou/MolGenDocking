@@ -27,31 +27,36 @@ tar -xzf synthesis.tar.gz
 
 ## Data Organization
 
-```
-molgendata/              # Docking targets
-├── docking_targets.json
-├── names_mapping.json
-├── pockets_info.json
-├── pdb_files/
-├── train_prompts.jsonl
-├── eval_data/
-│   └── eval_prompts.jsonl
-│   └── eval_prompts_ood.jsonl
-└── test_data/
-    └── test_prompts_ood.jsonl
-
-synthesis/               # Reaction data
-├── train_prompts.jsonl
-├── chembl_test.jsonl
-└── enamine_test.jsonl
-
-polaris/                 # Multi-task benchmarks
-├── eval_concatenated.jsonl
-└── [dataset]
-    ├── train.jsonl
-    ├── eval.jsonl
-    └── test.jsonl
-```
+=== "Molecular Generation Data"
+    ```plaintext
+    molgendata/              # Docking targets
+    ├── docking_targets.json
+    ├── names_mapping.json
+    ├── pockets_info.json
+    ├── pdb_files/
+    ├── train_prompts.jsonl
+    ├── eval_data/
+    │   └── eval_prompts.jsonl
+    │   └── eval_prompts_ood.jsonl
+    └── test_data/
+        └── test_prompts_ood.jsonl
+    ```
+=== "Property Prediction Data"
+    ```plaintext
+    synthesis/               # Reaction data
+    ├── train_prompts.jsonl
+    ├── chembl_test.jsonl
+    └── enamine_test.jsonl
+    ```
+=== "Retro-Synthesis Data"
+    ```plaintext
+    polaris/                 # Multi-task benchmarks
+    ├── eval_concatenated.jsonl
+    └── [dataset]
+        ├── train.jsonl
+        ├── eval.jsonl
+        └── test.jsonl
+    ```
 
 
 ### Data Format
@@ -103,33 +108,86 @@ class Sample(BaseModel):
 
 Each line in a JSONL file represents a `Sample` object with the following structure:
 
-```json
-{
-  "identifier": "sample_001",
-  "source": "dataset_name",
-  "conversations": [
+=== "Molecular Generation Sample Example"
+    ```json
     {
-      "identifier": "conversation_001",
-      "meta": {
-        "properties": ["QED", ...],
-        "objectives": ["above", ...],
-        "target": [0.5, ...],
-        ... # Additional metadata such as pocket box, target information, etc.
-      },
-      "messages": [
+      "identifier": "sample_001",
+      "conversations": [
         {
-          "role": "system",
-          "content": "You are a molecular generation assistant...",
-          "meta": {}
-        },
-        {
-          "role": "user",
-          "content": "Generate a molecule that binds to GSK3B with high affinity",
-          "meta": {},
-          "identifier": "msg_001"
+          "meta": {
+            "properties": ["QED", ...],
+            "objectives": ["above", ...],
+            "target": [0.5, ...],
+            ... # Additional metadata such as pocket box, target information, etc.
+          },
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a molecular generation assistant...",
+              "meta": {}
+            },
+            {
+              "role": "user",
+              "content": "Generate a molecule that binds to GSK3B with high affinity",
+              "meta": {},
+              "identifier": "msg_001"
+            }
+          ]
         }
       ]
     }
-  ]
-}
-```
+    ```
+=== "Property Prediction Sample Example"
+    ```json
+    {
+      "identifier": "id0",
+      "conversations": [
+        {
+          "meta": {
+            "properties": ["biogen/adme-fang-hclint-reg-v1"],
+            "objectives": ["regression"],
+            "target": [0.67],
+            "smiles": ["Brc1ccc(-c2nnc(Cn3cnc4ccccc43)o2)o1"],
+            "norm_var": 0.62,
+            ... # Additional metadata
+          },
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a property prediction assistant...",
+            },
+            {
+              "role": "user",
+              "content": "Predict the clearance value for the molecule with SMILES: Brc1ccc(-c2nnc(Cn3cnc4ccccc43)o2)o1",
+            }
+          ]
+        }
+      ]
+    }
+    ```
+=== "Retro-Synthesis Sample Example"
+    ```json
+    {
+      "identifier": "id0",
+      "conversations": [
+        {
+          "meta": {
+            "properties": ["full_path_bb_ref"],
+            "objectives": ["full_path_bb_ref"],
+            "target": ["CCCC[C@H](NC(=O)[C@H](CCCCN)NC(=O)[C@H](CCCNC(=N)N)NC(=O)c1ccc(/C=C2\\SC(=O)N(c3ccc(C)cc3)C2=O)cc1)C(N)=O"],
+            ... # Additional metadata
+          },
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a retrosynthesis planning assistant...",
+            },
+            {
+              "role": "user",
+              "content": "Given the product molecule with SMILES: CC(=O)OC1=CC=CC=C1C(=O)O, provide the reactants used in its synthesis.",
+            }
+          ]
+        }
+      ]
+    }
+    ```

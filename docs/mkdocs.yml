@@ -22,6 +22,7 @@ theme:
     admonition:
       parameter: fontawesome/solid/book
     repo: fontawesome/brands/github
+
 extra_css:
   - stylesheets/extra.css
 
@@ -29,6 +30,9 @@ nav:
   - Home: index.md
   - Datasets:
       - Overview: datasets/main.md
+      - De Novo Generation: datasets/generation.md
+      - Property Prediction: datasets/prop_prediction.md
+      - Retro-Synthesis: datasets/retro_synthesis.md
   - Reward Server:
       - Getting Started: reward_server/getting_started.md
       - Server Configuration: reward_server/server_configuration.md
@@ -44,8 +48,21 @@ markdown_extensions:
       anchor_linenums: true
       line_spans: __span
       pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.inlinehilite
   - admonition
   - pymdownx.details
   - pymdownx.snippets
   - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

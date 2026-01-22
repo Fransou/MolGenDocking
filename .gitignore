@@ -176,6 +176,7 @@ SFT*
 /data/polaris
 /data/synflownet
 /data/synthesis
+/data/synthesis_eval
 /data/analog_gen
 /data/molgendata/pdb_files
 /data/molgendata/eval_data
@@ -186,6 +187,7 @@ SFT*
 /data/*.zip
 /data/*.tab
 
+/MolGenOutput
 
 /results/*
 test_docking.csv
@@ -194,3 +196,5 @@ external_libraries/*
 oracle
 *.idea
 *.sqsh
+
+/MolGenDocking-latex
