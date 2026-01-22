@@ -1,5 +1,6 @@
 """Tests for the RL Rewards generation server functionality."""
 
+import logging
 import time
 from typing import Any, Dict, List
 
@@ -18,6 +19,8 @@ from ..utils import (
     get_unscaled_obj,
     is_reward_valid,
 )
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Ray Initialization
@@ -67,6 +70,7 @@ def ensure_server(uvicorn_server, server_url: str) -> str:
         if response.status_code == 200:
             return server_url
     except requests.exceptions.RequestException:
+        logger.warning(f"Failed to connect to {server_url}")
         pass
 
     pytest.skip("Generation reward server is not available")

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import string
@@ -16,6 +17,7 @@ from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
 
 # Define allowed accelerator types
 AcceleratorType = Literal["cpu", "gpu"]
+logger = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -123,8 +125,8 @@ def docking_targets(data_path: str) -> list[str]:
             ...
     """
     with open(os.path.join(data_path, "docking_targets.json")) as f:
-        docking_targets: list = json.load(f)
-    return docking_targets[:16]
+        docking_targets_list: list = json.load(f)
+    return docking_targets_list[:16]
 
 
 @pytest.fixture(scope="session", params=list(range(N_RANDOM_SMILES + N_SMILES)))
@@ -144,8 +146,7 @@ def prop(
     data_path: str,
     idx_smiles: int,
     docking_targets: List[str],
-    request: pytest.FixtureRequest,
-) -> pd.DataFrame:
+) -> str:
     with open(os.path.join(data_path, "names_mapping.json")) as f:
         properties_names_simple: dict = json.load(f)
     prop_list = [
@@ -303,8 +304,7 @@ def _wait_for_server_ready(host: str, port: int, timeout: float) -> bool:
             if response.status_code == 200:
                 return True
         except requests.exceptions.RequestException as e:
-            print(e)
-            pass
+            logger.info(f"Error, server probably not ready yet: {e}")
         time.sleep(SERVER_HEALTH_CHECK_INTERVAL)
 
     return False
@@ -349,12 +349,12 @@ def uvicorn_server(
 
     # Check if server is already running
     if _is_server_running(SERVER_HOST, SERVER_PORT):
-        print(f"\nServer already running on {SERVER_HOST}:{SERVER_PORT}")
+        logger.info(f"\nServer already running on {SERVER_HOST}:{SERVER_PORT}")
         yield None
         return
 
     # Start the uvicorn server
-    print(f"\nStarting uvicorn server on {SERVER_HOST}:{SERVER_PORT}...")
+    logger.info(f"\nStarting uvicorn server on {SERVER_HOST}:{SERVER_PORT}...")
     os.environ["buffer_time"] = "0"
     os.environ["data_path"] = "data/molgendata"  #
     process = subprocess.Popen(
@@ -372,7 +372,7 @@ def uvicorn_server(
 
     # Wait for server to be ready
     if _wait_for_server_ready(SERVER_HOST, SERVER_PORT, SERVER_STARTUP_TIMEOUT):
-        print(f"Server started successfully (PID: {process.pid})")
+        logger.info(f"Server started successfully (PID: {process.pid})")
     else:
         process.terminate()
         process.wait()
@@ -381,13 +381,13 @@ def uvicorn_server(
     yield process
 
     # Cleanup: stop the server
-    print(f"\nStopping uvicorn server (PID: {process.pid})...")
+    logger.info(f"\nStopping uvicorn server (PID: {process.pid})...")
     process.terminate()
     try:
         process.wait(timeout=10)
-        print("Server stopped successfully")
+        logger.info("Server stopped successfully")
     except subprocess.TimeoutExpired:
-        print("Server did not stop gracefully, killing...")
+        logger.info("Server did not stop gracefully, killing...")
         process.kill()
         process.wait()
 
