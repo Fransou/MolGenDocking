@@ -6,7 +6,7 @@ import jsonlines
 from tqdm import tqdm
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.rl_rewards import (
+from mol_gen_docking.reward.molecular_verifier import (
     RewardScorer,
 )
 from mol_gen_docking.server_utils.utils import (

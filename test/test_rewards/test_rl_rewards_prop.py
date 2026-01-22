@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mol_gen_docking.reward.rl_rewards import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import RewardScorer
 
 
 @pytest.fixture(scope="module")

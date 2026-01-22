@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.rl_rewards import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import RewardScorer
 
 
 @pytest.fixture(scope="module", params=[4, 8, 16])

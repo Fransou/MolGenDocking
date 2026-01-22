@@ -11,7 +11,7 @@ from tdc import Evaluator
 
 from mol_gen_docking.baselines.SynFlownets.args import get_config
 from mol_gen_docking.baselines.SynFlownets.trainer import MakeCustomTaskTrainer
-from mol_gen_docking.reward.rl_rewards import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import RewardScorer
 
 N_REPEAT_TEST = 8
 os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"

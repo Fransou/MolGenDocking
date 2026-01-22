@@ -7,7 +7,7 @@ import pytest
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.rl_rewards import RewardScorer, has_bridged_bond
+from mol_gen_docking.reward.molecular_verifier import RewardScorer, has_bridged_bond
 
 from ..utils import (
     compare_obj_reward_to_max,

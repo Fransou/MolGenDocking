@@ -11,7 +11,7 @@ import requests
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.rl_rewards import has_bridged_bond
+from mol_gen_docking.reward.molecular_verifier import has_bridged_bond
 from mol_gen_docking.server_utils.utils import MolecularVerifierResponse
 
 from ..utils import (

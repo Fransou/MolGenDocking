@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mol_gen_docking.data.pydantic_dataset import read_jsonl
-from mol_gen_docking.reward.rl_rewards import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import RewardScorer
 
 # =============================================================================
 # Fixtures
