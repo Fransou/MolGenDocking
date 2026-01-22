@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.molecular_verifier import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
 
 
 @pytest.fixture(scope="module", params=[4, 8, 16])
@@ -19,7 +19,7 @@ def exhaustiveness(request):
 def scorer(has_gpu, data_path, exhaustiveness):
     """Create a RewardScorer configured for docking tests."""
     if not has_gpu:
-        return RewardScorer(
+        return MolecularVerifier(
             data_path,
             "property",
             parse_whole_completion=True,
@@ -31,7 +31,7 @@ def scorer(has_gpu, data_path, exhaustiveness):
             ),
         )
     else:
-        return RewardScorer(
+        return MolecularVerifier(
             data_path,
             "property",
             parse_whole_completion=True,

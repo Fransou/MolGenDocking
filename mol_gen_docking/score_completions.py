@@ -7,14 +7,14 @@ from tqdm import tqdm
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.molecular_verifier import (
-    RewardScorer,
+    MolecularVerifier,
 )
 from mol_gen_docking.server_utils.utils import (
     MolecularVerifierSettings,
 )
 
 verifier_settings = MolecularVerifierSettings()
-reward_scorer = RewardScorer(
+reward_scorer = MolecularVerifier(
     path_to_mappings=verifier_settings.data_path,
     parse_whole_completion=verifier_settings.parse_whole_completion,
     docking_concurrency_per_gpu=verifier_settings.docking_concurrency_per_gpu,

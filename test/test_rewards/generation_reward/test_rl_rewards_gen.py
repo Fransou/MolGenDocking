@@ -7,7 +7,10 @@ import pytest
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.molecular_verifier import RewardScorer, has_bridged_bond
+from mol_gen_docking.reward.molecular_verifier import (
+    MolecularVerifier,
+    has_bridged_bond,
+)
 
 from ..utils import (
     compare_obj_reward_to_max,
@@ -21,9 +24,9 @@ from ..utils import (
 
 
 @pytest.fixture(scope="module")
-def valid_scorer(data_path: str) -> RewardScorer:
+def valid_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES checking."""
-    return RewardScorer(
+    return MolecularVerifier(
         data_path,
         "valid_smiles",
         parse_whole_completion=False,
@@ -32,9 +35,9 @@ def valid_scorer(data_path: str) -> RewardScorer:
 
 
 @pytest.fixture(scope="module")
-def property_scorer(data_path: str) -> RewardScorer:
+def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
-    return RewardScorer(
+    return MolecularVerifier(
         data_path,
         "property",
         parse_whole_completion=False,
@@ -51,7 +54,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_with_fake_molecule(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
     ) -> None:
         """Test that fake SMILES return zero reward."""
         completions = ["<answer> FAKE </answer>"]
@@ -65,7 +68,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_with_real_molecule(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
     ) -> None:
         """Test that valid SMILES return non-zero reward."""
         valid_smiles = "CCC"
@@ -81,7 +84,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_single(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completion_smile: tuple[str, str],
     ) -> None:
         """Test the valid SMILES reward function with a single SMILES."""
@@ -106,7 +109,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_multiple_in_one(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completion_smiles: tuple[str, list[str]],
     ) -> None:
         """Test the valid SMILES reward function with multiple SMILES in one completion."""
@@ -134,7 +137,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_batch_single_smiles(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
     ) -> None:
         """Test the valid SMILES reward function with a batch of completions, each with one SMILES."""
@@ -159,7 +162,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_batch_multiple_smiles(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
         """Test the valid SMILES reward function with a batch of completions, each with multiple SMILES."""
@@ -199,7 +202,7 @@ class TestMultiPromptMultiGeneration:
 
     def test_single_molecule_single_property(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completion_smile: tuple[str, str],
     ) -> None:
         """Test reward calculation for a single molecule with a single property."""
@@ -221,7 +224,7 @@ class TestMultiPromptMultiGeneration:
 
     def test_multi_prompt_single_smiles(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
     ) -> None:
         """Test the reward function for multiple prompts with single SMILES each."""
@@ -250,7 +253,7 @@ class TestMultiPromptMultiGeneration:
 
     def test_multi_prompt_multiple_smiles(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
         """Test the reward function for multiple prompts with multiple SMILES each."""
@@ -288,7 +291,7 @@ class TestObjectiveBasedRewards:
 
     def test_all_objectives(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
         objective_to_test: str,
         prop: str,
@@ -337,7 +340,7 @@ class TestObjectiveBasedRewards:
 
     def test_maximize_objective(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         prop: str,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:

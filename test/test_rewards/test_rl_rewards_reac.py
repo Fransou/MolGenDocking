@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mol_gen_docking.data.pydantic_dataset import read_jsonl
-from mol_gen_docking.reward.molecular_verifier import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
 
 # =============================================================================
 # Fixtures
@@ -17,13 +17,13 @@ from mol_gen_docking.reward.molecular_verifier import RewardScorer
 @pytest.fixture(scope="session")
 def property_scorer(data_path):
     """Create a RewardScorer for property scoring without rescaling."""
-    return RewardScorer(data_path, "property", rescale=False)
+    return MolecularVerifier(data_path, "property", rescale=False)
 
 
 @pytest.fixture(scope="session")
 def property_scorer_valid(data_path):
     """Create a RewardScorer for valid SMILES scoring without rescaling."""
-    return RewardScorer(data_path, "valid_smiles", rescale=False)
+    return MolecularVerifier(data_path, "valid_smiles", rescale=False)
 
 
 @pytest.fixture(scope="session")

@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from mol_gen_docking.reward.molecular_verifier import RewardScorer
+from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
 
 
 @pytest.fixture(scope="module")
 def property_scorer(data_path):
     """Create a RewardScorer for property scoring without rescaling."""
-    return RewardScorer(data_path, "property", rescale=False)
+    return MolecularVerifier(data_path, "property", rescale=False)
 
 
 # =============================================================================

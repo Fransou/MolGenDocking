@@ -34,7 +34,7 @@ def has_bridged_bond(mol: Chem.Mol | None) -> bool:
     return False
 
 
-class RewardScorer:
+class MolecularVerifier:
     def __init__(
         self,
         path_to_mappings: Optional[str] = None,

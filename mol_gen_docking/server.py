@@ -10,7 +10,7 @@ from tdc import Evaluator
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward.molecular_verifier import (
-    RewardScorer,
+    MolecularVerifier,
 )
 from mol_gen_docking.server_utils.buffer import RewardBuffer
 from mol_gen_docking.server_utils.utils import (
@@ -25,7 +25,7 @@ logger = logging.getLogger("molecular_verifier_server")
 logger.setLevel(logging.INFO)
 
 server_settings: MolecularVerifierSettings
-RemoteRewardScorer: Any = ray.remote(RewardScorer)
+RemoteRewardScorer: Any = ray.remote(MolecularVerifier)
 
 server_settings_log = "Server settings:\n"
 for field_name, field_value in MolecularVerifierSettings().model_dump().items():
@@ -59,7 +59,7 @@ def get_or_create_valid_actor() -> Any:
     global _valid_reward_model
     global server_settings
     if _valid_reward_model is None:
-        _valid_reward_model = RewardScorer(
+        _valid_reward_model = MolecularVerifier(
             path_to_mappings=server_settings.data_path,
             reward="valid_smiles",
             parse_whole_completion=False,
