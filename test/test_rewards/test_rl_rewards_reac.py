@@ -128,7 +128,7 @@ class TestReaction:
 
             rewards = property_scorer(completions, [metadata] * len(answers))[0]
             property_scorer_valid(completions, [metadata] * len(answers))[0]
-            assert (rewards[0] == 1) or metadata.get("impossible", False)
+            assert (rewards[0] == 1) or metadata["impossible"]
 
 
 # =============================================================================
