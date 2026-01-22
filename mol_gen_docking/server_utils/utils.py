@@ -11,11 +11,8 @@ class MolecularVerifierServerQuery(BaseModel):
 
     Attributes:
         metadata: List of metadata dictionaries, one per query item.
-            Each dictionary should contain:
-
-            - "properties": List of property names to evaluate
-            - "objectives": List of objective types matching each property
-            - "target": List of target values for each objective
+            Each dictionary will be converted to a MolecularVerifierMetadata
+            object for scoring.
 
         query: List of completion strings from the language model.
             Each completion should contain the answer wrapped in tags:
@@ -72,39 +69,31 @@ class MolecularVerifierServerMetadata(BaseModel):
 
         extracted_answer: Extracted answer text from property prediction tasks.
 
-        prop_valid: Validity score for property predictions.
+        valid: Validity score for reaction predictions.
             Range: [0.0, 1.0]
 
-        correct_last_product: Whether the last product matches expected output
-            in reaction tasks.
+        correct_product: Whether the product matches expected output
+            in reaction tasks. For synthesis tasks with tanimoto similarity,
+            this is the similarity score to the target molecule.
 
-        correct_bb: Whether building blocks match expected output
-            in reaction synthesis tasks.
-
-        Reactants_contained: Whether predicted reactants are contained in
-            the ground truth reactants.
-
-        Products_contained: Whether predicted products are contained in
-            the ground truth products.
+        correct_reactant: Whether all reactants are from the allowed
+            building blocks in reaction synthesis tasks.
     """
 
-    # MOL GENERATION ARGS
+    # Generation Verifier Fields
     smiles_extraction_failure: Optional[str] = None
     all_smi_rewards: Optional[List[float]] = None
     all_smi: Optional[List[str]] = None
     individual_rewards: Optional[List[float]] = None
     properties: Optional[List[str]] = None
 
-    # MOL PROP PRED ARGS
-    extracted_answer: Optional[str] = None
+    # Molecular Property Verifier Fields
+    extracted_answer: Optional[float | int] = None
 
-    # CHEMICAL REACTION ARGS
-    prop_valid: Optional[float] = None
-    correct_last_product: Optional[bool] = None
-    correct_bb: Optional[bool] = None
-
-    Reactants_contained: Optional[bool] = None
-    Products_contained: Optional[bool] = None
+    # Reaction Verifier Fields
+    valid: Optional[float] = None
+    correct_product: Optional[float] = None
+    correct_reactant: Optional[bool] = None
 
 
 class MolecularVerifierServerResponse(BaseModel):
@@ -118,7 +107,7 @@ class MolecularVerifierServerResponse(BaseModel):
             Typically normalized to [0.0, 1.0] range when rescaling is enabled.
 
         reward_list: List of individual reward scores, one per evaluated
-            completion in the request.
+            completion in the request (for batch processing).
 
         error: Error message if scoring failed. None if successful.
 

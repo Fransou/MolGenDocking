@@ -1,3 +1,10 @@
+"""Reaction verifier for chemical reaction and retro-synthesis tasks.
+
+This module provides the ReactionVerifier class which computes rewards for
+chemical reaction tasks including retro-synthesis planning, SMARTS prediction,
+and reaction product verification.
+"""
+
 import logging
 import pickle
 import re
@@ -13,7 +20,9 @@ from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
 from mol_gen_docking.reward.verifiers.abstract_verifier import (
     Verifier,
-    VerifierInputBatchModel,
+)
+from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
+    BatchVerifiersInputModel,
 )
 from mol_gen_docking.reward.verifiers.reaction_reward.input_metadata import (
     ReactionVerifierInputMetadataModel,
@@ -28,10 +37,35 @@ RDLogger.DisableLog("rdApp.*")
 
 
 class ReactionVerifier(Verifier):
+    """Verifier for chemical reaction and retro-synthesis tasks.
+
+    This verifier computes rewards for various reaction-related tasks including:
+    - Final product prediction
+    - Reactant identification
+    - SMARTS pattern prediction
+    - Full retro-synthesis path validation
+
+    The verifier uses a reaction matrix to validate synthesis steps and supports
+    both binary and Tanimoto-based reward computation.
+
+    Attributes:
+        verifier_config: Configuration for the reaction verifier.
+        rxn_matrix: Pre-loaded reaction matrix for validation.
+        check_ground_truth_tasks: List of task types requiring ground truth comparison.
+        run_validation_tasks: List of task types requiring path validation.
+        logger: Logger instance for the verifier.
+    """
+
     def __init__(
         self,
         verifier_config: ReactionVerifierConfigModel,
     ):
+        """Initialize the ReactionVerifier.
+
+        Args:
+            verifier_config: Configuration containing reaction matrix path
+                and reward type settings.
+        """
         super().__init__()
         self.verifier_config = verifier_config
         self.rxn_matrix: ReactantReactionMatrix
@@ -54,7 +88,20 @@ class ReactionVerifier(Verifier):
     def r_ground_truth_mols(
         self, mol_y: List[Molecule], mol_label: List[Molecule]
     ) -> float:
-        """Returns 0.1 if the molecules are valid, 0.1 + 0.4*iou if the molecules are not in the same order, 1 otherwise."""
+        """Compute reward for molecule prediction against ground truth.
+
+        The reward is computed as:
+        - 0.1 base reward if molecules are valid
+        - +0.4 * IoU for partial overlap
+        - +0.5 if molecules match exactly in order
+
+        Args:
+            mol_y: List of predicted molecules.
+            mol_label: List of ground truth molecules.
+
+        Returns:
+            Reward value between 0.1 and 1.0.
+        """
         self.logger.info(
             f"Computed molecules: {[mol.smiles for mol in mol_y]} vs labels: {[mol.smiles for mol in mol_label]}"
         )
@@ -73,6 +120,16 @@ class ReactionVerifier(Verifier):
     def ground_truth_reward_mol(
         self, completion: str, labels: List[str], impossible: bool
     ) -> float:
+        """Compute reward for molecule prediction tasks.
+
+        Args:
+            completion: Model completion containing the answer.
+            labels: List of ground truth SMILES strings.
+            impossible: If True, expects "impossible" as the answer.
+
+        Returns:
+            Reward value between 0.0 and 1.0.
+        """
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         self.logger.info(f"Matches for ground truth mols: {matches}")
         if len(matches) != 1:
@@ -107,6 +164,19 @@ class ReactionVerifier(Verifier):
         product: str,
         impossible: bool,
     ) -> Tuple[float, Dict[str, Any]]:
+        """Compute reward for SMARTS prediction tasks.
+
+        Args:
+            completion: Model completion containing the SMARTS answer.
+            labels: List containing the ground truth SMARTS string.
+            reactants: List of reactant SMILES strings.
+            product: Expected product SMILES string.
+            impossible: If True, expects "impossible" as the answer.
+
+        Returns:
+            Tuple of (reward, metadata_dict) where metadata contains
+            'Reactants_contained' and 'Products_contained' flags.
+        """
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
@@ -147,15 +217,29 @@ class ReactionVerifier(Verifier):
         impossible: bool,
         reward_type: Literal["binary", "tanimoto"] = "binary",
     ) -> Tuple[float, Dict[str, Any]]:
-        """
-        Returns 0.9 if the synthesis is deemed impossible, and the model returns 'impossible'.
-        Test all steps with all smarts allowed, and returns the reward as :
-        sum(n_valid)**2 / n_total**2
-        if n_total <= n_steps_max otherwise returns 0.0
-        Valid steps are considered as such:
-            If the first step, uses building blocks and the reaction appears in the Reaction Matrix, and the product is correct.
-            Otherwise, there exist a SMARTS describing the reaction.
-        Finally, if the last product is not the target, or some reactants are unknown, return the original reward * the tanimoto similarity**3
+        """Compute reward for retro-synthesis path validation.
+
+        Validates a multi-step synthesis path by checking:
+        1. All reactants are valid building blocks or previous products
+        2. Each reaction step has a valid SMARTS pattern
+        3. The final product matches the target (exactly or by Tanimoto similarity)
+
+        Args:
+            completion: Model completion containing the synthesis path.
+            label: Target product SMILES string.
+            building_blocks: List of valid starting building block SMILES.
+            smarts: List of allowed SMARTS patterns (empty = use reaction matrix).
+            n_steps_max: Maximum allowed number of synthesis steps.
+            impossible: If True, expects "impossible" as the answer.
+            reward_type: "binary" for exact match or "tanimoto" for similarity-based.
+
+        Returns:
+            Tuple of (reward, metadata_dict) containing validation results.
+
+        Notes:
+            - Path format: "reactant1 + reactant2 -> product" per line
+            - Reward is scaled by (n_valid/n_total)^2 for partial paths
+            - Tanimoto similarity is cubed (sim^3) for reward scaling
         """
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
@@ -334,8 +418,24 @@ class ReactionVerifier(Verifier):
         }
 
     def get_score(
-        self, inputs: VerifierInputBatchModel
+        self, inputs: BatchVerifiersInputModel
     ) -> List[ReactionVerifierOutputModel]:
+        """Compute reaction rewards for a batch of completions.
+
+        This method routes each completion to the appropriate reward function
+        based on the objective type specified in the metadata.
+
+        Args:
+            inputs: Batch of completions and metadata for verification.
+
+        Returns:
+            List of ReactionVerifierOutputModel containing rewards and metadata.
+
+        Notes:
+            - Ground truth tasks: final_product, reactant, all_reactants
+            - SMARTS tasks: smarts prediction with reaction validation
+            - Path tasks: full_path with step-by-step validation
+        """
         completions = inputs.completions
         assert all(
             isinstance(meta, ReactionVerifierInputMetadataModel)

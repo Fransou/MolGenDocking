@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import (
+from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
     VerifierOutputModel,
 )
 

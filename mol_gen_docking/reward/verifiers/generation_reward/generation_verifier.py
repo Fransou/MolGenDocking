@@ -1,3 +1,10 @@
+"""Generation verifier for de novo molecular generation tasks.
+
+This module provides the GenerationVerifier class which computes rewards for
+molecular generation based on property optimization objectives such as docking
+scores, QED, synthetic accessibility, and other molecular descriptors.
+"""
+
 import json
 import logging
 import os
@@ -11,7 +18,9 @@ from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.verifiers.abstract_verifier import (
     Verifier,
-    VerifierInputBatchModel,
+)
+from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
+    BatchVerifiersInputModel,
 )
 from mol_gen_docking.reward.verifiers.generation_reward.generation_verifier_pydantic_model import (
     GenerationVerifierConfigModel,
@@ -33,13 +42,57 @@ from mol_gen_docking.utils.property_utils import (
 
 
 class GenerationVerifier(Verifier):
-    """From a list of smiles and a metadata dict, returns a reward based
-    on how well the proposed molecules meet the criterias"""
+    """Verifier for de novo molecular generation tasks.
+
+    This verifier computes rewards for generated molecules based on how well
+    they meet specified property optimization criteria. It supports multiple
+    property types including docking scores, QED, SA score, and RDKit descriptors.
+
+    The verifier uses Ray for parallel computation and supports GPU-accelerated
+    docking calculations when configured with AutoDock GPU.
+
+    Attributes:
+        verifier_config: Configuration for the generation verifier.
+        property_name_mapping: Mapping of property names to oracle names.
+        docking_target_list: List of valid docking target names.
+        oracles: Cache of oracle instances for property computation.
+        debug: If True, enables debug mode with additional logging.
+
+    Example:
+        ```python
+        from mol_gen_docking.reward.verifiers import (
+            GenerationVerifier,
+            GenerationVerifierConfigModel,
+            BatchVerifiersInputModel,
+            GenerationVerifierInputMetadataModel
+        )
+
+        config = GenerationVerifierConfigModel(
+            path_to_mappings="data/molgendata",
+            reward="property"
+        )
+        verifier = GenerationVerifier(config)
+
+        inputs = BatchVerifiersInputModel(
+            completions=["<answer>CCO</answer>"],
+            metadatas=[GenerationVerifierInputMetadataModel(
+                properties=["QED"], objectives=["maximize"], target=[0.0]
+            )]
+        )
+        results = verifier.get_score(inputs)
+        ```
+    """
 
     def __init__(
         self,
         verifier_config: GenerationVerifierConfigModel,
     ):
+        """Initialize the GenerationVerifier.
+
+        Args:
+            verifier_config: Configuration containing paths to mappings,
+                reward type, and docking oracle settings.
+        """
         super().__init__()
         self.verifier_config = verifier_config
         self.logger = logging.getLogger("GenerationVerifier")
@@ -61,8 +114,25 @@ class GenerationVerifier(Verifier):
         self.debug = False  # Only for tests
 
     def get_smiles_from_completion(self, comp: str) -> Tuple[List[str], str]:
-        """
-        Get smiles from completion
+        """Extract SMILES strings from a model completion.
+
+        This method parses a model completion to extract valid SMILES strings.
+        It handles various formats including answer tags and markdown formatting.
+
+        Args:
+            comp: The model completion string to parse.
+
+        Returns:
+            Tuple containing:
+                - List of valid SMILES strings found in the completion
+                - Failure reason string (empty if successful, otherwise one of:
+                  "no_answer", "no_smiles", "no_valid_smiles", "multiple_smiles")
+
+        Example:
+            ```python
+            smiles, failure = verifier.get_smiles_from_completion("<answer>CCO</answer>")
+            # smiles = ["CCO"], failure = ""
+            ```
         """
         comp = comp.strip()
         reason: str = ""
@@ -95,7 +165,7 @@ class GenerationVerifier(Verifier):
             # Check if the string is encapsulated in some kind of markdown
             m = mkd_pattern.match(x)
             x = m.group(2) if m else x
-            if "e" in x or len(x) < 3:
+            if len(x) < 3:
                 return ""
             if (
                 "C" in x
@@ -150,6 +220,16 @@ class GenerationVerifier(Verifier):
     def get_all_completions_smiles(
         self, completions: List[str]
     ) -> Tuple[List[List[str]], List[str]]:
+        """Extract SMILES from multiple completions.
+
+        Args:
+            completions: List of model completion strings.
+
+        Returns:
+            Tuple containing:
+                - List of SMILES lists (one per completion)
+                - List of failure reasons (one per completion)
+        """
         smiles = []
         failures = []
         for completion in completions:
@@ -165,6 +245,18 @@ class GenerationVerifier(Verifier):
         return smiles, failures
 
     def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
+        """Compute property values for all molecules in a DataFrame.
+
+        This method fills in the 'value' column of the DataFrame with computed
+        property values using the appropriate oracles. It uses Ray for parallel
+        computation, with GPU resources allocated for docking calculations.
+
+        Args:
+            df_properties: DataFrame with columns ['smiles', 'property', 'value',
+                'obj', 'target_value', 'id_completion']. The 'value' column will
+                be filled with computed property values.
+        """
+
         def _get_property(
             smiles: List[str],
             prop: str,
@@ -234,6 +326,21 @@ class GenerationVerifier(Verifier):
                 ] = v
 
     def get_reward(self, row: pd.Series) -> float:
+        """Compute reward for a single property-molecule pair.
+
+        This method computes the reward based on the objective type:
+        - "below": 1.0 if property <= target, else 0.0
+        - "above": 1.0 if property >= target, else 0.0
+        - "maximize": Returns the property value directly
+        - "minimize": Returns 1 - property value
+        - "equal": Returns clipped value based on squared error
+
+        Args:
+            row: DataFrame row containing 'obj', 'value', 'target_value', 'property'.
+
+        Returns:
+            Computed reward value (typically 0.0 to 1.0).
+        """
         reward: float = 0
         obj = row["obj"]
         mol_prop = row["value"]
@@ -264,6 +371,16 @@ class GenerationVerifier(Verifier):
         smiles_list_per_completion: List[List[str]],
         objectives: List[dict[str, Tuple[GenerationObjT, float]]],
     ) -> pd.DataFrame:
+        """Create a DataFrame mapping properties to SMILES for batch processing.
+
+        Args:
+            smiles_list_per_completion: List of SMILES lists, one per completion.
+            objectives: List of objective dictionaries mapping property names
+                to (objective_type, target_value) tuples.
+
+        Returns:
+            DataFrame with columns: smiles, property, value, obj, target_value, id_completion.
+        """
         df_properties = pd.DataFrame(
             [
                 (s, p, None, obj, target_value, i)
@@ -285,8 +402,26 @@ class GenerationVerifier(Verifier):
         return df_properties
 
     def get_score(
-        self, inputs: VerifierInputBatchModel
+        self, inputs: BatchVerifiersInputModel
     ) -> List[GenerationVerifierOutputModel]:
+        """Compute generation rewards for a batch of completions.
+
+        This method extracts SMILES from completions, computes property values,
+        and calculates rewards based on the specified objectives. The final reward
+        is the geometric mean of per-property rewards.
+
+        Args:
+            inputs: Batch of completions and metadata for verification.
+
+        Returns:
+            List of GenerationVerifierOutputModel containing rewards and metadata
+            for each completion.
+
+        Notes:
+            - If reward type is "valid_smiles", returns 1.0 for valid single SMILES
+            - Multiple SMILES in a completion result in 0.0 reward
+            - Uses geometric mean to aggregate multi-property rewards
+        """
         smiles_per_completion, extraction_failures = self.get_all_completions_smiles(
             inputs.completions
         )

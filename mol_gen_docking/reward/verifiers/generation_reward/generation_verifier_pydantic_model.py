@@ -3,7 +3,7 @@ from typing import List, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import (
+from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
     VerifierOutputModel,
 )
 
@@ -18,7 +18,6 @@ class DockingConfigModel(BaseModel):
         exhaustiveness: Docking exhaustiveness parameter.
         n_cpu: Number of CPUs to use for docking.
         docking_oracle: Type of docking oracle to use ("pyscreener" or "autodock_gpu").
-        vina_mode: Command mode for AutoDock GPU.
     """
 
     exhaustiveness: int = Field(
@@ -48,6 +47,8 @@ class PyscreenerConfigModel(DockingConfigModel):
     Attributes:
         exhaustiveness: Docking exhaustiveness parameter.
         n_cpu: Number of CPUs to use for docking.
+        docking_oracle: Type of docking oracle to use (must be "pyscreener").
+        software_class: Docking software class to use with PyScreener.
     """
 
     software_class: Literal[
@@ -80,6 +81,7 @@ class DockingGPUConfigModel(DockingConfigModel):
     Attributes:
         exhaustiveness: Docking exhaustiveness parameter.
         n_cpu: Number of CPUs to use for docking.
+        docking_oracle: Type of docking oracle to use (must be "autodock_gpu").
         vina_mode: Command mode for AutoDock GPU.
     """
 
