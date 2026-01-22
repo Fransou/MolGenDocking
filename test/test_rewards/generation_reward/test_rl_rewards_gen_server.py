@@ -12,7 +12,7 @@ import torch
 from rdkit import Chem
 
 from mol_gen_docking.reward.molecular_verifier import has_bridged_bond
-from mol_gen_docking.server_utils.utils import MolecularVerifierResponse
+from mol_gen_docking.server_utils.utils import MolecularVerifierServerResponse
 
 from ..utils import (
     compare_obj_reward_to_max,
@@ -112,7 +112,7 @@ def get_rewards_async(
                 "prompts": [""],
             },
         )
-        return MolecularVerifierResponse.validate(r.json())
+        return MolecularVerifierServerResponse.validate(r.json())
 
     return ray.get(
         [
@@ -136,7 +136,7 @@ def get_rewards_sync(
             "query": completions,
         },
     )
-    return MolecularVerifierResponse.validate(responses.json())
+    return MolecularVerifierServerResponse.validate(responses.json())
 
 
 # =============================================================================

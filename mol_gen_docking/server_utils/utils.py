@@ -51,7 +51,7 @@ class MolecularVerifierSettings(BaseSettings):
         )
 
 
-class MolecularVerifierQuery(BaseModel):
+class MolecularVerifierServerQuery(BaseModel):
     """
     Query model for the MolecularVerifier.
     Args:
@@ -65,7 +65,7 @@ class MolecularVerifierQuery(BaseModel):
     prompts: Optional[List[str]] = None
 
 
-class MolecularVerifierMetadata(BaseModel):
+class MolecularVerifierServerMetadata(BaseModel):
     """
     Metadata model for the MolecularVerifier.
     Args:
@@ -101,7 +101,7 @@ class MolecularVerifierMetadata(BaseModel):
     Products_contained: Optional[bool] = None
 
 
-class MolecularVerifierResponse(BaseModel):
+class MolecularVerifierServerResponse(BaseModel):
     """
     Response model for the VerifierServer.
     Args:
@@ -115,5 +115,5 @@ class MolecularVerifierResponse(BaseModel):
     reward: float
     reward_list: List[float]
     error: Optional[str] = None
-    meta: Optional[List[MolecularVerifierMetadata]] = None
+    meta: Optional[List[MolecularVerifierServerMetadata]] = None
     next_turn_feedback: Optional[str] = None

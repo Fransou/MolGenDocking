@@ -14,8 +14,8 @@ from mol_gen_docking.reward.molecular_verifier import (
 )
 from mol_gen_docking.server_utils.buffer import RewardBuffer
 from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierQuery,
-    MolecularVerifierResponse,
+    MolecularVerifierServerQuery,
+    MolecularVerifierServerResponse,
     MolecularVerifierSettings,
 )
 
@@ -106,15 +106,17 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.post("/get_reward")  # type: ignore
-    async def get_reward(query: MolecularVerifierQuery) -> MolecularVerifierResponse:
+    async def get_reward(
+        query: MolecularVerifierServerQuery,
+    ) -> MolecularVerifierServerResponse:
         t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
         if status == "Error":
-            return MolecularVerifierResponse(error="Error in preprocessing")
+            return MolecularVerifierServerResponse(error="Error in preprocessing")
 
-        result: MolecularVerifierResponse = await app.state.reward_buffer.add_query(
-            query
+        result: MolecularVerifierServerResponse = (
+            await app.state.reward_buffer.add_query(query)
         )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
@@ -137,7 +139,7 @@ def create_app() -> FastAPI:
         return result
 
     @app.post("/prepare_receptor")  # type: ignore
-    async def prepare_receptor(query: MolecularVerifierQuery) -> Dict[str, str]:
+    async def prepare_receptor(query: MolecularVerifierServerQuery) -> Dict[str, str]:
         metadata = query.metadata
 
         if app.state.receptor_processor is None:

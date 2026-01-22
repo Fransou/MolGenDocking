@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Tuple
 import ray
 
 from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierMetadata,
-    MolecularVerifierQuery,
-    MolecularVerifierResponse,
+    MolecularVerifierServerMetadata,
+    MolecularVerifierServerQuery,
+    MolecularVerifierServerResponse,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -26,13 +26,13 @@ class RewardBuffer:
         self.app = app
         self.buffer_time = buffer_time
         self.max_batch_size = max_batch_size
-        self.queue: deque[Tuple[MolecularVerifierQuery, asyncio.Future]] = deque()
+        self.queue: deque[Tuple[MolecularVerifierServerQuery, asyncio.Future]] = deque()
         self.lock = asyncio.Lock()
         self.processing_task = asyncio.create_task(self._batch_loop())
 
     async def add_query(
-        self, query: MolecularVerifierQuery
-    ) -> MolecularVerifierResponse:
+        self, query: MolecularVerifierServerQuery
+    ) -> MolecularVerifierServerResponse:
         """
         Adds a query to the buffer and waits for the corresponding result.
         """
@@ -80,8 +80,8 @@ class RewardBuffer:
             raise e
 
     async def _process_batch(
-        self, queries: List[MolecularVerifierQuery]
-    ) -> List[MolecularVerifierResponse]:
+        self, queries: List[MolecularVerifierServerQuery]
+    ) -> List[MolecularVerifierServerResponse]:
         """
         Processes a list of MolecularVerifierQuery in one Ray call.
         """
@@ -101,8 +101,8 @@ class RewardBuffer:
             # All failed early
             return [
                 q
-                if isinstance(q, MolecularVerifierResponse)
-                else MolecularVerifierResponse(
+                if isinstance(q, MolecularVerifierServerResponse)
+                else MolecularVerifierServerResponse(
                     reward=0.0, reward_list=[], error="Empty batch"
                 )
                 for q in queries
@@ -135,16 +135,16 @@ class RewardBuffer:
         # --- Step 4. Compute per-query metrics ---
         responses = []
         for i, q in enumerate(queries):
-            if isinstance(q, MolecularVerifierResponse):
+            if isinstance(q, MolecularVerifierServerResponse):
                 # prefilled error
                 responses.append(q)
                 continue
             rewards_i = grouped_results[i]
             metadata_i = grouped_meta[i]
-            response = MolecularVerifierResponse(
+            response = MolecularVerifierServerResponse(
                 reward=0.0 if len(rewards_i) == 0 else sum(rewards_i) / len(rewards_i),
                 reward_list=rewards_i,
-                meta=[MolecularVerifierMetadata(**m) for m in metadata_i],
+                meta=[MolecularVerifierServerMetadata(**m) for m in metadata_i],
                 error=None,
             )
             responses.append(response)
