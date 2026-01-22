@@ -27,6 +27,11 @@ logger.setLevel(logging.INFO)
 server_settings: MolecularVerifierSettings
 RemoteRewardScorer: Any = ray.remote(RewardScorer)
 
+server_settings_log = "Server settings:\n"
+for field_name, field_value in MolecularVerifierSettings().model_dump().items():
+    server_settings_log += f"  {field_name}: {field_value}\n"
+logger.info(server_settings_log)
+
 _reward_model = None
 _valid_reward_model = None
 
@@ -113,18 +118,22 @@ def create_app() -> FastAPI:
         )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
-        if result.meta is not None and "all_smi_rewards" in result.meta:
-            result.next_turn_feedback = (
-                "The score of the provided molecules are:\n"
-                + "\n".join(
-                    [
-                        f"{smi}: {score:.4f}"
-                        for smi, score in zip(
-                            result.meta["all_smi"], result.meta["all_smi_rewards"]
-                        )
-                    ]
+        if result.meta is not None and len(result.meta) == 1:
+            if (
+                result.meta[0].all_smi_rewards is not None
+                and result.meta[0].all_smi is not None
+            ):
+                result.next_turn_feedback = (
+                    "The score of the provided molecules are:\n"
+                    + "\n".join(
+                        [
+                            f"{smi}: {score:.4f}"
+                            for smi, score in zip(
+                                result.meta[0].all_smi, result.meta[0].all_smi_rewards
+                            )
+                        ]
+                    )
                 )
-            )
         return result
 
     @app.post("/prepare_receptor")  # type: ignore

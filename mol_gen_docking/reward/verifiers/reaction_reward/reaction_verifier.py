@@ -19,7 +19,7 @@ RDLogger.DisableLog("rdApp.*")
 class ReactionVerifier(Verifier):
     def __init__(
         self,
-        reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
+        reward: Literal["property", "valid_smiles"] = "property",
         rxn_matrix_path: str | None = None,
         reaction_reward_type: Literal["binary", "tanimoto"] = "tanimoto",
     ):
@@ -340,7 +340,7 @@ class ReactionVerifier(Verifier):
                 )
                 rewards_meta.append({})
             elif objective == "smarts":
-                r, meta = self.reward_smarts(
+                r, meta_r = self.reward_smarts(
                     answer,
                     meta["target"],
                     meta["reactants"][0],
@@ -348,9 +348,9 @@ class ReactionVerifier(Verifier):
                     impossible=impossible,
                 )
                 rewards.append(r)
-                rewards_meta.append(meta)
+                rewards_meta.append(meta_r)
             elif objective in self.run_validation_tasks:
-                r, meta = self.reward_run_path(
+                r, meta_r = self.reward_run_path(
                     answer,
                     meta["target"][0],
                     meta["building_blocks"],
@@ -360,9 +360,9 @@ class ReactionVerifier(Verifier):
                     reward_type=self.reaction_reward_type,
                 )
                 rewards.append(r)
-                rewards_meta.append(meta)
+                rewards_meta.append(meta_r)
             elif objective == "analog_gen":
-                r, meta = self.reward_run_path(
+                r, meta_r = self.reward_run_path(
                     answer,
                     meta["target"][0],
                     meta["building_blocks"],
@@ -372,7 +372,7 @@ class ReactionVerifier(Verifier):
                     impossible=False,
                 )
                 rewards.append(r)
-                rewards_meta.append(meta)
+                rewards_meta.append(meta_r)
 
         if self.reward == "valid_smiles":
             return [float(r > 0.0) for r in rewards], rewards_meta

@@ -1,0 +1,587 @@
+"""Tests for the RL Rewards generation server functionality."""
+
+import time
+from typing import Any, Dict, List
+
+import numpy as np
+import pytest
+import ray
+import requests
+import torch
+from rdkit import Chem
+
+from mol_gen_docking.reward.rl_rewards import has_bridged_bond
+from mol_gen_docking.server_utils.utils import MolecularVerifierResponse
+
+from ..utils import (
+    compare_obj_reward_to_max,
+    get_unscaled_obj,
+    is_reward_valid,
+)
+
+# =============================================================================
+# Ray Initialization
+# =============================================================================
+
+if not ray.is_initialized():
+    ray.init()
+
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+
+@pytest.fixture(scope="session", params=list(range(4)))
+def idx_smiles(request: pytest.FixtureRequest) -> int:
+    """
+    Pytest fixture returning an index of a SMILES string.
+
+    Example:
+        def test_example(idx_smiles: int) -> None:
+            ...
+    """
+    return request.param
+
+
+@pytest.fixture(scope="module")
+def ensure_server(uvicorn_server, server_url: str) -> str:
+    """
+    Ensure the server is available for tests.
+
+    This fixture depends on uvicorn_server to ensure automatic server management
+    when --start-server is passed. It also checks if server is reachable.
+
+    Args:
+        uvicorn_server: The server process fixture from conftest.
+        server_url: The server URL fixture from conftest.
+
+    Returns:
+        The server URL if available.
+
+    Raises:
+        pytest.skip: If server is not available.
+    """
+    try:
+        response = requests.get(f"{server_url}/liveness", timeout=5)
+        if response.status_code == 200:
+            return server_url
+    except requests.exceptions.RequestException:
+        pass
+
+    pytest.skip("Generation reward server is not available")
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+
+def get_rewards_async(
+    server_url: str, completions: List[str], metadata: List[Dict[str, Any]]
+) -> List[requests.Response]:
+    """
+    Get rewards asynchronously from the server for multiple completions.
+    """
+
+    @ray.remote(num_cpus=1)
+    def get_reward_async(
+        server_url: str, completions: str, metadata: Dict[str, Any]
+    ) -> requests.Response:
+        """
+        Remote function to get reward from the server.
+
+        Args:
+            server_url: The server URL.
+            smi: SMILES string to evaluate.
+            metadata: Metadata dictionary containing properties, objectives, and target.
+
+        Returns:
+            Response from the reward server.
+        """
+        time.sleep(np.random.random() ** 2 * 2)
+        r = requests.post(
+            f"{server_url}/get_reward",
+            json={
+                "metadata": [metadata],
+                "query": [completions],
+                "prompts": [""],
+            },
+        )
+        return MolecularVerifierResponse.validate(r.json())
+
+    return ray.get(
+        [
+            get_reward_async.remote(server_url, comp, meta)
+            for comp, meta in zip(completions, metadata)
+        ]
+    )
+
+
+def get_rewards_sync(
+    server_url: str, completions: List[str], metadata: List[Dict[str, Any]]
+) -> requests.Response:
+    """
+    Get rewards synchronously from the server for multiple completions.
+    """
+
+    responses = requests.post(
+        f"{server_url}/get_reward",
+        json={
+            "metadata": metadata,
+            "query": completions,
+        },
+    )
+    return MolecularVerifierResponse.validate(responses.json())
+
+
+# =============================================================================
+# Server Availability Tests
+# =============================================================================
+
+
+class TestServerAvailability:
+    """Tests for server availability checks."""
+
+    def test_server_health_endpoint(self, ensure_server: str) -> None:
+        """Test that the server liveness endpoint is accessible."""
+        response = requests.get(f"{ensure_server}/liveness", timeout=5)
+        assert response.status_code == 200
+
+
+# =============================================================================
+# Valid SMILES Server Tests
+# =============================================================================
+
+
+class TestValidSmilesServer:
+    """Tests for valid SMILES reward scoring via the server."""
+
+    def test_valid_smiles_with_fake_molecule(
+        self,
+        ensure_server: str,
+    ) -> None:
+        """Test that fake SMILES return zero reward."""
+        completions = "<answer> FAKE </answer>"
+        metadata = {
+            "properties": ["qed"],
+            "objectives": ["maximize"],
+            "target": [0.0],
+        }
+
+        response = get_rewards_async(
+            server_url=ensure_server, completions=[completions], metadata=[metadata]
+        )[0]
+        rewards = np.array(response.reward_list)
+        assert rewards.sum() == 0.0
+
+    def test_valid_smiles_with_real_molecule(
+        self,
+        ensure_server: str,
+    ) -> None:
+        """Test that valid SMILES return non-zero reward."""
+        valid_smiles = "CCC"
+        completions = f"Here is a molecule: <answer> {valid_smiles} </answer>"
+        metadata = {
+            "properties": ["qed"],
+            "objectives": ["maximize"],
+            "target": [0.0],
+        }
+
+        response = get_rewards_async(
+            server_url=ensure_server, completions=[completions], metadata=[metadata]
+        )[0]
+        rewards = np.array(response.reward_list)
+        assert rewards.sum() > 0.0
+
+
+# =============================================================================
+# Multi-Prompt Multi-Generation Server Tests
+# =============================================================================
+
+
+class TestMultiPromptMultiGenerationServerAsync:
+    """Tests for multiple prompts with multiple generations via the server."""
+
+    def test_single_molecule_single_property(
+        self,
+        ensure_server: str,
+        completion_smile: tuple[str, str],
+    ) -> None:
+        """Test reward calculation for a single molecule with a single property."""
+        prop = "QED"
+        completion, smiles = completion_smile
+        metadata = {"properties": [prop], "objectives": ["maximize"], "target": [0]}
+
+        response = get_rewards_async(
+            server_url=ensure_server, completions=[completion], metadata=[metadata]
+        )[0]
+        rewards = response.reward
+
+        is_smi_valid = Chem.MolFromSmiles(smiles) is not None and not has_bridged_bond(
+            Chem.MolFromSmiles(smiles)
+        )
+        is_pattern_valid = not completion.startswith("[N]")
+
+        if not is_pattern_valid or not is_smi_valid:
+            # Invalid molecule should have zero reward
+            assert rewards == 0.0
+        else:
+            is_reward_valid([rewards], [smiles], [prop])
+
+    def test_multi_prompt_multiple_smiles(
+        self,
+        ensure_server: str,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the reward function for multiple prompts with multiple SMILES each."""
+        completions, smiles_chunks = completions_smiles
+        properties = ["QED", "logP", "SA", "CalcNumHBA"][: len(completions)]
+
+        # Send requests in parallel using Ray with different properties
+        metadatas = [
+            {
+                "properties": [p],
+                "objectives": ["maximize"],
+                "target": [0],
+            }
+            for p in properties
+        ]
+
+        responses = get_rewards_async(
+            server_url=ensure_server, completions=completions, metadata=metadatas
+        )
+
+        for i, (response, smiles_list, completion) in enumerate(
+            zip(responses, smiles_chunks, completions)
+        ):
+            if completion.startswith("[N]"):
+                continue
+            meta_r = response.meta
+            reward = meta_r[0].all_smi_rewards
+            smiles_v = [
+                smi
+                for smi in smiles_list
+                if Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+            ]
+            assert set(smiles_v) == set(meta_r[0].all_smi)
+
+            if len(smiles_v) > 0:
+                # Invalid molecule should have zero reward
+                is_reward_valid(reward, smiles_v, [properties[i]])
+
+
+# =============================================================================
+# Objective-Based Reward Server Tests
+# =============================================================================
+
+
+class TestObjectiveBasedRewardsServerAsync:
+    """Tests for different optimization objectives via the server."""
+
+    def test_all_objectives(
+        self,
+        ensure_server: str,
+        completions_smile: tuple[List[str], List[str]],
+        objective_to_test: str,
+        prop: str,
+    ) -> None:
+        """
+        Test the reward function with various optimization objectives.
+
+        Assumes the value of the reward function when using maximize is correct.
+        """
+        completions, smiles_chunks = completions_smile
+        obj_func, target = get_unscaled_obj(objective_to_test, prop)
+
+        responses_obj = get_rewards_async(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[
+                {"properties": [prop], "objectives": [obj_func], "target": [target]}
+            ]
+            * len(completions),
+        )
+
+        responses_max = get_rewards_async(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[
+                {"properties": [prop], "objectives": ["maximize"], "target": [target]}
+            ]
+            * len(completions),
+        )
+
+        rewards_obj = [r.reward for r in responses_obj]
+        rewards_max = [r.reward for r in responses_max]
+
+        assert len(rewards_obj) == len(completions)
+        assert len(rewards_max) == len(completions)
+
+        mask = []
+        for completion, smiles in zip(completions, smiles_chunks):
+            if completion.startswith("[N]"):
+                mask.append(False)
+            else:
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is None or has_bridged_bond(mol):
+                    mask.append(False)
+                else:
+                    mask.append(True)
+        mask = torch.tensor(mask).float()
+        rewards_obj = torch.Tensor(rewards_obj)
+        rewards_max = torch.Tensor(rewards_max)
+        assert not rewards_obj.isnan().any()
+
+        objective = obj_func.split()[0]
+        expected_val = compare_obj_reward_to_max(
+            objective, target, rewards_max, mask, prop
+        )
+        assert torch.isclose(rewards_obj, expected_val, atol=1e-4).all()
+
+    def test_maximize_objective(
+        self,
+        ensure_server: str,
+        prop: str,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the maximize objective specifically."""
+        completions, smiles_batch = completions_smiles
+
+        responses = get_rewards_async(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
+            * len(completions),
+        )
+
+        assert len(responses) == len(completions)
+
+        for response, completion, smiles in zip(responses, completions, smiles_batch):
+            reward = response.reward
+            meta_r = response.meta[0]
+
+            smi_valid = [
+                Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+                for smi in smiles
+            ]
+            pattern_valid = not completion.startswith("[N]")
+            if sum(smi_valid) == 0 or not pattern_valid:
+                assert reward == 0.0
+            else:
+                smiles_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
+                assert set(smiles_v) == set(meta_r.all_smi)
+                all_smi_rewards = meta_r.all_smi_rewards
+                is_reward_valid(all_smi_rewards, smiles_v, [prop])
+
+
+# =============================================================================
+# Multi-Prompt Multi-Generation Synchronous Server Tests
+# =============================================================================
+
+
+class TestMultiPromptMultiGenerationServerSync:
+    """Tests for multiple prompts with multiple generations via the server (synchronous)."""
+
+    def test_single_molecule_single_property(
+        self,
+        ensure_server: str,
+        completion_smile: tuple[str, str],
+    ) -> None:
+        """Test reward calculation for a single molecule with a single property."""
+        prop = "QED"
+        completion, smiles = completion_smile
+        metadata = {"properties": [prop], "objectives": ["maximize"], "target": [0]}
+
+        response = get_rewards_sync(
+            server_url=ensure_server, completions=[completion], metadata=[metadata]
+        )
+        rewards = response.reward
+
+        is_smi_valid = Chem.MolFromSmiles(smiles) is not None and not has_bridged_bond(
+            Chem.MolFromSmiles(smiles)
+        )
+        is_pattern_valid = not completion.startswith("[N]")
+
+        if not is_pattern_valid or not is_smi_valid:
+            # Invalid molecule should have zero reward
+            assert rewards == 0.0
+        else:
+            is_reward_valid([rewards], [smiles], [prop])
+
+    def test_multi_prompt_single_smiles(
+        self,
+        ensure_server: str,
+        completions_smile: tuple[List[str], List[str]],
+    ) -> None:
+        """Test the reward function for multiple prompts with single SMILES each."""
+        prop = "QED"
+        completions, smiles_list = completions_smile
+
+        metadata = {"properties": [prop], "objectives": ["maximize"], "target": [0]}
+        responses = get_rewards_sync(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[metadata] * len(completions),
+        )
+
+        rewards = responses.reward_list
+
+        assert len(rewards) == len(completions)
+        for i, (reward, smi, completion) in enumerate(
+            zip(rewards, smiles_list, completions)
+        ):
+            is_smi_valid = Chem.MolFromSmiles(smi) is not None and not has_bridged_bond(
+                Chem.MolFromSmiles(smi)
+            )
+            is_pattern_valid = not completion.startswith("[N]")
+            if not is_pattern_valid or not is_smi_valid:
+                assert reward == 0.0
+            else:
+                is_reward_valid([reward], [smi], [prop])
+
+    def test_multi_prompt_multiple_smiles(
+        self,
+        ensure_server: str,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the reward function for multiple prompts with multiple SMILES each."""
+        completions, smiles_chunks = completions_smiles
+        properties = ["QED", "logP", "SA", "CalcNumHBA"][: len(completions)]
+
+        metadata = [
+            {
+                "properties": [p],
+                "objectives": ["maximize"],
+                "target": [0],
+            }
+            for p in properties
+        ]
+        response = get_rewards_sync(
+            server_url=ensure_server, completions=completions, metadata=metadata
+        )
+
+        for i, (meta_r, smiles_list, completion) in enumerate(
+            zip(response.meta, smiles_chunks, completions)
+        ):
+            if completion.startswith("[N]"):
+                continue
+            reward = meta_r.all_smi_rewards
+            smiles_v = [
+                smi
+                for smi in smiles_list
+                if Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+            ]
+            assert set(smiles_v) == set(meta_r.all_smi)
+            if len(smiles_v) > 0:
+                # Invalid molecule should have zero reward
+                is_reward_valid(reward, smiles_v, [properties[i]])
+
+
+# =============================================================================
+# Objective-Based Reward Synchronous Server Tests
+# =============================================================================
+
+
+class TestObjectiveBasedRewardsServerSync:
+    """Tests for different optimization objectives via the server (synchronous)."""
+
+    def test_all_objectives(
+        self,
+        ensure_server: str,
+        completions_smile: tuple[List[str], List[str]],
+        objective_to_test: str,
+        prop: str,
+    ) -> None:
+        """
+        Test the reward function with various optimization objectives.
+
+        Assumes the value of the reward function when using maximize is correct.
+        """
+        completions, smiles_chunks = completions_smile
+        obj_func, target = get_unscaled_obj(objective_to_test, prop)
+
+        response_obj = get_rewards_sync(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[
+                {"properties": [prop], "objectives": [obj_func], "target": [target]}
+            ]
+            * len(completions),
+        )
+
+        response_max = get_rewards_sync(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[
+                {"properties": [prop], "objectives": ["maximize"], "target": [target]}
+            ]
+            * len(completions),
+        )
+
+        rewards_obj = response_obj.reward_list
+        rewards_max = response_max.reward_list
+
+        assert len(rewards_obj) == len(completions)
+        assert len(rewards_max) == len(completions)
+
+        mask = []
+        for completion, smiles in zip(completions, smiles_chunks):
+            if completion.startswith("[N]"):
+                mask.append(False)
+            else:
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is None or has_bridged_bond(mol):
+                    mask.append(False)
+                else:
+                    mask.append(True)
+        mask = torch.tensor(mask).float()
+        rewards_obj = torch.Tensor(rewards_obj)
+        rewards_max = torch.Tensor(rewards_max)
+        assert not rewards_obj.isnan().any()
+
+        objective = obj_func.split()[0]
+        expected_val = compare_obj_reward_to_max(
+            objective, target, rewards_max, mask, prop
+        )
+        assert torch.isclose(rewards_obj, expected_val, atol=1e-4).all()
+
+    def test_maximize_objective(
+        self,
+        ensure_server: str,
+        prop: str,
+        completions_smiles: tuple[List[str], List[List[str]]],
+    ) -> None:
+        """Test the maximize objective specifically."""
+        completions, smiles_batch = completions_smiles
+
+        response = get_rewards_sync(
+            server_url=ensure_server,
+            completions=completions,
+            metadata=[{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
+            * len(completions),
+        )
+        assert len(response.meta) == len(completions)
+
+        for meta_r, completion, smiles in zip(response.meta, completions, smiles_batch):
+            smi_valid = [
+                Chem.MolFromSmiles(smi) is not None
+                and not has_bridged_bond(Chem.MolFromSmiles(smi))
+                for smi in smiles
+            ]
+            if completion.startswith("[N]") or sum(smi_valid) == 0:
+                continue
+            reward = meta_r.all_smi_rewards
+
+            assert len(reward) == sum(smi_valid)
+            pattern_valid = not completion.startswith("[N]")
+            if sum(smi_valid) == 0 or not pattern_valid:
+                assert reward == 0.0
+            else:
+                smiles_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
+                assert set(smiles_v) == set(meta_r.all_smi)
+                all_smi_rewards = meta_r.all_smi_rewards
+                is_reward_valid(all_smi_rewards, smiles_v, [prop])

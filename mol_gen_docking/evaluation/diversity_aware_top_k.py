@@ -1,9 +1,10 @@
 from typing import List, Optional, Sequence
 
 import numpy as np
-from evaluation.fingeprints_utils import get_sim_matrix
 from rdkit import Chem
 from scipy.spatial.distance import squareform
+
+from mol_gen_docking.evaluation.fingeprints_utils import get_sim_matrix
 
 
 def div_aware_top_k_from_dist(

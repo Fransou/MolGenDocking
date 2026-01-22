@@ -15,11 +15,13 @@ from mol_gen_docking.reward.verifiers import (
 RDLogger.DisableLog("rdApp.*")
 
 
-def has_bridged_bond(mol: Chem.Mol) -> bool:
+def has_bridged_bond(mol: Chem.Mol | None) -> bool:
     """
     Returns True if the molecule contains a bridged ring system.
     A bridged system is defined as two rings sharing more than two atoms.
     """
+    if mol is None:
+        return True  # If None, we consider it invalid / bridged
     ri = mol.GetRingInfo()
     atom_rings = ri.AtomRings()
 
@@ -36,7 +38,7 @@ class RewardScorer:
     def __init__(
         self,
         path_to_mappings: Optional[str] = None,
-        reward: Literal["property", "valid_smiles", "MolFilters"] = "property",
+        reward: Literal["property", "valid_smiles"] = "property",
         rescale: bool = True,
         parse_whole_completion: bool = False,
         reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
@@ -158,7 +160,7 @@ class RewardScorer:
                     results.append(False)
             return results
 
-        s_poss = [filter_smiles(x) for x in re.split("\n| |\\.|\t|:|`|'", comp)]
+        s_poss = [filter_smiles(x) for x in re.split("\n| |\\.|\t|:|`|'|,", comp)]
         s_poss = [x for x in s_poss if x != ""]
         s_poss = list(set(s_poss))
 
@@ -167,13 +169,13 @@ class RewardScorer:
                 reason = "no_smiles"
             return [], reason
 
-        if len(s_poss) > 1:
-            reason = "multiple_smiles"
         is_valid: List[bool] = test_is_valid_batch(s_poss)
 
         s_spl = [x for (x, val) in zip(s_poss, is_valid) if val]
         if s_spl == [] and reason == "":
             reason = "no_valid_smiles"
+        elif len(s_spl) > 1:
+            reason = "multiple_smiles"
         elif reason == "":
             reason = s_spl[0]
         return s_spl, reason
@@ -209,8 +211,8 @@ class RewardScorer:
         if (
             self.reward == "valid_smiles"
         ):  # TODO: Currently always return 1 if at least one valid smiles
-            return [float(len(smis) > 0) for smis in smiles_per_completion], [
-                {"failure": fail} for fail in failures
+            return [float(len(smis) == 1) for smis in smiles_per_completion], [
+                {"smiles_extraction_failure": fail} for fail in failures
             ]
         if debug:
             self.generation_verifier.debug = True
