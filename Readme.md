@@ -75,17 +75,17 @@ The data creation process involves downloading and processing datasets for molec
 The SAIR (SandboxAQ/SAIR) dataset is sourced from Hugging Face and contains protein-ligand interaction data.
 
 To download and process the SAIR dataset:
-1. Download the parquet file using the [SAIR_download](mol_gen_docking/data/scripts/SAIR_download.py) script.
-2. Extract structure files and identify pockets using [SAIR_identify_pockets](mol_gen_docking/data/scripts/SAIR_identify_pockets.py).
+1. Download the parquet file using the [SAIR_download](mol_gen_docking/dataset/scripts/generation_task/SAIR_download.py) script.
+2. Extract structure files and identify pockets using [SAIR_identify_pockets](mol_gen_docking/dataset/scripts/generation_task/SAIR_identify_pockets.py).
 
 #### SIU Dataset
 The SIU dataset provides protein pocket information extracted from PDB structures. The processing involves:
 - Loading pickled data with pocket coordinates and labels from the huggingface repo, and extracting the corresponding PDB files.
-- Computing pocket metadata (size, center, average pIC50/pKd) with [SIU_download](mol_gen_docking/data/scripts/SIU_download.py)
+- Computing pocket metadata (size, center, average pIC50/pKd) with [SIU_download](mol_gen_docking/dataset/scripts/generation_task/SIU_download.py)
 
 Both datasets are used to create docking targets for molecular generation tasks, providing diverse protein structures for evaluating generated molecules.
 
-For both datasets, we use [write_post_processed_data](mol_gen_docking/data/scripts/write_post_processed_data.py) to find textual descriptions of the proteins.
+For both datasets, we use [write_post_processed_data](mol_gen_docking/dataset/scripts/generation_task/write_post_processed_data.py) to find textual descriptions of the proteins.
 
 ### Other properties
 
@@ -107,7 +107,7 @@ The system includes classical molecular properties computed using RDKit and othe
 
 ### Prompt generation
 
-Finally, we use [generate_gen_dataset](mol_gen_docking/data/scripts/generate_gen_dataset.py) to generate a dataset of properties to optimize :
+Finally, we use [generate_gen_dataset](mol_gen_docking/dataset/scripts/generation_task/generate_gen_dataset.py) to generate a dataset of properties to optimize :
 
 ```bash
 python mol_gen_docking/data/scripts/generate_gen_dataset.py --n-prompts 512 --data-path data/mol_orz

@@ -3,12 +3,13 @@ import logging
 import os
 from pathlib import Path
 
-from mol_gen_docking.data.gen_dataset import (
+from mol_gen_docking.data.pydantic_dataset import write_jsonl
+
+from .gen_dataset import (
     DatasetConfig,
     MolGenerationInstructionsDatasetGenerator,
     data_dict_to_pydantic,
 )
-from mol_gen_docking.data.pydantic_dataset import write_jsonl
 
 logger = logging.getLogger(__name__)
 # Set up logging to INFO level

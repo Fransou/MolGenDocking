@@ -6,12 +6,13 @@ import ray
 from ray.experimental import tqdm_ray
 from tqdm import tqdm
 
-from mol_gen_docking.data.pdb_uniprot.api_requests import (
-    fetch_uniprot_id_from_pdbid,
-    fetch_uniprot_info,
-)
 from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
+)
+
+from .api_requests import (
+    fetch_uniprot_id_from_pdbid,
+    fetch_uniprot_info,
 )
 
 
