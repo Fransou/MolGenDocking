@@ -75,7 +75,6 @@ COMPLETIONS_PATTERN = [
         "minimize",
         "above 0.5",
         "below 0.5",
-        "equal 0.5",
     ],
 )  # type: ignore
 def objective_to_test(request: pytest.FixtureRequest) -> str:

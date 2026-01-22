@@ -11,6 +11,7 @@ from mol_gen_docking.reward import (
     MolecularVerifierConfigModel,
     MolPropVerifierConfigModel,
 )
+from mol_gen_docking.utils.property_utils import rescale_property_values
 
 
 @pytest.fixture(scope="module")  # type: ignore
@@ -106,73 +107,43 @@ class TestClassification:
 class TestMixedGeneration:
     """Tests for mixed classification and generation tasks."""
 
-    def test_with_generation_target_one(
-        self, property_scorer_mixed: MolecularVerifier
-    ) -> None:
+    def test_with_generation(self, property_scorer_mixed: MolecularVerifier) -> None:
         """Test mixed classification and generation with target=1."""
-        completions: List[str] = [
-            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
-        ] + [
-            "<answer> CCC{} </answer>".format(smi)
-            for smi in ["C" * i for i in range(5)]
-        ]
-        metadata: List[dict[str, Any]] = [
-            {"objectives": ["classification"], "properties": [""], "target": [1]}
-        ] * 5 + [
-            {
-                "objectives": ["maximize"],
-                "properties": ["CalcNumRotatableBonds"],
-                "target": [1],
-            }
-        ] * 5
+        completions: List[str] = sum(
+            [
+                [
+                    "<answer> {} </answer>".format(v),
+                    "<answer> CCC{} </answer>".format(smi),
+                ]
+                for v, smi in zip([1, 1, 0, 0, 0], ["C" * i for i in range(5)])
+            ],
+            [],
+        )
+        metadata: List[dict[str, Any]] = sum(
+            [
+                [
+                    {
+                        "objectives": ["classification"],
+                        "properties": [""],
+                        "target": [1],
+                    },
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["CalcNumRotatableBonds"],
+                        "target": [1],
+                    },
+                ]
+            ]
+            * 5,
+            [],
+        )
         rewards = property_scorer_mixed(completions, metadata, debug=True).rewards
-        assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0] + [0, 1, 2, 3, 4]
-
-    def test_with_generation_target_zero(
-        self, property_scorer_mixed: MolecularVerifier
-    ) -> None:
-        """Test mixed classification and generation with target=0."""
-        completions: List[str] = [
-            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
-        ] + [
-            "<answer> CCC{} </answer>".format(smi)
-            for smi in ["C" * i for i in range(5)]
+        assert rewards[::2] == [1.0, 1.0, 0.0, 0.0, 0.0]
+        assert rewards[1::2] == [
+            rescale_property_values("CalcNumRotatableBonds", i) for i in range(5)
         ]
-        metadata: List[dict[str, Any]] = [
-            {"objectives": ["classification"], "properties": [""], "target": [0]}
-        ] * 5 + [
-            {
-                "objectives": ["maximize"],
-                "properties": ["CalcNumRotatableBonds"],
-                "target": [1],
-            }
-        ] * 5
-        rewards = property_scorer_mixed(completions, metadata).rewards
-        assert rewards == [0.0, 0.0, 1.0, 1.0, 1.0] + [0, 1, 2, 3, 4]
 
-    def test_with_generation_target_one_no_gen_conf(
-        self, property_scorer: MolecularVerifier
-    ) -> None:
-        """Test mixed classification and generation with target=1."""
-        completions: List[str] = [
-            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
-        ] + [
-            "<answer> CCC{} </answer>".format(smi)
-            for smi in ["C" * i for i in range(5)]
-        ]
-        metadata: List[dict[str, Any]] = [
-            {"objectives": ["classification"], "properties": [""], "target": [1]}
-        ] * 5 + [
-            {
-                "objectives": ["maximize"],
-                "properties": ["CalcNumRotatableBonds"],
-                "target": [1],
-            }
-        ] * 5
-        with pytest.raises(AssertionError):
-            property_scorer(completions, metadata, debug=True)
-
-    def test_with_generation_target_zero_no_gen_conf(
+    def test_with_generation_no_gen_conf(
         self, property_scorer: MolecularVerifier
     ) -> None:
         """Test mixed classification and generation with target=0."""

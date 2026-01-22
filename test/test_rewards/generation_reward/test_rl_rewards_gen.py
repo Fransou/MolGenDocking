@@ -12,7 +12,7 @@ from mol_gen_docking.reward import (
     MolecularVerifier,
     MolecularVerifierConfigModel,
 )
-from mol_gen_docking.reward.molecular_verifier import (
+from mol_gen_docking.utils.property_utils import (
     has_bridged_bond,
 )
 
@@ -70,7 +70,13 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
             ).rewards
         )
         assert rewards.sum() == 0.0
@@ -86,7 +92,13 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
             ).rewards
         )
         assert rewards.sum() == 1.0
@@ -103,7 +115,13 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
             ).rewards
         )
 
@@ -128,7 +146,13 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
             ).rewards
         )
 
@@ -155,7 +179,14 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}] * len(completions),
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ]
+                * len(completions),
             ).rewards
         )
 
@@ -180,7 +211,14 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}] * len(completions),
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ]
+                * len(completions),
             ).rewards
         )
 

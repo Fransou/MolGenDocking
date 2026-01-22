@@ -3,7 +3,22 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    VerifierOutputModel,
+)
+
+ReactionObjT = Literal[
+    "final_product",
+    "reactant",
+    "all_reactants",
+    "all_reactants_bb_ref",
+    "smarts",
+    "full_path",
+    "full_path_bb_ref",
+    "full_path_smarts_ref",
+    "full_path_smarts_bb_ref",
+    "analog_gen",
+]
 
 
 class ReactionVerifierConfigModel(BaseModel):

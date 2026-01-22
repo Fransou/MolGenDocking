@@ -47,6 +47,9 @@ class MolecularVerifierConfigModel(BaseModel):
         """Propagate the reward field to all sub-verifier configurations."""
         if self.generation_verifier_config is not None:
             self.generation_verifier_config.reward = self.reward
+            self.generation_verifier_config.parse_whole_completion = (
+                self.parse_whole_completion
+            )
         if self.mol_prop_verifier_config is not None:
             self.mol_prop_verifier_config.reward = self.reward
         if self.reaction_verifier_config is not None:

@@ -1,5 +1,8 @@
 from typing import Dict
 
+from rdkit import Chem, RDLogger
+
+RDLogger.DisableLog("rdApp.*")
 CLASSICAL_PROPERTIES_NAMES: Dict[str, str] = {
     # "Probability to inhibate glycogen synthase kinase-3 beta": "GSK3B",
     # "Probability to inhibate c-Jun N-terminal kinase-3": "JNK3",
@@ -45,6 +48,25 @@ INTEGER_PROPS = [
     "CalcNumHBD",
     "CalcNumRotatableBonds",
 ]
+
+
+def has_bridged_bond(mol: Chem.Mol | None) -> bool:
+    """
+    Returns True if the molecule contains a bridged ring system.
+    A bridged system is defined as two rings sharing more than two atoms.
+    """
+    if mol is None:
+        return True  # If None, we consider it invalid / bridged
+    ri = mol.GetRingInfo()
+    atom_rings = ri.AtomRings()
+
+    # Compare all ring pairs
+    for i in range(len(atom_rings)):
+        for j in range(i + 1, len(atom_rings)):
+            shared_atoms = set(atom_rings[i]) & set(atom_rings[j])
+            if len(shared_atoms) > 2:  # more than 2 shared atoms → bridged
+                return True
+    return False
 
 
 def rescale_property_values(

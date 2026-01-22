@@ -1,23 +1,33 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import ray
+from rdkit import Chem, RDLogger
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    Verifier,
+    VerifierInputBatchModel,
+)
 from mol_gen_docking.reward.verifiers.generation_reward.generation_verifier_pydantic_model import (
     GenerationVerifierConfigModel,
     GenerationVerifierMetadataModel,
     GenerationVerifierOutputModel,
+)
+from mol_gen_docking.reward.verifiers.generation_reward.input_metadata import (
+    GenerationObjT,
+    GenerationVerifierInputMetadataModel,
 )
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
     get_oracle,
 )
 from mol_gen_docking.utils.property_utils import (
+    has_bridged_bond,
     rescale_property_values,
 )
 
@@ -49,6 +59,110 @@ class GenerationVerifier(Verifier):
 
         self.oracles: Dict[str, OracleWrapper] = {}
         self.debug = False  # Only for tests
+
+    def get_smiles_from_completion(self, comp: str) -> Tuple[List[str], str]:
+        """
+        Get smiles from completion
+        """
+        comp = comp.strip()
+        reason: str = ""
+        if not self.verifier_config.parse_whole_completion:
+            matches = re.findall(
+                r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
+                comp,
+                flags=re.DOTALL,
+            )
+            if len(matches) > 0:
+                comp = matches[-1]
+            else:
+                comp = ""
+                reason = "no_answer"
+        else:
+            # We just need to not match any special token (which we will assume to be in the format: <...>) so we
+            # replace < and > by spaces
+            comp = re.sub(r"<|>", " ", comp)
+
+        # Now we identify which elements are possibly SMILES
+        # First we split the completion by newlines and spaces
+        # Then we filter by removing any string that does not contain "C"
+        valid_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
+        mkd_pattern = re.compile(r"^(\*\*|[-*'])(.+)\1$")
+
+        def filter_smiles(x: str) -> str:
+            x = x.replace("<|im_end|>", "")
+            if len(x) < 3:
+                return ""
+            # Check if the string is encapsulated in some kind of markdown
+            m = mkd_pattern.match(x)
+            x = m.group(2) if m else x
+            if "e" in x or len(x) < 3:
+                return ""
+            if (
+                "C" in x
+                or x.count("c") > 2
+                and valid_smiles_pattern.fullmatch(x) is not None
+            ):
+                return x
+            return ""
+
+        # Finally we remove any string that is not a valid SMILES
+        def test_is_valid_batch(smis: list[str]) -> list[bool]:
+            RDLogger.DisableLog("rdApp.*")
+            results = []
+            for smi in smis:
+                if len(smi) >= 130:
+                    results.append(False)
+                    continue
+                try:
+                    mol = Chem.MolFromSmiles(smi)
+                    if mol is None:
+                        results.append(False)
+                        continue
+                    if has_bridged_bond(mol):  ### WE REMOVE BRIDGED MOLS
+                        results.append(False)
+                        continue
+                    Chem.MolToMolBlock(mol)
+                    results.append(True)
+                except Exception:
+                    results.append(False)
+            return results
+
+        s_poss = [filter_smiles(x) for x in re.split("\n| |\\.|\t|:|`|'|,", comp)]
+        s_poss = [x for x in s_poss if x != ""]
+        s_poss = list(set(s_poss))
+
+        if len(s_poss) == 0:
+            if reason == "":
+                reason = "no_smiles"
+            return [], reason
+
+        is_valid: List[bool] = test_is_valid_batch(s_poss)
+
+        s_spl = [x for (x, val) in zip(s_poss, is_valid) if val]
+        if s_spl == [] and reason == "":
+            reason = "no_valid_smiles"
+        elif len(s_spl) > 1:
+            reason = "multiple_smiles"
+        elif reason == "":
+            reason = ""
+        return s_spl, reason
+
+    def get_all_completions_smiles(
+        self, completions: List[str]
+    ) -> Tuple[List[List[str]], List[str]]:
+        smiles = []
+        failures = []
+        for completion in completions:
+            if isinstance(completion, list):
+                assert len(completion) == 1
+                completion = completion[0]
+            if isinstance(completion, dict):
+                assert "content" in completion
+                completion = completion["content"]
+            smi, failure = self.get_smiles_from_completion(completion)
+            smiles.append(smi)
+            failures.append(failure)
+        return smiles, failures
 
     def fill_df_properties(self, df_properties: pd.DataFrame) -> None:
         def _get_property(
@@ -148,7 +262,7 @@ class GenerationVerifier(Verifier):
     def _get_prop_to_smiles_dataframe(
         self,
         smiles_list_per_completion: List[List[str]],
-        objectives: List[dict[str, Tuple[str, float]]],
+        objectives: List[dict[str, Tuple[GenerationObjT, float]]],
     ) -> pd.DataFrame:
         df_properties = pd.DataFrame(
             [
@@ -171,21 +285,31 @@ class GenerationVerifier(Verifier):
         return df_properties
 
     def get_score(
-        self, smiles_per_completion: List[List[str]], metadata: List[Dict[str, Any]]
+        self, inputs: VerifierInputBatchModel
     ) -> List[GenerationVerifierOutputModel]:
-        assert metadata is not None and (
-            all(
-                [
-                    p in m
-                    for m in metadata
-                    for p in ["properties", "objectives", "target"]
-                ]
-            )
+        smiles_per_completion, extraction_failures = self.get_all_completions_smiles(
+            inputs.completions
         )
+        if self.verifier_config.reward == "valid_smiles":
+            return [
+                GenerationVerifierOutputModel(
+                    reward=float(len(smis) == 1),
+                    verifier_metadata=GenerationVerifierMetadataModel(
+                        smiles_extraction_failure=fail
+                    ),
+                )
+                for smis, fail in zip(smiles_per_completion, extraction_failures)
+            ]
+        assert all(
+            isinstance(meta, GenerationVerifierInputMetadataModel)
+            for meta in inputs.metadatas
+        )
+        metadatas: List[GenerationVerifierInputMetadataModel] = inputs.metadatas
+
         objectives = []
-        for m in metadata:
+        for m in metadatas:
             props = {}
-            for p, obj, target in zip(m["properties"], m["objectives"], m["target"]):
+            for p, obj, target in zip(m.properties, m.objectives, m.target):
                 props[p] = (obj, float(target))
             objectives.append(props)
 
@@ -240,6 +364,7 @@ class GenerationVerifier(Verifier):
                     individual_rewards=individual_rewards,
                     all_smi_rewards=compl_reward,
                     all_smi=smiles,
+                    smiles_extraction_failure=extraction_failures[id_completion],
                 ),
             )
             output_models.append(output_model)

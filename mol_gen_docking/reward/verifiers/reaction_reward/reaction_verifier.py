@@ -11,7 +11,13 @@ from rdkit.Chem import AllChem
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
-from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    Verifier,
+    VerifierInputBatchModel,
+)
+from mol_gen_docking.reward.verifiers.reaction_reward.input_metadata import (
+    ReactionVerifierInputMetadataModel,
+)
 from mol_gen_docking.reward.verifiers.reaction_reward.reaction_verifier_pydantic_model import (
     ReactionVerifierConfigModel,
     ReactionVerifierMetadataModel,
@@ -328,21 +334,28 @@ class ReactionVerifier(Verifier):
         }
 
     def get_score(
-        self, completions: List[Any], metadata: List[Dict[str, Any]]
+        self, inputs: VerifierInputBatchModel
     ) -> List[ReactionVerifierOutputModel]:
-        rewards = []
-        for meta, answer in zip(metadata, completions):
-            objective = meta["objectives"][0]
-            impossible: bool = meta.get("impossible", False)
+        completions = inputs.completions
+        assert all(
+            isinstance(meta, ReactionVerifierInputMetadataModel)
+            for meta in inputs.metadatas
+        )
+        metadatas: List[ReactionVerifierInputMetadataModel] = inputs.metadatas
+
+        output_models = []
+        for answer, meta in zip(completions, metadatas):
+            objective = meta.objectives[0]
+            impossible: bool = meta.impossible
             reward = 0.0
             reward_metadata = {
                 "valid": 0.0,
-                "correct_product": False,
+                "correct_product": 0.0,
                 "correct_reactant": False,
             }
             if objective in self.check_ground_truth_tasks:
                 reward = self.ground_truth_reward_mol(
-                    answer, meta["target"], impossible=impossible
+                    answer, meta.target, impossible=impossible
                 )
                 reward_metadata = {
                     "valid": float(reward > 0.0),
@@ -350,11 +363,17 @@ class ReactionVerifier(Verifier):
                     "correct_reactant": reward > 0.0,
                 }
             elif objective == "smarts":
+                assert len(meta.reactants) > 0, (
+                    "Reactants must be provided for SMARTS objective"
+                )
+                assert len(meta.products) > 0, (
+                    "Product must be provided for SMARTS objective"
+                )
                 reward, raw_metadata = self.reward_smarts(
                     answer,
-                    meta["target"],
-                    meta["reactants"][0],
-                    meta["products"][0],
+                    meta.target,
+                    meta.reactants[0],
+                    meta.products[0],
                     impossible=impossible,
                 )
                 reward_metadata = {
@@ -363,23 +382,29 @@ class ReactionVerifier(Verifier):
                     "correct_reactant": raw_metadata.get("Reactants_contained", False),
                 }
             elif objective in self.run_validation_tasks:
+                assert len(meta.target) > 0, (
+                    "Target must be provided for run validation tasks"
+                )
                 reward, raw_metadata = self.reward_run_path(
                     answer,
-                    meta["target"][0],
-                    meta["building_blocks"],
-                    meta["smarts"],
-                    n_steps_max=meta.get("n_steps_max", 5),
+                    meta.target[0],
+                    meta.building_blocks if meta.building_blocks else [],
+                    meta.smarts if meta.smarts else [],
+                    n_steps_max=meta.n_steps_max,
                     impossible=False,  # We always try to generate a compound
                     reward_type=self.verifier_config.reaction_reward_type,
                 )
                 reward_metadata = raw_metadata
             elif objective == "analog_gen":
+                assert len(meta.target) > 0, (
+                    "Target must be provided for analog generation task"
+                )
                 reward, raw_metadata = self.reward_run_path(
                     answer,
-                    meta["target"][0],
-                    meta["building_blocks"],
-                    meta["smarts"],
-                    n_steps_max=meta.get("n_steps_max", 5),
+                    meta.target[0],
+                    meta.building_blocks if meta.building_blocks else [],
+                    meta.smarts if meta.smarts else [],
+                    n_steps_max=meta.n_steps_max,
                     reward_type="tanimoto",
                     impossible=False,
                 )
@@ -397,6 +422,6 @@ class ReactionVerifier(Verifier):
                     correct_reactant=reward_metadata["correct_reactant"],
                 ),
             )
-            rewards.append(output_model)
+            output_models.append(output_model)
 
-        return rewards
+        return output_models

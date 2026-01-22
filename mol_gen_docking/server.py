@@ -46,16 +46,6 @@ def get_or_create_reward_actor() -> Any:
     return _reward_model
 
 
-def get_or_create_valid_actor() -> Any:
-    global _valid_reward_model
-    global server_settings
-    if _valid_reward_model is None:
-        _valid_reward_model = MolecularVerifier(
-            server_settings.to_molecular_verifier_config(reward="valid_smiles")
-        )
-    return _valid_reward_model
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global server_settings
@@ -69,8 +59,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     app.state.reward_model = get_or_create_reward_actor()
-    app.state.reward_valid_smiles = get_or_create_valid_actor()
-
     app.state.receptor_processor = (
         ReceptorProcess(data_path=server_settings.data_path)
         if server_settings.docking_oracle == "autodock_gpu"

@@ -110,15 +110,11 @@ class RewardBuffer:
 
         # --- Step 2. Compute batched reward ---
         reward_actor = app.state.reward_model
-        valid_scorer = app.state.reward_valid_smiles
 
         # Run in parallel
         rewards_job = reward_actor.get_score.remote(
             completions=all_completions, metadata=all_metadata
         )
-        final_smiles: List[str] = valid_scorer.get_all_completions_smiles(
-            completions=all_completions
-        )[0]
 
         out = ray.get(rewards_job)
         rewards = out.rewards
@@ -126,12 +122,10 @@ class RewardBuffer:
         # --- Step 3. Group results by original query ---
         grouped_results: List[List[float]] = [[] for _ in range(len(queries))]
         grouped_meta: List[List[Dict[str, Any]]] = [[] for _ in range(len(queries))]
-        grouped_smiles: List[List[str]] = [[] for _ in range(len(queries))]
 
-        for r, m, s, idx in zip(rewards, metadatas, final_smiles, query_indices):
+        for r, m, idx in zip(rewards, metadatas, query_indices):
             grouped_results[idx].append(r)
             grouped_meta[idx].append(m)
-            grouped_smiles[idx].append(s)
 
         # --- Step 4. Compute per-query metrics ---
         responses = []

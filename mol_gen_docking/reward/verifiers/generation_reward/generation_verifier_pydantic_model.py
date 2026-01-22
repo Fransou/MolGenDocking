@@ -3,7 +3,9 @@ from typing import List, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    VerifierOutputModel,
+)
 
 
 class DockingConfigModel(BaseModel):
@@ -138,6 +140,11 @@ class GenerationVerifierConfigModel(BaseModel):
         default=2,
         gt=0,
         description="Number of concurrent docking runs per GPU (each uses ~1GB on 80GB GPU)",
+    )
+
+    parse_whole_completion: bool = Field(
+        default=False,
+        description="Whether to parse the whole completion for SMILES extraction",
     )
 
     class Config:

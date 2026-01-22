@@ -2,7 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    VerifierOutputModel,
+)
 
 
 class MolPropVerifierConfigModel(BaseModel):
