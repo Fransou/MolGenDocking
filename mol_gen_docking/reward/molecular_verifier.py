@@ -1,11 +1,14 @@
 import logging
 import re
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import ray
 from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 
+from mol_gen_docking.reward.molecular_verifier_pydantic_model import (
+    MolecularVerifierConfigModel,
+)
 from mol_gen_docking.reward.verifiers import (
     GenerationVerifier,
     MolPropVerifier,
@@ -37,23 +40,10 @@ def has_bridged_bond(mol: Chem.Mol | None) -> bool:
 class MolecularVerifier:
     def __init__(
         self,
-        path_to_mappings: Optional[str] = None,
-        reward: Literal["property", "valid_smiles"] = "property",
-        rescale: bool = True,
-        parse_whole_completion: bool = False,
-        reaction_matrix_path: str | None = "data/rxn_matrix.pkl",
-        oracle_kwargs: Dict[str, Any] = {},
-        docking_concurrency_per_gpu: int = 2,  # Takes 1Gb*4 on 80Gb we allow 10% of a GPU to keep a margin
+        verifier_config: MolecularVerifierConfigModel,
     ):
-        self.path_to_mappings = path_to_mappings
-        self.reward = reward
-        self.rescale = rescale
-        self.parse_whole_completion = parse_whole_completion
-        self.reaction_matrix_path = reaction_matrix_path
-        self.oracle_kwargs = oracle_kwargs
-        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
-
-        self.__name__ = f"RewardScorer/{reward}"
+        self.verifier_config = verifier_config
+        self.__name__ = "RewardScorer/MolecularVerifier"
         self.remote_tqdm = ray.remote(tqdm_ray.tqdm)
 
         self._generation_verifier: None | GenerationVerifier = None
@@ -68,12 +58,9 @@ class MolecularVerifier:
     def generation_verifier(self) -> GenerationVerifier:
         if self._generation_verifier is not None:
             return self._generation_verifier
+        assert self.verifier_config.generation_verifier_config is not None
         self._generation_verifier = GenerationVerifier(
-            path_to_mappings=self.path_to_mappings,
-            reward=self.reward,
-            rescale=self.rescale,
-            oracle_kwargs=self.oracle_kwargs,
-            docking_concurrency_per_gpu=self.docking_concurrency_per_gpu,
+            verifier_config=self.verifier_config.generation_verifier_config
         )
         return self._generation_verifier
 
@@ -81,16 +68,21 @@ class MolecularVerifier:
     def mol_prop_verifier(self) -> MolPropVerifier:
         if self._mol_prop_verifier is not None:
             return self._mol_prop_verifier
-        self._mol_prop_verifier = MolPropVerifier(reward=self.reward)
+        assert self.verifier_config.mol_prop_verifier_config is not None
+        self._mol_prop_verifier = MolPropVerifier(
+            verifier_config=self.verifier_config.mol_prop_verifier_config
+        )
         return self._mol_prop_verifier
 
     @property
     def reaction_verifier(self) -> ReactionVerifier:
         if self._reaction_verifier is not None:
             return self._reaction_verifier
+        assert self.verifier_config.reaction_verifier_config is not None
         self._reaction_verifier = ReactionVerifier(
-            reward=self.reward, rxn_matrix_path=self.reaction_matrix_path
+            verifier_config=self.verifier_config.reaction_verifier_config
         )
+
         return self._reaction_verifier
 
     def get_smiles_from_completion(self, comp: str) -> Tuple[List[str], str]:
@@ -99,7 +91,7 @@ class MolecularVerifier:
         """
         comp = comp.strip()
         reason: str = ""
-        if not self.parse_whole_completion:
+        if not self.verifier_config.parse_whole_completion:
             matches = re.findall(
                 r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
                 comp,
@@ -209,7 +201,7 @@ class MolecularVerifier:
         """
         smiles_per_completion, failures = self.get_all_completions_smiles(completions)
         if (
-            self.reward == "valid_smiles"
+            self.verifier_config.reward == "valid_smiles"
         ):  # TODO: Currently always return 1 if at least one valid smiles
             return [float(len(smis) == 1) for smis in smiles_per_completion], [
                 {"smiles_extraction_failure": fail} for fail in failures

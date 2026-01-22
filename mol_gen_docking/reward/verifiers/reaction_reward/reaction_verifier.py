@@ -12,6 +12,9 @@ from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.reaction_reward.reaction_verifier_pydantic_model import (
+    ReactionVerifierConfigModel,
+)
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -19,19 +22,13 @@ RDLogger.DisableLog("rdApp.*")
 class ReactionVerifier(Verifier):
     def __init__(
         self,
-        reward: Literal["property", "valid_smiles"] = "property",
-        rxn_matrix_path: str | None = None,
-        reaction_reward_type: Literal["binary", "tanimoto"] = "tanimoto",
+        verifier_config: ReactionVerifierConfigModel,
     ):
         super().__init__()
-        self.reaction_reward_type = reaction_reward_type
+        self.verifier_config = verifier_config
         self.rxn_matrix: ReactantReactionMatrix
-        if rxn_matrix_path is not None:
-            with open(rxn_matrix_path, "rb") as f:
-                self.rxn_matrix = pickle.load(f)
-        else:
-            self.rxn_matrix = ReactantReactionMatrix([], [], np.array([]))
-        self.reward = reward
+        with open(verifier_config.reaction_matrix_path, "rb") as f:
+            self.rxn_matrix = pickle.load(f)
         self.check_ground_truth_tasks = [
             "final_product",
             "reactant",
@@ -357,7 +354,7 @@ class ReactionVerifier(Verifier):
                     meta["smarts"],
                     n_steps_max=meta.get("n_steps_max", 5),
                     impossible=False,  # We always try to generate a compound
-                    reward_type=self.reaction_reward_type,
+                    reward_type=self.verifier_config.reaction_reward_type,
                 )
                 rewards.append(reward)
                 rewards_meta.append(reward_metadata)
@@ -374,6 +371,6 @@ class ReactionVerifier(Verifier):
                 rewards.append(reward)
                 rewards_meta.append(reward_metadata)
 
-        if self.reward == "valid_smiles":
+        if self.verifier_config.reward == "valid_smiles":
             return [float(r > 0.0) for r in rewards], rewards_meta
         return rewards, rewards_meta

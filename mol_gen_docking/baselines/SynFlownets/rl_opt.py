@@ -11,7 +11,11 @@ from tdc import Evaluator
 
 from mol_gen_docking.baselines.SynFlownets.args import get_config
 from mol_gen_docking.baselines.SynFlownets.trainer import MakeCustomTaskTrainer
-from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
+from mol_gen_docking.reward import (
+    GenerationVerifierConfigModel,
+    MolecularVerifier,
+    MolecularVerifierConfigModel,
+)
 
 N_REPEAT_TEST = 8
 os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
@@ -20,7 +24,15 @@ os.environ["WANDB_PROJECT"] = "REINVENT_HF-RL"
 def get_reward_fn(
     metadata: Dict[str, Any], datasets_path: str
 ) -> Callable[[str | List[str]], float | List[float]]:
-    SCORER = MolecularVerifier(datasets_path, "property", parse_whole_completion=True)
+    SCORER = MolecularVerifier(
+        MolecularVerifierConfigModel(
+            reward="property",
+            parse_whole_completion=True,
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=datasets_path
+            ),
+        )
+    )
 
     def reward_fn(completions: str | List[str], **kwargs: Any) -> float | List[float]:
         if isinstance(completions, str):

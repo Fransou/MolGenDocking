@@ -9,14 +9,14 @@ from fastapi import FastAPI
 from tdc import Evaluator
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.molecular_verifier import (
+from mol_gen_docking.reward import (
     MolecularVerifier,
 )
 from mol_gen_docking.server_utils.buffer import RewardBuffer
 from mol_gen_docking.server_utils.utils import (
     MolecularVerifierServerQuery,
     MolecularVerifierServerResponse,
-    MolecularVerifierSettings,
+    MolecularVerifierServerSettings,
 )
 
 # Set logging level to info
@@ -24,11 +24,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("molecular_verifier_server")
 logger.setLevel(logging.INFO)
 
-server_settings: MolecularVerifierSettings
+server_settings: MolecularVerifierServerSettings
 RemoteRewardScorer: Any = ray.remote(MolecularVerifier)
 
 server_settings_log = "Server settings:\n"
-for field_name, field_value in MolecularVerifierSettings().model_dump().items():
+for field_name, field_value in MolecularVerifierServerSettings().model_dump().items():
     server_settings_log += f"  {field_name}: {field_value}\n"
 logger.info(server_settings_log)
 
@@ -41,16 +41,7 @@ def get_or_create_reward_actor() -> Any:
     global server_settings
     if _reward_model is None or _reward_model.__ray_terminated__:
         _reward_model = RemoteRewardScorer.remote(
-            path_to_mappings=server_settings.data_path,
-            parse_whole_completion=False,
-            docking_concurrency_per_gpu=server_settings.docking_concurrency_per_gpu,
-            reaction_matrix_path=server_settings.reaction_matrix_path,
-            oracle_kwargs=dict(
-                exhaustiveness=server_settings.scorer_exhaustiveness,
-                n_cpu=server_settings.scorer_ncpus,
-                docking_oracle=server_settings.docking_oracle,
-                vina_mode=server_settings.vina_mode,
-            ),
+            server_settings.to_molecular_verifier_config()
         )
     return _reward_model
 
@@ -60,10 +51,7 @@ def get_or_create_valid_actor() -> Any:
     global server_settings
     if _valid_reward_model is None:
         _valid_reward_model = MolecularVerifier(
-            path_to_mappings=server_settings.data_path,
-            reward="valid_smiles",
-            parse_whole_completion=False,
-            reaction_matrix_path=server_settings.reaction_matrix_path,
+            server_settings.to_molecular_verifier_config(reward="valid_smiles")
         )
     return _valid_reward_model
 
@@ -71,7 +59,7 @@ def get_or_create_valid_actor() -> Any:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global server_settings
-    server_settings = MolecularVerifierSettings()
+    server_settings = MolecularVerifierServerSettings()
     logger.info(
         f"Initialized molecular docking verifier lifespan with {server_settings}"
     )

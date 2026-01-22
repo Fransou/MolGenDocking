@@ -1,15 +1,39 @@
 """Tests for property-based reward scoring."""
 
+from typing import Any, List
+
 import numpy as np
 import pytest
 
-from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
+from mol_gen_docking.reward import (
+    GenerationVerifierConfigModel,
+    MolecularVerifier,
+    MolecularVerifierConfigModel,
+    MolPropVerifierConfigModel,
+)
 
 
-@pytest.fixture(scope="module")
-def property_scorer(data_path):
-    """Create a RewardScorer for property scoring without rescaling."""
-    return MolecularVerifier(data_path, "property", rescale=False)
+@pytest.fixture(scope="module")  # type: ignore
+def property_scorer(data_path: str) -> MolecularVerifier:
+    """Create a RewardScorer for property scoring."""
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            mol_prop_verifier_config=MolPropVerifierConfigModel()
+        )
+    )
+
+
+@pytest.fixture(scope="module")  # type: ignore
+def property_scorer_mixed(data_path: str) -> MolecularVerifier:
+    """Create a RewardScorer for property scoring."""
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            mol_prop_verifier_config=MolPropVerifierConfigModel(),
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=data_path
+            ),
+        )
+    )
 
 
 # =============================================================================
@@ -20,19 +44,19 @@ def property_scorer(data_path):
 class TestRegression:
     """Tests for regression objective."""
 
-    def test_regression(self, property_scorer):
+    def test_regression(self, property_scorer: MolecularVerifier) -> None:
         """Test that regression rewards are properly ordered by value."""
-        target = np.random.random()
-        completions = [
+        target: float = np.random.random()
+        completions: List[str] = [
             "<answer> Here is an answer: {} </answer>".format(
                 v * np.sign(np.random.random() - 0.5) + target
             )
             for v in [0, 0.01, 0.5, 1]
         ] + ["ksdjgf"]
-        metadata = [
+        metadata: List[dict[str, Any]] = [
             {"objectives": ["regression"], "properties": [""], "target": [target]}
         ] * 5
-        rewards = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata)[0]
         assert sorted(rewards)[::-1] == rewards
         assert sum(rewards) > 0.0
 
@@ -45,28 +69,32 @@ class TestRegression:
 class TestClassification:
     """Tests for classification objective."""
 
-    def test_classification_target_one(self, property_scorer):
+    def test_classification_target_one(
+        self, property_scorer: MolecularVerifier
+    ) -> None:
         """Test classification with target=1."""
-        completions = [
+        completions: List[str] = [
             "<answer> My answer is {} </answer>".format(v)
             for v in [1, 1, 0, 0, "bbfhdsbfsj"]
         ]
-        metadata = [
+        metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [1]}
         ] * 5
-        rewards = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata)[0]
         assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0]
 
-    def test_classification_target_zero(self, property_scorer):
+    def test_classification_target_zero(
+        self, property_scorer: MolecularVerifier
+    ) -> None:
         """Test classification with target=0."""
-        completions = [
+        completions: List[str] = [
             "<answer> My answer is {} </answer>".format(v)
             for v in [1, 1, 0, 0, "bbfhdsbfsj"]
         ]
-        metadata = [
+        metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [0]}
         ] * 5
-        rewards = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata)[0]
         assert rewards == [0.0, 0.0, 1.0, 1.0, 0.0]
 
 
@@ -78,13 +106,17 @@ class TestClassification:
 class TestMixedGeneration:
     """Tests for mixed classification and generation tasks."""
 
-    def test_with_generation_target_one(self, property_scorer):
+    def test_with_generation_target_one(
+        self, property_scorer_mixed: MolecularVerifier
+    ) -> None:
         """Test mixed classification and generation with target=1."""
-        completions = ["<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]] + [
+        completions: List[str] = [
+            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
+        ] + [
             "<answer> CCC{} </answer>".format(smi)
             for smi in ["C" * i for i in range(5)]
         ]
-        metadata = [
+        metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [1]}
         ] * 5 + [
             {
@@ -93,16 +125,20 @@ class TestMixedGeneration:
                 "target": [1],
             }
         ] * 5
-        rewards = property_scorer(completions, metadata, debug=True)[0]
+        rewards = property_scorer_mixed(completions, metadata, debug=True)[0]
         assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0] + [0, 1, 2, 3, 4]
 
-    def test_with_generation_target_zero(self, property_scorer):
+    def test_with_generation_target_zero(
+        self, property_scorer_mixed: MolecularVerifier
+    ) -> None:
         """Test mixed classification and generation with target=0."""
-        completions = ["<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]] + [
+        completions: List[str] = [
+            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
+        ] + [
             "<answer> CCC{} </answer>".format(smi)
             for smi in ["C" * i for i in range(5)]
         ]
-        metadata = [
+        metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [0]}
         ] * 5 + [
             {
@@ -111,5 +147,49 @@ class TestMixedGeneration:
                 "target": [1],
             }
         ] * 5
-        rewards = property_scorer(completions, metadata)[0]
+        rewards = property_scorer_mixed(completions, metadata)[0]
         assert rewards == [0.0, 0.0, 1.0, 1.0, 1.0] + [0, 1, 2, 3, 4]
+
+    def test_with_generation_target_one_no_gen_conf(
+        self, property_scorer: MolecularVerifier
+    ) -> None:
+        """Test mixed classification and generation with target=1."""
+        completions: List[str] = [
+            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
+        ] + [
+            "<answer> CCC{} </answer>".format(smi)
+            for smi in ["C" * i for i in range(5)]
+        ]
+        metadata: List[dict[str, Any]] = [
+            {"objectives": ["classification"], "properties": [""], "target": [1]}
+        ] * 5 + [
+            {
+                "objectives": ["maximize"],
+                "properties": ["CalcNumRotatableBonds"],
+                "target": [1],
+            }
+        ] * 5
+        with pytest.raises(AssertionError):
+            property_scorer(completions, metadata, debug=True)
+
+    def test_with_generation_target_zero_no_gen_conf(
+        self, property_scorer: MolecularVerifier
+    ) -> None:
+        """Test mixed classification and generation with target=0."""
+        completions: List[str] = [
+            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
+        ] + [
+            "<answer> CCC{} </answer>".format(smi)
+            for smi in ["C" * i for i in range(5)]
+        ]
+        metadata: List[dict[str, Any]] = [
+            {"objectives": ["classification"], "properties": [""], "target": [0]}
+        ] * 5 + [
+            {
+                "objectives": ["maximize"],
+                "properties": ["CalcNumRotatableBonds"],
+                "target": [1],
+            }
+        ] * 5
+        with pytest.raises(AssertionError):
+            property_scorer(completions, metadata, debug=True)

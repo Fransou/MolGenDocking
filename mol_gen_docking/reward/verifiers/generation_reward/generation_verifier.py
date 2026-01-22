@@ -1,13 +1,16 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import ray
 
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.generation_reward.generation_verifier_pydantic_model import (
+    GenerationVerifierConfigModel,
+)
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
     get_oracle,
@@ -23,28 +26,24 @@ class GenerationVerifier(Verifier):
 
     def __init__(
         self,
-        path_to_mappings: Optional[str] = None,
-        reward: Literal["property", "valid_smiles"] = "property",
-        rescale: bool = True,
-        oracle_kwargs: Dict[str, Any] = {},
-        docking_concurrency_per_gpu: int = 2,
+        verifier_config: GenerationVerifierConfigModel,
     ):
         super().__init__()
+        self.verifier_config = verifier_config
         self.logger = logging.getLogger("GenerationVerifier")
-        if path_to_mappings is not None:
-            with open(os.path.join(path_to_mappings, "names_mapping.json")) as f:
-                property_name_mapping = json.load(f)
-            with open(os.path.join(path_to_mappings, "docking_targets.json")) as f:
-                docking_target_list = json.load(f)
-        self.docking_concurrency_per_gpu = docking_concurrency_per_gpu
+
+        with open(
+            os.path.join(verifier_config.path_to_mappings, "names_mapping.json")
+        ) as f:
+            property_name_mapping = json.load(f)
+        with open(
+            os.path.join(verifier_config.path_to_mappings, "docking_targets.json")
+        ) as f:
+            docking_target_list = json.load(f)
+
         self.property_name_mapping = property_name_mapping
         self.docking_target_list = docking_target_list
-        self.path_to_mappings = path_to_mappings
-
         self.slow_props = docking_target_list  # + ["GSK3B", "JNK3", "DRD2"]
-
-        self.rescale = rescale
-        self.oracle_kwargs = oracle_kwargs
 
         self.oracles: Dict[str, OracleWrapper] = {}
         self.debug = False  # Only for tests
@@ -63,7 +62,9 @@ class GenerationVerifier(Verifier):
                 prop,
                 get_oracle(
                     prop,
-                    path_to_data=self.path_to_mappings if self.path_to_mappings else "",
+                    path_to_data=self.verifier_config.path_to_mappings
+                    if self.verifier_config.path_to_mappings
+                    else "",
                     docking_target_list=self.docking_target_list,
                     property_name_mapping=self.property_name_mapping,
                     **kwargs,
@@ -79,8 +80,8 @@ class GenerationVerifier(Verifier):
         _get_property_fast = ray.remote(num_cpus=0)(_get_property)
         _get_property_long = ray.remote(
             num_cpus=1,
-            num_gpus=float("gpu" in self.oracle_kwargs.get("docking_oracle", ""))
-            / self.docking_concurrency_per_gpu,
+            num_gpus=float("gpu" in self.verifier_config.oracle_kwargs.docking_oracle)
+            / self.verifier_config.docking_concurrency_per_gpu,
         )(_get_property)
 
         all_properties = df_properties["property"].unique().tolist()
@@ -102,8 +103,8 @@ class GenerationVerifier(Verifier):
                 _get_property_remote.remote(
                     smiles,
                     p,
-                    rescale=self.rescale,
-                    kwargs=self.oracle_kwargs,
+                    rescale=self.verifier_config.rescale,
+                    kwargs=self.verifier_config.oracle_kwargs.model_dump(),
                 )
             )
         all_values = ray.get(values_job)
@@ -126,7 +127,7 @@ class GenerationVerifier(Verifier):
         # Replace 0 docking score by the worst outcome
         if is_docking and prop == 0.0:
             return 0.0
-        if self.rescale:
+        if self.verifier_config.rescale:
             target_value = rescale_property_values(
                 prop, target_value, docking=is_docking
             )
@@ -218,7 +219,7 @@ class GenerationVerifier(Verifier):
                                 rows_completion["reward"].iloc[i]
                             )
 
-                    if self.rescale and not self.debug:
+                    if self.verifier_config.rescale and not self.debug:
                         reward = np.clip(reward, 0, 1)
                     compl_reward.append(float(reward))
             else:

@@ -5,12 +5,15 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.mol_prop_reward.mol_prop_verifier_pydantic_model import (
+    MolPropVerifierConfigModel,
+)
 
 
 class MolPropVerifier(Verifier):
-    def __init__(self, reward: str) -> None:
+    def __init__(self, verifier_config: MolPropVerifierConfigModel) -> None:
         super().__init__()
-        self.reward = reward
+        self.verifier_config = verifier_config
         self.logger = logging.getLogger("MolPropVerifier")
 
     def get_score(
@@ -44,7 +47,7 @@ class MolPropVerifier(Verifier):
                     parsed_answer.append(None)
             else:
                 parsed_answer.append(None)
-        if self.reward == "valid_smiles":
+        if self.verifier_config.reward == "valid_smiles":
             return [float(isinstance(y, float)) for y in parsed_answer], [
                 {} for _ in parsed_answer
             ]

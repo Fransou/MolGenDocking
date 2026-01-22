@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pytest
 from rdkit import Chem
@@ -63,8 +65,8 @@ TEST_DIV_AWARE_TOPK_FROM_DIST = [
 ]
 
 
-@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK_FROM_DIST)
-def test_div_aware_top_k_from_dist(data):
+@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK_FROM_DIST)  # type: ignore
+def test_div_aware_top_k_from_dist(data: dict[str, Any]) -> None:
     for k, t in data["results"].keys():
         results = div_aware_top_k_from_dist(data["dist"], data["weights"], k=k, t=t)
         gt = data["results"][(k, t)]
@@ -105,8 +107,8 @@ TEST_DIV_AWARE_TOPK = [
 ]
 
 
-@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK)
-def test_div_aware_top_k(data):
+@pytest.mark.parametrize("data", TEST_DIV_AWARE_TOPK)  # type: ignore
+def test_div_aware_top_k(data: dict[str, Any]) -> None:
     mols = [Chem.MolFromSmiles(smi) for smi in data["mols"]]
     sim_mat = squareform(get_sim_matrix(mols, fingerprint_name="ecfp4-128"))
     sim_mat = sim_mat + np.eye(len(mols))  # to make sure diagonal is 1.0

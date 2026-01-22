@@ -1,6 +1,6 @@
 """Tests for the PromptGenerator class."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pytest
 
@@ -11,13 +11,13 @@ from mol_gen_docking.data.prompt_generator import PromptGenerator
 # =============================================================================
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore
 def generator() -> PromptGenerator:
     """Create a basic PromptGenerator instance."""
     return PromptGenerator()
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore
 def mol_gen_metadata() -> Dict[str, Any]:
     """Metadata for molecular generation tasks."""
     return {
@@ -27,7 +27,7 @@ def mol_gen_metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore
 def property_prediction_metadata() -> Dict[str, Any]:
     """Metadata for property prediction tasks."""
     return {
@@ -39,7 +39,7 @@ def property_prediction_metadata() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore
 def reaction_metadata() -> Dict[str, Any]:
     """Metadata for reaction tasks."""
     return {
@@ -507,7 +507,7 @@ class TestEdgeCases:
 
     def test_empty_properties_list(self, generator: PromptGenerator) -> None:
         """Test with empty properties list."""
-        metadata = {
+        metadata: Dict[str, List[Any]] = {
             "properties": [],
             "objectives": [],
             "target": [],

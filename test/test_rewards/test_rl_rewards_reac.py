@@ -3,31 +3,46 @@
 import json
 import os
 from pathlib import Path
+from typing import Any, Dict, List
 
+import pandas as pd
 import pytest
 
 from mol_gen_docking.data.pydantic_dataset import read_jsonl
-from mol_gen_docking.reward.molecular_verifier import MolecularVerifier
+from mol_gen_docking.reward import (
+    MolecularVerifier,
+    MolecularVerifierConfigModel,
+    ReactionVerifierConfigModel,
+)
 
 # =============================================================================
 # Fixtures
 # =============================================================================
 
 
-@pytest.fixture(scope="session")
-def property_scorer(data_path):
+@pytest.fixture(scope="session")  # type: ignore
+def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
-    return MolecularVerifier(data_path, "property", rescale=False)
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            reward="property", reaction_verifier_config=ReactionVerifierConfigModel()
+        )
+    )
 
 
-@pytest.fixture(scope="session")
-def property_scorer_valid(data_path):
+@pytest.fixture(scope="session")  # type: ignore
+def property_scorer_valid(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES scoring without rescaling."""
-    return MolecularVerifier(data_path, "valid_smiles", rescale=False)
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            reward="valid_smiles",
+            reaction_verifier_config=ReactionVerifierConfigModel(),
+        )
+    )
 
 
-@pytest.fixture(scope="session")
-def dataset_reac():
+@pytest.fixture(scope="session")  # type: ignore
+def dataset_reac() -> List[Any]:
     """Load the reaction test dataset."""
     current_path = os.path.dirname(os.path.abspath(__file__))
     return read_jsonl(
@@ -37,8 +52,8 @@ def dataset_reac():
     )
 
 
-@pytest.fixture(scope="session")
-def dataset_analog():
+@pytest.fixture(scope="session")  # type: ignore
+def dataset_analog() -> List[Any]:
     """Load the analog test dataset."""
     current_path = os.path.dirname(os.path.abspath(__file__))
     return read_jsonl(
@@ -46,8 +61,8 @@ def dataset_analog():
     )
 
 
-@pytest.fixture(scope="session")
-def refs_comp_analog():
+@pytest.fixture(scope="session")  # type: ignore
+def refs_comp_analog() -> List[List[Any]]:
     """Load the analog completion examples reference."""
     current_path = os.path.dirname(os.path.abspath(__file__))
     with open(
@@ -55,11 +70,12 @@ def refs_comp_analog():
             os.path.dirname(current_path), "data", "analog_test_compl_example.jsonl"
         )
     ) as f:
-        return json.load(f)
+        examples: List[List[Any]] = json.load(f)
+    return examples
 
 
-@pytest.fixture(scope="session")
-def add_sy_ex():
+@pytest.fixture(scope="session")  # type: ignore
+def add_sy_ex() -> List[Dict[str, Any]]:
     """Load the additional synthesis full path examples."""
     current_path = os.path.dirname(os.path.abspath(__file__))
     with open(
@@ -69,7 +85,8 @@ def add_sy_ex():
             "reaction_full_sythn_test_examples.json",
         )
     ) as f:
-        return json.load(f)
+        examples: List[Dict[str, Any]] = json.load(f)
+    return examples
 
 
 # =============================================================================
@@ -81,8 +98,12 @@ class TestReaction:
     """Tests for reaction reward scoring."""
 
     def test_reaction(
-        self, dataset_reac, property_scorer, property_scorer_valid, properties_csv
-    ):
+        self,
+        dataset_reac: List[Any],
+        property_scorer: MolecularVerifier,
+        property_scorer_valid: MolecularVerifier,
+        properties_csv: pd.DataFrame,
+    ) -> None:
         """Test reaction reward scoring for different objective types."""
         for line in dataset_reac:
             metadata = line.conversations[0].meta
@@ -90,12 +111,12 @@ class TestReaction:
 
             if metadata["objectives"][0].startswith("full_path"):
                 target = metadata["full_reaction"]
-                fake0 = target.split(" + ")
-                fake0[0] = properties_csv.smiles.sample(1).values[0]
-                fake0 = " + ".join(fake0)
+                fake0_l = target.split(" + ")
+                fake0_l[0] = properties_csv.smiles.sample(1).values[0]
+                fake0 = " + ".join(fake0_l)
 
-                fake1 = target.split(" -> ")
-                fake1_first_p = fake1[1].split("\n")
+                fake1_l = target.split(" -> ")
+                fake1_first_p = fake1_l[1].split("\n")
                 fake1_first_p[0] = properties_csv.smiles.sample(1).values[0]
                 fake1 = " -> ".join(fake1_first_p)
                 answers = [target, fake0, fake1] + ["impossible"]
@@ -140,8 +161,11 @@ class TestAdditionalSynthesis:
     """Tests for additional synthesis full path examples."""
 
     def test_additional_synth_full_path(
-        self, add_sy_ex, property_scorer, property_scorer_valid
-    ):
+        self,
+        add_sy_ex: List[Dict[str, Any]],
+        property_scorer: MolecularVerifier,
+        property_scorer_valid: MolecularVerifier,
+    ) -> None:
         """Test additional synthesis examples."""
         for in_out in add_sy_ex:
             metadata = in_out["metadata"]
@@ -158,7 +182,12 @@ class TestAdditionalSynthesis:
 class TestReactionAnalog:
     """Tests for reaction analog examples."""
 
-    def test_reaction_analog(self, dataset_analog, refs_comp_analog, property_scorer):
+    def test_reaction_analog(
+        self,
+        dataset_analog: List[Any],
+        refs_comp_analog: List[List[Any]],
+        property_scorer: MolecularVerifier,
+    ) -> None:
         """Test reaction analog reward scoring."""
         for line, examples in zip(dataset_analog, refs_comp_analog):
             metadata = line.conversations[0].meta

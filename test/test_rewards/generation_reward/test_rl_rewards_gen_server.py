@@ -35,7 +35,7 @@ if not ray.is_initialized():
 # =============================================================================
 
 
-@pytest.fixture(scope="session", params=list(range(4)))
+@pytest.fixture(scope="session", params=list(range(4)))  # type:ignore
 def idx_smiles(request: pytest.FixtureRequest) -> int:
     """
     Pytest fixture returning an index of a SMILES string.
@@ -44,11 +44,12 @@ def idx_smiles(request: pytest.FixtureRequest) -> int:
         def test_example(idx_smiles: int) -> None:
             ...
     """
-    return request.param
+    out: int = request.param
+    return out
 
 
-@pytest.fixture(scope="module")
-def ensure_server(uvicorn_server, server_url: str) -> str:
+@pytest.fixture(scope="module")  # type:ignore
+def ensure_server(uvicorn_server: Any, server_url: str) -> str:
     """
     Ensure the server is available for tests.
 
@@ -74,6 +75,7 @@ def ensure_server(uvicorn_server, server_url: str) -> str:
         pass
 
     pytest.skip("Generation reward server is not available")
+    return ""
 
 
 # =============================================================================
@@ -83,7 +85,7 @@ def ensure_server(uvicorn_server, server_url: str) -> str:
 
 def get_rewards_async(
     server_url: str, completions: List[str], metadata: List[Dict[str, Any]]
-) -> List[requests.Response]:
+) -> List[MolecularVerifierServerResponse]:
     """
     Get rewards asynchronously from the server for multiple completions.
     """
@@ -91,7 +93,7 @@ def get_rewards_async(
     @ray.remote(num_cpus=1)
     def get_reward_async(
         server_url: str, completions: str, metadata: Dict[str, Any]
-    ) -> requests.Response:
+    ) -> MolecularVerifierServerResponse:
         """
         Remote function to get reward from the server.
 
@@ -112,7 +114,7 @@ def get_rewards_async(
                 "prompts": [""],
             },
         )
-        return MolecularVerifierServerResponse.validate(r.json())
+        return MolecularVerifierServerResponse(**r.json())
 
     return ray.get(
         [
@@ -124,7 +126,7 @@ def get_rewards_async(
 
 def get_rewards_sync(
     server_url: str, completions: List[str], metadata: List[Dict[str, Any]]
-) -> requests.Response:
+) -> MolecularVerifierServerResponse:
     """
     Get rewards synchronously from the server for multiple completions.
     """
@@ -136,7 +138,7 @@ def get_rewards_sync(
             "query": completions,
         },
     )
-    return MolecularVerifierServerResponse.validate(responses.json())
+    return MolecularVerifierServerResponse(**responses.json())
 
 
 # =============================================================================
@@ -269,10 +271,12 @@ class TestMultiPromptMultiGenerationServerAsync:
                 if Chem.MolFromSmiles(smi) is not None
                 and not has_bridged_bond(Chem.MolFromSmiles(smi))
             ]
+            assert meta_r[0].all_smi is not None
             assert set(smiles_v) == set(meta_r[0].all_smi)
 
             if len(smiles_v) > 0:
                 # Invalid molecule should have zero reward
+                assert reward is not None
                 is_reward_valid(reward, smiles_v, [properties[i]])
 
 
@@ -334,15 +338,15 @@ class TestObjectiveBasedRewardsServerAsync:
                 else:
                     mask.append(True)
         mask = torch.tensor(mask).float()
-        rewards_obj = torch.Tensor(rewards_obj)
-        rewards_max = torch.Tensor(rewards_max)
-        assert not rewards_obj.isnan().any()
+        rewards_obj_tensor = torch.Tensor(rewards_obj)
+        rewards_max_tensor = torch.Tensor(rewards_max)
+        assert not rewards_obj_tensor.isnan().any()
 
         objective = obj_func.split()[0]
         expected_val = compare_obj_reward_to_max(
-            objective, target, rewards_max, mask, prop
+            objective, target, rewards_max_tensor, mask, prop
         )
-        assert torch.isclose(rewards_obj, expected_val, atol=1e-4).all()
+        assert torch.isclose(rewards_obj_tensor, expected_val, atol=1e-4).all()
 
     def test_maximize_objective(
         self,
@@ -376,6 +380,7 @@ class TestObjectiveBasedRewardsServerAsync:
                 assert reward == 0.0
             else:
                 smiles_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
+                assert meta_r.all_smi is not None and meta_r.all_smi_rewards is not None
                 assert set(smiles_v) == set(meta_r.all_smi)
                 all_smi_rewards = meta_r.all_smi_rewards
                 is_reward_valid(all_smi_rewards, smiles_v, [prop])
@@ -479,9 +484,11 @@ class TestMultiPromptMultiGenerationServerSync:
                 if Chem.MolFromSmiles(smi) is not None
                 and not has_bridged_bond(Chem.MolFromSmiles(smi))
             ]
+            assert meta_r.all_smi is not None
             assert set(smiles_v) == set(meta_r.all_smi)
             if len(smiles_v) > 0:
                 # Invalid molecule should have zero reward
+                assert reward is not None
                 is_reward_valid(reward, smiles_v, [properties[i]])
 
 
@@ -543,15 +550,15 @@ class TestObjectiveBasedRewardsServerSync:
                 else:
                     mask.append(True)
         mask = torch.tensor(mask).float()
-        rewards_obj = torch.Tensor(rewards_obj)
-        rewards_max = torch.Tensor(rewards_max)
-        assert not rewards_obj.isnan().any()
+        rewards_obj_tensor = torch.Tensor(rewards_obj)
+        rewards_max_tensor = torch.Tensor(rewards_max)
+        assert not rewards_obj_tensor.isnan().any()
 
         objective = obj_func.split()[0]
         expected_val = compare_obj_reward_to_max(
-            objective, target, rewards_max, mask, prop
+            objective, target, rewards_max_tensor, mask, prop
         )
-        assert torch.isclose(rewards_obj, expected_val, atol=1e-4).all()
+        assert torch.isclose(rewards_obj_tensor, expected_val, atol=1e-4).all()
 
     def test_maximize_objective(
         self,
@@ -578,12 +585,13 @@ class TestObjectiveBasedRewardsServerSync:
             ]
             if completion.startswith("[N]") or sum(smi_valid) == 0:
                 continue
+            assert meta_r.all_smi_rewards is not None
+            assert meta_r.all_smi is not None
             reward = meta_r.all_smi_rewards
-
             assert len(reward) == sum(smi_valid)
             pattern_valid = not completion.startswith("[N]")
             if sum(smi_valid) == 0 or not pattern_valid:
-                assert reward == 0.0
+                assert sum(reward) == 0.0
             else:
                 smiles_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
                 assert set(smiles_v) == set(meta_r.all_smi)

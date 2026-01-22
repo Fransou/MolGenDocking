@@ -7,8 +7,12 @@ import pytest
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.molecular_verifier import (
+from mol_gen_docking.reward import (
+    GenerationVerifierConfigModel,
     MolecularVerifier,
+    MolecularVerifierConfigModel,
+)
+from mol_gen_docking.reward.molecular_verifier import (
     has_bridged_bond,
 )
 
@@ -23,24 +27,29 @@ from ..utils import (
 # =============================================================================
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type:ignore
 def valid_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES checking."""
     return MolecularVerifier(
-        data_path,
-        "valid_smiles",
-        parse_whole_completion=False,
-        rescale=False,
+        MolecularVerifierConfigModel(
+            reward="valid_smiles",
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=data_path
+            ),
+        )
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type:ignore
 def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
     return MolecularVerifier(
-        data_path,
-        "property",
-        parse_whole_completion=False,
+        MolecularVerifierConfigModel(
+            reward="property",
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=data_path
+            ),
+        )
     )
 
 
@@ -326,11 +335,11 @@ class TestObjectiveBasedRewards:
                 else:
                     mask.append(True)
         mask = torch.tensor(mask).float()
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
+        rewards_tensor = torch.Tensor(rewards)
+        assert not rewards_tensor.isnan().any()
 
-        rewards_prop = rewards[: len(completions)]
-        rewards_max = rewards[len(completions) :]
+        rewards_prop = rewards_tensor[: len(completions)]
+        rewards_max = rewards_tensor[len(completions) :]
 
         objective = obj_func.split()[0]
         expected_val = compare_obj_reward_to_max(

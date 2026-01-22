@@ -10,22 +10,11 @@ from mol_gen_docking.reward.molecular_verifier import (
     MolecularVerifier,
 )
 from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierSettings,
+    MolecularVerifierServerSettings,
 )
 
-verifier_settings = MolecularVerifierSettings()
-reward_scorer = MolecularVerifier(
-    path_to_mappings=verifier_settings.data_path,
-    parse_whole_completion=verifier_settings.parse_whole_completion,
-    docking_concurrency_per_gpu=verifier_settings.docking_concurrency_per_gpu,
-    reaction_matrix_path=verifier_settings.reaction_matrix_path,
-    oracle_kwargs=dict(
-        exhaustiveness=verifier_settings.scorer_exhaustiveness,
-        n_cpu=verifier_settings.scorer_ncpus,
-        docking_oracle=verifier_settings.docking_oracle,
-        vina_mode=verifier_settings.vina_mode,
-    ),
-)
+verifier_settings = MolecularVerifierServerSettings()
+reward_scorer = MolecularVerifier(verifier_settings.to_molecular_verifier_config())
 receptor_process: None | ReceptorProcess = None
 
 

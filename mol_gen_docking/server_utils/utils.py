@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
-class MolecularVerifierSettings(BaseSettings):
+class MolecularVerifierServerSettings(BaseSettings):
     """
     Protocol for molecular docking.
     Args:
@@ -26,20 +26,20 @@ class MolecularVerifierSettings(BaseSettings):
     docking_concurrency_per_gpu: int = 2
     max_concurrent_requests: int = 128
     reaction_matrix_path: str = "data/rxn_matrix.pkl"
-    docking_oracle: Literal["pyscreener", "autodock_gpu"] = "pyscreener"
-    vina_mode: str = "autodock_gpu_256wi"  # Command used to run autodock gpu
-    data_path: str = "data"
+    docking_oracle: Literal["pyscreener", "autodock_gpu"] = "autodock_gpu"
+    vina_mode: str = "autodock_gpu_256wi"
+    data_path: str = "data/molgendata"
     buffer_time: int = 20
     parse_whole_completion: bool = False
 
     def __post_init__(self) -> None:
         assert self.scorer_exhaustiveness > 0, "Exhaustiveness must be greater than 0"
-        assert self.scorer_cpus > 0, "Number of CPUs must be greater than 0"
+        assert self.scorer_ncpus > 0, "Number of CPUs must be greater than 0"
         assert self.max_concurrent_requests > 0, (
             "Max concurrent requests must be greater than 0"
         )
         assert (
-            self.scorer_cpus
+            self.scorer_ncpus
             == self.scorer_exhaustiveness * self.max_concurrent_requests
         ), "Number of CPUs must be equal to exhaustiveness"
         assert self.docking_concurrency_per_gpu > 0, (
@@ -102,18 +102,49 @@ class MolecularVerifierServerMetadata(BaseModel):
 
 
 class MolecularVerifierServerResponse(BaseModel):
-    """
-    Response model for the VerifierServer.
-    Args:
-        reward (float): Overall reward score.
-        reward_list (list[float]): List of individual reward scores.
-        error (Optional[str]): Optional error message.
-        meta (Optional[dict[str, list[Any]]]): Optional metadata dictionary.
-        next_turn_feedback (Optional[str]): Optional feedback for the next turn.
+    """Response from the Molecular Verifier server.
+
+    Contains the computed reward scores and detailed metadata for each
+    evaluated completion.
+
+    Attributes:
+        reward: Overall reward score combining all evaluated properties.
+            Typically normalized to [0.0, 1.0] range when rescaling is enabled.
+
+        reward_list: List of individual reward scores, one per evaluated
+            completion in the request.
+
+        error: Error message if scoring failed. None if successful.
+
+        meta: List of metadata dictionaries with detailed scoring information.
+            Contains extraction failures, property rewards, and verification
+            results for each completion. One metadata object per query item.
+
+        next_turn_feedback: Optional feedback for multi-turn conversations.
+            Can be used to guide subsequent model generations.
+
+    Example:
+        ```json
+        {
+          "reward": 0.75,
+          "reward_list": [0.75],
+          "error": null,
+          "meta": [
+            {
+              "smiles_extraction_failure": null,
+              "all_smi": ["CC(C)Cc1ccc(cc1)"],
+              "all_smi_rewards": [0.75],
+              "properties": ["GSK3B", "CalcLogP"],
+              "individual_rewards": [1.0, 0.5]
+            }
+          ],
+          "next_turn_feedback": null
+        }
+        ```
     """
 
     reward: float
     reward_list: List[float]
     error: Optional[str] = None
-    meta: Optional[List[MolecularVerifierServerMetadata]] = None
+    meta: List[MolecularVerifierServerMetadata] = []
     next_turn_feedback: Optional[str] = None
