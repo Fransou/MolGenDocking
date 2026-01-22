@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 import requests
 
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 

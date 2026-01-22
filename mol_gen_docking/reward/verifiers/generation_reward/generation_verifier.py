@@ -12,7 +12,7 @@ from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
     get_oracle,
 )
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     rescale_property_values,
 )
 

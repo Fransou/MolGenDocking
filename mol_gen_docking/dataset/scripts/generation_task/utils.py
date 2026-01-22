@@ -1,4 +1,11 @@
+import json
+import os
 from typing import Dict, List, Tuple
+
+OBJECTIVES = ["maximize", "minimize", "above", "below", "equal"]
+DOCKING_SOLO_OBJECTIVES = (["minimize", "below"], [0.8, 0.2])
+DOCKING_OBJECTIVES = (["minimize", "below", "above"], [0.6, 0.3, 0.1])
+TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
 
 PROMPT_INTR: List[Tuple[str, str]] = [
     (
@@ -13,6 +20,14 @@ PROMPT_INTR: List[Tuple[str, str]] = [
 
 
 PROMPT_TEMPLATE: List[str] = [e[0] + "|" + e[1] for e in PROMPT_INTR]
+
+DOCKING_SUFFIX: str = "\n(The docking score represents the free-energy of binding, low scores corresponding to strong binders.)"
+
+# Get the CURRENT_DIR/utils/....json
+with open(
+    os.path.join(os.path.dirname(__file__), "utils", "standard_prop_gen_info.json")
+) as f:
+    PROPERTY_ALLOWED_OBJECTIVES = json.load(f)
 
 
 OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
@@ -38,17 +53,3 @@ OBJECTIVES_TEMPLATES: Dict[str, List[str]] = {
         "Target a {prop} of {val}",
     ],
 }
-
-POSSIBLE_POCKET_INFO: List[str] = [
-    "number of alpha spheres",
-    "mean alpha-sphere radius",
-    "mean alpha-sphere solvent acc.",
-    "hydrophobicity score",
-    "polarity score",
-    "amino acid based volume score",
-    "pocket volume (monte carlo)",
-    "charge score",
-    "local hydrophobic density score",
-    "number of apolar alpha sphere",
-    "proportion of apolar alpha sphere",
-]

@@ -6,7 +6,7 @@ import torch
 from rdkit import Chem
 
 from mol_gen_docking.reward.molecular_verifier import has_bridged_bond
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
     inverse_rescale_property_values,
     rescale_property_values,
