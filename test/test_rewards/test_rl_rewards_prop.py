@@ -56,7 +56,7 @@ class TestRegression:
         metadata: List[dict[str, Any]] = [
             {"objectives": ["regression"], "properties": [""], "target": [target]}
         ] * 5
-        rewards: List[float] = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata).rewards
         assert sorted(rewards)[::-1] == rewards
         assert sum(rewards) > 0.0
 
@@ -80,7 +80,7 @@ class TestClassification:
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [1]}
         ] * 5
-        rewards: List[float] = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata).rewards
         assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0]
 
     def test_classification_target_zero(
@@ -94,7 +94,7 @@ class TestClassification:
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [0]}
         ] * 5
-        rewards: List[float] = property_scorer(completions, metadata)[0]
+        rewards: List[float] = property_scorer(completions, metadata).rewards
         assert rewards == [0.0, 0.0, 1.0, 1.0, 0.0]
 
 
@@ -125,7 +125,7 @@ class TestMixedGeneration:
                 "target": [1],
             }
         ] * 5
-        rewards = property_scorer_mixed(completions, metadata, debug=True)[0]
+        rewards = property_scorer_mixed(completions, metadata, debug=True).rewards
         assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0] + [0, 1, 2, 3, 4]
 
     def test_with_generation_target_zero(
@@ -147,7 +147,7 @@ class TestMixedGeneration:
                 "target": [1],
             }
         ] * 5
-        rewards = property_scorer_mixed(completions, metadata)[0]
+        rewards = property_scorer_mixed(completions, metadata).rewards
         assert rewards == [0.0, 0.0, 1.0, 1.0, 1.0] + [0, 1, 2, 3, 4]
 
     def test_with_generation_target_one_no_gen_conf(

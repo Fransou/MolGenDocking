@@ -71,7 +71,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}],
-            )[0]
+            ).rewards
         )
         assert rewards.sum() == 0.0
 
@@ -87,7 +87,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}],
-            )[0]
+            ).rewards
         )
         assert rewards.sum() == 1.0
 
@@ -104,7 +104,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}],
-            )[0]
+            ).rewards
         )
 
         # Check if completion pattern is valid (doesn't start with [N])
@@ -129,7 +129,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}],
-            )[0]
+            ).rewards
         )
 
         are_smi_valid = [
@@ -156,7 +156,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}] * len(completions),
-            )[0]
+            ).rewards
         )
 
         assert len(rewards) == len(completions)
@@ -181,7 +181,7 @@ class TestValidSmiles:
             valid_scorer(
                 completions,
                 metadata=[{"objectives": ["maximize"]}] * len(completions),
-            )[0]
+            ).rewards
         )
 
         assert len(rewards) == len(completions)
@@ -218,7 +218,8 @@ class TestMultiPromptMultiGeneration:
         prop = "QED"
         completion, smiles = completion_smile
         metadata = [{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
-        rewards, _ = property_scorer([completion], metadata)
+        output = property_scorer([completion], metadata)
+        rewards = output.rewards
         assert len(rewards) == 1
         is_smi_valid = Chem.MolFromSmiles(smiles) is not None and not has_bridged_bond(
             Chem.MolFromSmiles(smiles)
@@ -245,7 +246,8 @@ class TestMultiPromptMultiGeneration:
             for _ in range(len(completions))
         ]
 
-        rewards, meta = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        rewards = output.rewards
 
         assert len(rewards) == len(completions)
         for i, (reward, smi, completion) in enumerate(
@@ -272,13 +274,14 @@ class TestMultiPromptMultiGeneration:
             {"properties": [p], "objectives": ["maximize"], "target": [0]}
             for p in properties
         ]
-        rewards, metas_r = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        metas_r = output.verifier_metadatas
         for i, (meta, smiles_list, completion) in enumerate(
             zip(metas_r, smiles_chunks, completions)
         ):
             if completion.startswith("[N]"):
                 continue
-            reward = meta["all_smi_rewards"]
+            reward = meta.all_smi_rewards
             smiles_v = [
                 smi
                 for smi in smiles_list
@@ -322,7 +325,8 @@ class TestObjectiveBasedRewards:
             }
         ] * len(completions)
 
-        rewards, _ = property_scorer(completions + completions, metadata)
+        output = property_scorer(completions + completions, metadata)
+        rewards = output.rewards
         assert len(rewards) == len(completions) * 2
         mask = []
         for completion, smiles in zip(completions, smiles_chunks):
@@ -359,7 +363,9 @@ class TestObjectiveBasedRewards:
             {"properties": [prop], "objectives": ["maximize"], "target": [0]}
             for _ in smiles_batch
         ]
-        rewards, meta_rs = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        rewards = output.rewards
+        meta_rs = output.verifier_metadatas
         assert len(rewards) == len(completions)
 
         for reward, meta_r, completion, smiles in zip(
@@ -375,7 +381,7 @@ class TestObjectiveBasedRewards:
                 assert reward == 0.0
             else:
                 smis_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
-                all_smi_rewards = meta_r["all_smi_rewards"]
+                all_smi_rewards = meta_r.all_smi_rewards
                 is_reward_valid(all_smi_rewards, smis_v, [prop])
 
 

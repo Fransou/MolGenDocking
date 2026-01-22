@@ -10,6 +10,8 @@ import ray
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 from mol_gen_docking.reward.verifiers.generation_reward.generation_verifier_pydantic_model import (
     GenerationVerifierConfigModel,
+    GenerationVerifierMetadataModel,
+    GenerationVerifierOutputModel,
 )
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import (
     OracleWrapper,
@@ -170,7 +172,7 @@ class GenerationVerifier(Verifier):
 
     def get_score(
         self, smiles_per_completion: List[List[str]], metadata: List[Dict[str, Any]]
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> List[GenerationVerifierOutputModel]:
         assert metadata is not None and (
             all(
                 [
@@ -195,10 +197,10 @@ class GenerationVerifier(Verifier):
             lambda x: self.get_reward(x), axis=1
         )
 
-        rewards = []
-        rewards_meta = []
+        output_models = []
         for id_completion, smiles in enumerate(smiles_per_completion):
-            meta: Dict[str, List[Any]] = {"properties": [], "individual_rewards": []}
+            properties: List[str] = []
+            individual_rewards: List[float] = []
             compl_reward: List[float] = []
             if len(smiles) > 0:
                 for idx_s, s in enumerate(smiles):
@@ -212,12 +214,8 @@ class GenerationVerifier(Verifier):
                     )  # Geometric mean
                     if idx_s == 0:
                         for i in range(len(rows_completion["smiles"])):
-                            meta["properties"].append(
-                                rows_completion["property"].iloc[i]
-                            )
-                            meta["individual_rewards"].append(
-                                rows_completion["reward"].iloc[i]
-                            )
+                            properties.append(rows_completion["property"].iloc[i])
+                            individual_rewards.append(rows_completion["reward"].iloc[i])
 
                     if self.verifier_config.rescale and not self.debug:
                         reward = np.clip(reward, 0, 1)
@@ -225,9 +223,6 @@ class GenerationVerifier(Verifier):
             else:
                 reward = 0
                 compl_reward = [0.0]
-            meta["all_smi_rewards"] = compl_reward
-            meta["all_smi"] = smiles
-            rewards_meta.append(meta)
 
             if np.isnan(reward) or reward is None:
                 self.logger.warning(
@@ -236,5 +231,17 @@ class GenerationVerifier(Verifier):
                 reward = 0
             if len(smiles) > 1:
                 reward = 0.0
-            rewards.append(float(reward))
-        return rewards, rewards_meta
+
+            # Create the output model
+            output_model = GenerationVerifierOutputModel(
+                reward=float(reward),
+                verifier_metadata=GenerationVerifierMetadataModel(
+                    properties=properties,
+                    individual_rewards=individual_rewards,
+                    all_smi_rewards=compl_reward,
+                    all_smi=smiles,
+                ),
+            )
+            output_models.append(output_model)
+
+        return output_models

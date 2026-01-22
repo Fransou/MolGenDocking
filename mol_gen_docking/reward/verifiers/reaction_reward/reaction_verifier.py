@@ -14,6 +14,8 @@ from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatri
 from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
 from mol_gen_docking.reward.verifiers.reaction_reward.reaction_verifier_pydantic_model import (
     ReactionVerifierConfigModel,
+    ReactionVerifierMetadataModel,
+    ReactionVerifierOutputModel,
 )
 
 RDLogger.DisableLog("rdApp.*")
@@ -152,16 +154,16 @@ class ReactionVerifier(Verifier):
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         if impossible and matches[0] == "impossible":
             self.logger.info("Reaction predicted impossible correctly")
             return 0.9, {
-                "prop_valid": 1.0,
-                "correct_last_product": True,
-                "correct_bb": True,
+                "valid": 1.0,
+                "correct_product": 0.0,
+                "correct_reactant": True,
             }
         # Ensure one reaction per line
         self.logger.info("Running reaction verifier on: {}".format(matches[0]))
@@ -170,9 +172,9 @@ class ReactionVerifier(Verifier):
         if len(steps) == 0 or not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         basic_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
         if not all(
@@ -186,9 +188,9 @@ class ReactionVerifier(Verifier):
         ):
             self.logger.info("Invalid SMILES pattern found in reaction steps")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         reactants = [
             [Molecule(smi.strip()) for smi in step.split("->")[0].split(" + ")]
@@ -207,9 +209,9 @@ class ReactionVerifier(Verifier):
                 f"Invalid molecule found in synthesis path : reactants {invalid_reactants}, products {invalid_products}"
             )
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         n_steps = len(reactants)
 
@@ -217,9 +219,9 @@ class ReactionVerifier(Verifier):
         if n_steps > n_steps_max:
             self.logger.info("Too many steps for synthesis")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": False,
+                "correct_reactant": False,
             }
         reward_mult: List[float] = [1.0 for _ in products]
         if reward_type == "binary" and not any(
@@ -227,9 +229,9 @@ class ReactionVerifier(Verifier):
         ):
             self.logger.info("Product not found")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_last_product": 0.0,
+                "correct_reactant": False,
             }
         elif reward_type == "tanimoto":
             # Compute the tanimoto similarity between the label and products at each step
@@ -249,24 +251,28 @@ class ReactionVerifier(Verifier):
             building_blocks_mol = list(self.rxn_matrix.reactants)
         else:
             building_blocks_mol = [Molecule(smi) for smi in building_blocks]
+
+        error = False
         for reactant, product in zip(reactants, products):
             for r in reactant:
                 if r not in building_blocks_mol:
                     self.logger.info("Using unkown molecule: {}".format(r.smiles))
-                    return 0.0, {
-                        "prop_valid": 0.0,
-                        "correct_last_product": True,
-                        "correct_bb": False,
-                    }
-                if product == []:
-                    self.logger.info("Missing product")
-                    return 0.0, {
-                        "prop_valid": 0.0,
-                        "correct_last_product": True,
-                        "correct_bb": False,
-                    }
-                for p in product:
-                    building_blocks_mol.append(p)
+                    error = True
+                    break
+            if error:
+                break
+            if product == []:
+                self.logger.info("Missing product")
+                error = True
+                break
+            for p in product:
+                building_blocks_mol.append(p)
+        if error:
+            return 0.0, {
+                "valid": 0.0,
+                "correct_product": reward_mult[-1],
+                "correct_reactant": False,
+            }
         reactions: ReactionContainer
         if smarts == []:
             reactions = self.rxn_matrix.reactions
@@ -310,44 +316,54 @@ class ReactionVerifier(Verifier):
                 n_valid += 1
         if n_valid < n_steps:
             return reward_mult[n_valid - 1] * (n_valid / n_steps) ** 2, {
-                "prop_valid": n_valid / n_steps,
-                "correct_last_product": True,
-                "correct_bb": True,
+                "valid": n_valid / n_steps,
+                "correct_product": reward_mult[n_valid - 1],
+                "correct_reactant": True,
             }
 
         return reward_mult[n_valid - 1], {
-            "prop_valid": 1.0,
-            "correct_last_product": True,
-            "correct_bb": True,
+            "valid": 1.0,
+            "correct_product": reward_mult[n_valid - 1],
+            "correct_reactant": True,
         }
 
     def get_score(
         self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> List[ReactionVerifierOutputModel]:
         rewards = []
-        rewards_meta: List[Dict[str, Any]] = []
         for meta, answer in zip(metadata, completions):
             objective = meta["objectives"][0]
             impossible: bool = meta.get("impossible", False)
+            reward = 0.0
+            reward_metadata = {
+                "valid": 0.0,
+                "correct_product": False,
+                "correct_reactant": False,
+            }
             if objective in self.check_ground_truth_tasks:
-                rewards.append(
-                    self.ground_truth_reward_mol(
-                        answer, meta["target"], impossible=impossible
-                    )
+                reward = self.ground_truth_reward_mol(
+                    answer, meta["target"], impossible=impossible
                 )
-                rewards_meta.append({})
+                reward_metadata = {
+                    "valid": float(reward > 0.0),
+                    "correct_product": reward > 0.0,
+                    "correct_reactant": reward > 0.0,
+                }
             elif objective == "smarts":
-                reward, reward_metadata = self.reward_smarts(
+                reward, raw_metadata = self.reward_smarts(
                     answer,
                     meta["target"],
                     meta["reactants"][0],
                     meta["products"][0],
                     impossible=impossible,
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
+                reward_metadata = {
+                    "valid": reward,
+                    "correct_product": raw_metadata.get("Products_contained", False),
+                    "correct_reactant": raw_metadata.get("Reactants_contained", False),
+                }
             elif objective in self.run_validation_tasks:
-                reward, reward_metadata = self.reward_run_path(
+                reward, raw_metadata = self.reward_run_path(
                     answer,
                     meta["target"][0],
                     meta["building_blocks"],
@@ -356,10 +372,9 @@ class ReactionVerifier(Verifier):
                     impossible=False,  # We always try to generate a compound
                     reward_type=self.verifier_config.reaction_reward_type,
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
+                reward_metadata = raw_metadata
             elif objective == "analog_gen":
-                reward, reward_metadata = self.reward_run_path(
+                reward, raw_metadata = self.reward_run_path(
                     answer,
                     meta["target"][0],
                     meta["building_blocks"],
@@ -368,9 +383,20 @@ class ReactionVerifier(Verifier):
                     reward_type="tanimoto",
                     impossible=False,
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
+                reward_metadata = raw_metadata
 
-        if self.verifier_config.reward == "valid_smiles":
-            return [float(r > 0.0) for r in rewards], rewards_meta
-        return rewards, rewards_meta
+            if self.verifier_config.reward == "valid_smiles":
+                reward = float(reward > 0.0)
+
+            # Create the output model
+            output_model = ReactionVerifierOutputModel(
+                reward=reward,
+                verifier_metadata=ReactionVerifierMetadataModel(
+                    valid=reward_metadata["valid"],
+                    correct_product=reward_metadata["correct_product"],
+                    correct_reactant=reward_metadata["correct_reactant"],
+                ),
+            )
+            rewards.append(output_model)
+
+        return rewards

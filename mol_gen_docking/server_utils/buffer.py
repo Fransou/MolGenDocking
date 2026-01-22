@@ -120,8 +120,9 @@ class RewardBuffer:
             completions=all_completions
         )[0]
 
-        out: Tuple[List[float], List[Dict[str, Any]]] = ray.get(rewards_job)
-        rewards, metadatas = out
+        out = ray.get(rewards_job)
+        rewards = out.rewards
+        metadatas = [m.model_dump() for m in out.verifier_metadatas]
         # --- Step 3. Group results by original query ---
         grouped_results: List[List[float]] = [[] for _ in range(len(queries))]
         grouped_meta: List[List[Dict[str, Any]]] = [[] for _ in range(len(queries))]

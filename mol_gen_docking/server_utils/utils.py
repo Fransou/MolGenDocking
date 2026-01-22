@@ -1,63 +1,48 @@
-from pathlib import Path
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
-
-
-class MolecularVerifierServerSettings(BaseSettings):
-    """
-    Protocol for molecular docking.
-    Args:
-        scorer_exhaustiveness (int): Exhaustiveness parameter for the docking scorer.
-        scorer_ncpus (int): Number of CPUs to use for the docking scorer.
-        docking_concurrency_per_gpu (int): Number of concurrent docking runs per GPU.
-        max_concurrent_requests (int): Maximum number of concurrent requests to handle.
-        reaction_matrix_path (str): Path to the reaction matrix file.
-        docking_oracle (Literal["pyscreener", "autodock_gpu"]): Docking oracle to use.
-        vina_mode (str): Command used to run autodock gpu.
-        data_path (str): Path to the data directory.
-        buffer_time (int): Buffer time in seconds used to gather concurrent requests before computation.
-        parse_whole_completion (bool): Whether to parse the whole completion output.
-    """
-
-    scorer_exhaustiveness: int = 8
-    scorer_ncpus: int = 8
-    docking_concurrency_per_gpu: int = 2
-    max_concurrent_requests: int = 128
-    reaction_matrix_path: str = "data/rxn_matrix.pkl"
-    docking_oracle: Literal["pyscreener", "autodock_gpu"] = "autodock_gpu"
-    vina_mode: str = "autodock_gpu_256wi"
-    data_path: str = "data/molgendata"
-    buffer_time: int = 20
-    parse_whole_completion: bool = False
-
-    def __post_init__(self) -> None:
-        assert self.scorer_exhaustiveness > 0, "Exhaustiveness must be greater than 0"
-        assert self.scorer_ncpus > 0, "Number of CPUs must be greater than 0"
-        assert self.max_concurrent_requests > 0, (
-            "Max concurrent requests must be greater than 0"
-        )
-        assert (
-            self.scorer_ncpus
-            == self.scorer_exhaustiveness * self.max_concurrent_requests
-        ), "Number of CPUs must be equal to exhaustiveness"
-        assert self.docking_concurrency_per_gpu > 0, (
-            "GPU utilization per docking run must be > 0"
-        )
-
-        assert Path(self.reaction_matrix_path).exists(), (
-            f"Reaction matrix file {self.reaction_matrix_path} does not exist"
-        )
 
 
 class MolecularVerifierServerQuery(BaseModel):
-    """
-    Query model for the MolecularVerifier.
-    Args:
-        metadata (list[dict[str, Any]]): List of metadata dictionaries for prompt.
-        query (list[str]): List of generated completions.
-        prompts (Optional[list[str]]): Optional list of prompts for each molecule.
+    """Input query model for the Molecular Verifier server.
+
+    Represents a complete request to the molecular verifier service,
+    containing metadata for scoring and completions to evaluate.
+
+    Attributes:
+        metadata: List of metadata dictionaries, one per query item.
+            Each dictionary should contain:
+
+            - "properties": List of property names to evaluate
+            - "objectives": List of objective types matching each property
+            - "target": List of target values for each objective
+
+        query: List of completion strings from the language model.
+            Each completion should contain the answer wrapped in tags:
+            `<answer>SMILES</answer>` or `<|answer_start|>...</|answer_end|>`
+
+            The parser extracts content between these tags unless
+            parse_whole_completion is enabled.
+
+        prompts: Optional. Original prompts used to generate the completions.
+            Useful for tracking and debugging. If provided, should have
+            same length as query list.
+
+
+    Example:
+    ```json
+    {
+      "query": "Here is a molecules: <answer>CC(C)Cc1ccc(cc1)C(C)C(=O)O</answer>",
+      "prompt": "Generate a molecule that binds to my target protein with high affinity and has more than 3 rotatable bonds.",
+      "metadata": [
+        {
+          "properties": ["CalcNumRotatableBonds", "sample_228234_model_0"],
+          "objectives": ["above", "minimize"],
+          "target": [3.0, 0.0]
+        }
+      ]
+    }
+    ```
     """
 
     metadata: List[dict[str, Any]]
@@ -66,20 +51,41 @@ class MolecularVerifierServerQuery(BaseModel):
 
 
 class MolecularVerifierServerMetadata(BaseModel):
-    """
-    Metadata model for the MolecularVerifier.
-    Args:
-        smiles_extraction_failure (Optional[str]): Error message for SMILES extraction failure.
-        all_smi_rewards (Optional[list[float]]): List of rewards for all SMILES.
-        all_smi (Optional[list[str]]): List of all SMILES strings.
-        individual_rewards (Optional[list[float]]): List of individual rewards.
-        properties (Optional[list[str]]): List of properties evaluated.
-        extracted_answer (Optional[str]): Extracted answer from molecule property prediction.
-        prop_valid (Optional[float]): Validity score of the property prediction.
-        correct_last_product (Optional[bool]): Whether the last product is correct.
-        correct_bb (Optional[bool]): Whether the building block is correct.
-        Reactants_contained (Optional[bool]): Whether reactants are contained in the prediction.
-        Products_contained (Optional[bool]): Whether products are contained in the prediction.
+    """Metadata returned with each scored molecule.
+
+    Contains detailed information about the scoring result, including
+    extracted SMILES, rewards for individual properties, and task-specific
+    verification results.
+
+    Attributes:
+        smiles_extraction_failure: Error message if SMILES extraction failed.
+            None if extraction was successful.
+
+        all_smi: List of all valid SMILES strings extracted from the completion.
+
+        all_smi_rewards: List of reward values corresponding to each SMILES.
+
+        individual_rewards: List of individual reward values for each property
+            evaluated on the first SMILES.
+
+        properties: List of property names that were evaluated.
+
+        extracted_answer: Extracted answer text from property prediction tasks.
+
+        prop_valid: Validity score for property predictions.
+            Range: [0.0, 1.0]
+
+        correct_last_product: Whether the last product matches expected output
+            in reaction tasks.
+
+        correct_bb: Whether building blocks match expected output
+            in reaction synthesis tasks.
+
+        Reactants_contained: Whether predicted reactants are contained in
+            the ground truth reactants.
+
+        Products_contained: Whether predicted products are contained in
+            the ground truth products.
     """
 
     # MOL GENERATION ARGS

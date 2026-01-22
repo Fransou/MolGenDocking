@@ -1,7 +1,9 @@
 import os
-from typing import Literal
+from typing import List, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
 
 
 class DockingConfigModel(BaseModel):
@@ -180,3 +182,54 @@ class GenerationVerifierConfigModel(BaseModel):
                     f"docking_targets.json not found at {docking_targets_path}"
                 )
         return self
+
+
+class GenerationVerifierMetadataModel(BaseModel):
+    """Metadata model for generation verifier results.
+
+    Attributes:
+        properties: List of property names that were evaluated.
+        individual_rewards: List of individual rewards for each property.
+        all_smi_rewards: List of rewards for all SMILES in the completion.
+        all_smi: List of all SMILES strings in the completion.
+    """
+
+    properties: List[str] = Field(
+        default_factory=list,
+        description="List of property names that were evaluated.",
+    )
+    individual_rewards: List[float] = Field(
+        default_factory=list,
+        description="List of individual rewards for each property.",
+    )
+    all_smi_rewards: List[float] = Field(
+        default_factory=list,
+        description="List of rewards for all SMILES in the completion.",
+    )
+    all_smi: List[str] = Field(
+        default_factory=list,
+        description="List of all SMILES strings in the completion.",
+    )
+    smiles_extraction_failure: str = Field(
+        default="",
+        description="Error message if there was a failure in extracting SMILES from the completion.",
+        frozen=False,
+    )
+
+
+class GenerationVerifierOutputModel(VerifierOutputModel):
+    """Output model for generation verifier results.
+
+    Attributes:
+        reward: The computed reward for the generation verification.
+        verifier_metadata: Metadata related to the generation verification process.
+    """
+
+    reward: float = Field(
+        ...,
+        description="The computed reward for the generation verification.",
+    )
+    verifier_metadata: GenerationVerifierMetadataModel = Field(
+        ...,
+        description="Metadata related to the generation verification process.",
+    )

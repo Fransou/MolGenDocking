@@ -13,10 +13,10 @@ from mol_gen_docking.reward import (
     MolecularVerifier,
 )
 from mol_gen_docking.server_utils.buffer import RewardBuffer
+from mol_gen_docking.server_utils.server_setting import MolecularVerifierServerSettings
 from mol_gen_docking.server_utils.utils import (
     MolecularVerifierServerQuery,
     MolecularVerifierServerResponse,
-    MolecularVerifierServerSettings,
 )
 
 # Set logging level to info

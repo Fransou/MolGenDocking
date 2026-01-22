@@ -147,8 +147,7 @@ class TestReaction:
                 )
             completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
 
-            rewards = property_scorer(completions, [metadata] * len(answers))[0]
-            property_scorer_valid(completions, [metadata] * len(answers))[0]
+            rewards = property_scorer(completions, [metadata] * len(answers)).rewards
             assert (rewards[0] == 1) or metadata["impossible"]
 
 
@@ -170,8 +169,7 @@ class TestAdditionalSynthesis:
         for in_out in add_sy_ex:
             metadata = in_out["metadata"]
             completions = [in_out["output"]]
-            property_scorer(completions, [metadata])[0]
-            property_scorer_valid(completions, [metadata])[0]
+            property_scorer(completions, [metadata]).rewards
 
 
 # =============================================================================
@@ -194,6 +192,8 @@ class TestReactionAnalog:
 
             completions = ["<answer>\n {} \n</answer>".format(v[0]) for v in examples]
 
-            rewards = property_scorer(completions, [metadata] * len(completions))[0]
+            rewards = property_scorer(
+                completions, [metadata] * len(completions)
+            ).rewards
 
             assert rewards == [v[1] for v in examples]

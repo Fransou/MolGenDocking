@@ -7,12 +7,18 @@ from ray.experimental import tqdm_ray
 from rdkit import Chem, RDLogger
 
 from mol_gen_docking.reward.molecular_verifier_pydantic_model import (
+    BatchMolecularVerifierOutputModel,
     MolecularVerifierConfigModel,
 )
 from mol_gen_docking.reward.verifiers import (
     GenerationVerifier,
+    GenerationVerifierMetadataModel,
+    GenerationVerifierOutputModel,
     MolPropVerifier,
+    MolPropVerifierOutputModel,
     ReactionVerifier,
+    ReactionVerifierOutputModel,
+    VerifierOutputModel,
 )
 
 RDLogger.DisableLog("rdApp.*")
@@ -169,7 +175,7 @@ class MolecularVerifier:
         elif len(s_spl) > 1:
             reason = "multiple_smiles"
         elif reason == "":
-            reason = s_spl[0]
+            reason = ""
         return s_spl, reason
 
     def get_all_completions_smiles(
@@ -195,27 +201,29 @@ class MolecularVerifier:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> List[GenerationVerifierOutputModel]:
         """
         Get reward for molecular properties
         """
         smiles_per_completion, failures = self.get_all_completions_smiles(completions)
-        if (
-            self.verifier_config.reward == "valid_smiles"
-        ):  # TODO: Currently always return 1 if at least one valid smiles
-            return [float(len(smis) == 1) for smis in smiles_per_completion], [
-                {"smiles_extraction_failure": fail} for fail in failures
+        if self.verifier_config.reward == "valid_smiles":
+            return [
+                GenerationVerifierOutputModel(
+                    reward=float(len(smis) == 1),
+                    verifier_metadata=GenerationVerifierMetadataModel(
+                        smiles_extraction_failure=fail
+                    ),
+                )
+                for smis, fail in zip(smiles_per_completion, failures)
             ]
         if debug:
             self.generation_verifier.debug = True
         elif self._generation_verifier is not None:
             self.generation_verifier.debug = False
-        scores, metadata = self.generation_verifier.get_score(
-            smiles_per_completion, metadata
-        )
-        for meta, fail in zip(metadata, failures):
-            meta["smiles_extraction_failure"] = fail
-        return scores, metadata
+        output = self.generation_verifier.get_score(smiles_per_completion, metadata)
+        for i, fail in enumerate(failures):
+            output[i].verifier_metadata.smiles_extraction_failure = fail
+        return output
 
     def _get_prop_pred_score(
         self,
@@ -223,7 +231,7 @@ class MolecularVerifier:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> List[MolPropVerifierOutputModel]:
         return self.mol_prop_verifier.get_score(completions, metadata)
 
     def _get_reaction_score(
@@ -232,7 +240,7 @@ class MolecularVerifier:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> List[ReactionVerifierOutputModel]:
         return self.reaction_verifier.get_score(completions, metadata)
 
     def get_score(
@@ -241,13 +249,13 @@ class MolecularVerifier:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> BatchMolecularVerifierOutputModel:
         assert len(completions) == len(metadata)
         obj_to_fn: Dict[
             str,
             Callable[
                 [List[Any], List[dict[str, Any]], bool, bool],
-                Tuple[List[float], List[Dict[str, Any]]],
+                List[VerifierOutputModel],
             ],
         ] = {
             "docking": self._get_generation_score,
@@ -303,17 +311,18 @@ class MolecularVerifier:
         metadata = [{} for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
             if len(completions_per_obj[key]) > 0:
-                rewards_obj, metadata_obj = fn(
+                outputs_obj = fn(
                     completions_per_obj[key],
                     metadata_per_obj[key],
                     debug,
                     use_pbar,
                 )
-                for i, r, m in zip(idxs[key], rewards_obj, metadata_obj):
-                    rewards[i] = r
-                    metadata[i] = m
-        self.logger.info(f"Rewards total for given batch: {rewards}")
-        return rewards, metadata
+                for i, output in zip(idxs[key], outputs_obj):
+                    rewards[i] = output.reward
+                    metadata[i] = output.verifier_metadata
+        return BatchMolecularVerifierOutputModel(
+            rewards=rewards, verifier_metadatas=metadata
+        )
 
     def __call__(
         self,
@@ -321,7 +330,7 @@ class MolecularVerifier:
         metadata: List[Dict[str, Any]],
         debug: bool = False,
         use_pbar: bool = False,
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
+    ) -> BatchMolecularVerifierOutputModel:
         """
         Call the scorer to get the rewards.
         """

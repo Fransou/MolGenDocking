@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
+
 
 class ReactionVerifierConfigModel(BaseModel):
     """Pydantic model for molecular verifier configuration.
@@ -62,3 +64,44 @@ class ReactionVerifierConfigModel(BaseModel):
                 f"Reaction matrix path {self.reaction_matrix_path} does not exist."
             )
         return self
+
+
+class ReactionVerifierMetadataModel(BaseModel):
+    """Metadata model for reaction verifier results.
+
+    Attributes:
+        prop_valid: Proportion of valid reaction steps (0.0 to 1.0).
+        correct_last_product: Whether the final product is correct.
+        correct_bb: Whether all building blocks used are valid.
+    """
+
+    valid: float = Field(
+        default=0.0,
+        description="Is the answer valid. If the task is to propose a synthesis route, this is the proportion of valid reaction steps (0.0 to 1.0).",
+    )
+    correct_product: float = Field(
+        default=0.0,
+        description="Whether the product is correct. For synthesis tasks, if we use tanimoto similarity, similarity to the target molecule, for SMARTS prediction, do both of the chemical reactions lead to the correct product.",
+    )
+    correct_reactant: bool = Field(
+        default=False,
+        description="Whether all reactants are correct.",
+    )
+
+
+class ReactionVerifierOutputModel(VerifierOutputModel):
+    """Output model for reaction verifier results.
+
+    Attributes:
+        reward: The computed reward for the reaction verification.
+        verifier_metadata: Metadata related to the reaction verification process.
+    """
+
+    reward: float = Field(
+        ...,
+        description="The computed reward for the reaction verification.",
+    )
+    verifier_metadata: ReactionVerifierMetadataModel = Field(
+        ...,
+        description="Metadata related to the reaction verification process.",
+    )

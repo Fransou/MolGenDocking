@@ -4,8 +4,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from mol_gen_docking.reward.verifiers import (
     GenerationVerifierConfigModel,
+    GenerationVerifierMetadataModel,
     MolPropVerifierConfigModel,
+    MolPropVerifierMetadataModel,
     ReactionVerifierConfigModel,
+    ReactionVerifierMetadataModel,
 )
 
 
@@ -76,3 +79,24 @@ class MolecularVerifierConfigModel(BaseModel):
                 },
             }
         }
+
+
+class BatchMolecularVerifierOutputModel(BaseModel):
+    """Output model for molecular verifier results.
+
+    Attributes:
+        reward: The computed reward for the molecular verification.
+    """
+
+    rewards: list[float] = Field(
+        ...,
+        description="List of computed rewards for the molecular verification.",
+    )
+    verifier_metadatas: list[
+        GenerationVerifierMetadataModel
+        | ReactionVerifierMetadataModel
+        | MolPropVerifierMetadataModel
+    ] = Field(
+        ...,
+        description="List of metadata from each verifier used in the molecular verification.",
+    )

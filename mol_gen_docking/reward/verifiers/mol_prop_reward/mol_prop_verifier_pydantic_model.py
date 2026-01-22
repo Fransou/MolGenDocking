@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from mol_gen_docking.reward.verifiers.abstract_verifier import VerifierOutputModel
+
 
 class MolPropVerifierConfigModel(BaseModel):
     """Pydantic model for molecular verifier configuration.
@@ -41,3 +43,32 @@ class MolPropVerifierConfigModel(BaseModel):
                 "reward": "property",
             }
         }
+
+
+class MolPropVerifierMetadataModel(BaseModel):
+    """Metadata model for molecular property verifier results.
+
+    Attributes:
+    """
+
+    extracted_answer: float | int | None = Field(
+        default=None,
+        description="The extracted answer string from the model completion.",
+    )
+
+
+class MolPropVerifierOutputModel(VerifierOutputModel):
+    """Output model for molecular property verifier results.
+
+    Attributes:
+
+    """
+
+    reward: float = Field(
+        ...,
+        description="The computed reward for the molecular property verification.",
+    )
+    verifier_metadata: MolPropVerifierMetadataModel = Field(
+        ...,
+        description="Metadata related to the molecular property verification process.",
+    )
