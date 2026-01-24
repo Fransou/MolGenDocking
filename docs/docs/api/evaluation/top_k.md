@@ -73,7 +73,6 @@ print(metric)
 ::: mol_gen_docking.evaluation.top_k
     options:
         show_root_toc_entry: false
-        show_members: true
         heading_level: 3
 
 ## Benchmark Context
