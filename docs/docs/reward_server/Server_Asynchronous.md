@@ -2,4 +2,3 @@
     handler: python
     options:
         show_root_toc_entry: false
-        show_members: true

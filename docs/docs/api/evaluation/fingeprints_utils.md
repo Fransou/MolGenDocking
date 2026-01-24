@@ -38,5 +38,4 @@ The module uses **Tanimoto (Jaccard) similarity** to measure molecular similarit
 ::: mol_gen_docking.evaluation.fingeprints_utils
     options:
         show_root_toc_entry: false
-        show_members: true
         heading_level: 3
