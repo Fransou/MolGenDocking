@@ -10,7 +10,7 @@ from rdkit.Chem import AllChem
 from scipy.spatial.distance import squareform
 from tqdm import tqdm
 
-from mol_gen_docking.reward.diversity_aware_top_k import div_aware_top_k_from_dist
+from mol_gen_docking.evaluation.diversity_aware_top_k import div_aware_top_k_from_dist
 
 from .utils import process_model_name
 
@@ -273,7 +273,9 @@ def get_top_k_div_df(
             pbar.set_description(new_pbar_desc)
             pbar.refresh()
             div_clus_df_single = (
-                df.groupby(["Model", "prompt_id"])
+                df.groupby(["Model", "prompt_id"])[
+                    ["Model", "prompt_id", f"fp-{fp_name}", "reward"]
+                ]
                 .apply(sim_topk(k=k_max, sim=sim, n_rollout=n_rollout, fp_name=fp_name))
                 .to_frame("value")
                 .reset_index()

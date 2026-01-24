@@ -1,0 +1,48 @@
+# Configuration for the last figure (k on x-axis)
+paths:
+  molstral_path: "MolGenOutput/test_ood"
+  fig_path: "MolGenDocking-latex/Figures/Results/MolGen"
+  output_subdir: "diversity_rewards"
+  output_suffix: "_kx-main"
+
+data:
+  subsample_models:
+    - "MiniMax-M2_"
+    - "Qwen3-Next-80B-A3B-Thinking_"
+
+plot:
+  fp_name: "ecfp6-2048"
+  cols_vals:
+    - 0.3
+    - 0.5
+    - 0.7
+    - 0.8
+  x_vals_range:
+    start: 5
+    stop: 50
+    step: 5
+    prepend: 1.0
+  row: "n_rollout"
+  col: "sim"
+  x: "k"
+  k_max: 50
+  column_name: "Sim. thresh."
+  xlabel: "k"
+  xlabel_x: 0.45
+  ylabel_x: -0.01
+  legend: true
+  legend_bbox: [0.9, 0.3]
+  legend_ncols: 1
+  height: 1.6
+  aspect: 1.3
+  markersize:
+    normal: 5
+    highlight: 7
+
+sim_values:
+  type: "list"
+  values:
+    - 0.3
+    - 0.5
+    - 0.7
+    - 0.8

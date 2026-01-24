@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import yaml
 
-# from notebooks.utils import *
 from notebooks.utils import (
     CMAP_MODELS,
     HIGHLIGHT_MODELS,
@@ -16,35 +16,91 @@ from notebooks.utils import (
     load_molgen_results,
 )
 
-MOLSTRAL_PATH = Path("MolGenOutput/test_ood")
-FIG_PATH = "/home/philippe/-Philippe-MolGenDocking/Figures/Results/MolGen"
-os.makedirs(FIG_PATH, exist_ok=True)
 
-files = [
-    f
-    for d in MOLSTRAL_PATH.iterdir()
-    for f in d.iterdir()
-    if "error" not in str(f) and str(f).endswith("scored.jsonl")
-]
-files = sorted(files)
-print("Total files:", len(files))
-df = load_molgen_results(files)
-
-sub_sample_prompts = df[df.model == "MiniMax-M2_"].prompt_id.unique()[:]
-df = df[df.prompt_id.isin(sub_sample_prompts)]
-
-sub_sample_prompts = df[df.model == "Qwen3-Next-80B-A3B-Thinking_"].prompt_id.unique()[
-    :
-]
-df = df[df.prompt_id.isin(sub_sample_prompts)]
+def load_config(config_path: Path | str) -> dict:
+    """Load a YAML configuration file."""
+    with open(config_path) as f:
+        out: dict = yaml.safe_load(f)
+    return out
 
 
-fig_name = FIG_PATH + "/diversity_rewards/{}"
-os.makedirs(FIG_PATH + "/diversity_rewards", exist_ok=True)
+def get_sim_values(sim_config: dict) -> list[float]:
+    """Generate sim_values from config."""
+    out: list[float]
+    if sim_config["type"] == "logspace":
+        out = np.logspace(
+            sim_config["start"], sim_config["stop"], sim_config["num"]
+        ).tolist()
+    elif sim_config["type"] == "list":
+        out = sim_config["values"]
+    else:
+        raise ValueError(f"Unknown sim_values type: {sim_config['type']}")
+    return out
+
+
+def get_x_vals(x_vals_config: dict | None) -> list[float] | None:
+    """Generate x_vals from config."""
+    if x_vals_config is None:
+        return None
+    result = []
+    if "prepend" in x_vals_config:
+        result.append(x_vals_config["prepend"])
+    result.extend(
+        [
+            float(i)
+            for i in range(
+                x_vals_config["start"], x_vals_config["stop"], x_vals_config["step"]
+            )
+        ]
+    )
+    return result
+
+
+def load_data(config: dict) -> tuple[pd.DataFrame, list]:
+    """Load and filter data based on config."""
+    molstral_path = Path(config["paths"]["molstral_path"])
+
+    files = [
+        f
+        for d in molstral_path.iterdir()
+        for f in d.iterdir()
+        if "error" not in str(f) and str(f).endswith("_scored.jsonl")
+    ]
+    files = sorted(files)
+    print("Total files:", len(files))
+    df = load_molgen_results(files)
+
+    # Apply subsample filters
+    sub_sample_prompts: list = []
+    if (
+        config["data"]["subsample_models"] is not None
+        and len(config["data"]["subsample_models"]) > 0
+    ):
+        for model in config["data"]["subsample_models"]:
+            model_prompts = df[df.model == model].prompt_id.unique()
+            df = df[df.prompt_id.isin(model_prompts)]
+            sub_sample_prompts = model_prompts
+    else:
+        sub_sample_prompts = df.prompt_id.unique().tolist()
+
+    return df, sub_sample_prompts
+
+
+def setup_paths(config: dict) -> tuple[str, str]:
+    """Setup output paths based on config."""
+    fig_path = config["paths"]["fig_path"]
+    output_subdir = config["paths"]["output_subdir"]
+
+    os.makedirs(fig_path, exist_ok=True)
+    full_output_path = f"{fig_path}/{output_subdir}"
+    os.makedirs(full_output_path, exist_ok=True)
+
+    return fig_path, full_output_path
 
 
 def plot_div_topk(
     df: pd.DataFrame,
+    sub_sample_prompts: list,
     fp_name: str,
     legend: bool = False,
     cols_vals: list[float] = [10, 30],
@@ -58,6 +114,9 @@ def plot_div_topk(
     ylabel_x: float = -0.01,
     legend_bbox: tuple[float, float] = (0.3, -0.2),
     legend_ncols: int = 4,
+    height: float = 1.8,
+    aspect: float = 2.5,
+    markersize: dict[str, float] = {"normal": 5, "highlight": 7},
     **kwargs: Any,
 ) -> sns.FacetGrid:
     def draw(data: pd.DataFrame, **kwargs: Any) -> None:
@@ -87,7 +146,7 @@ def plot_div_topk(
             sizes=1,
             alpha=0.7,
             markers=MARKER_MODELS,
-            markersize=4.0,
+            markersize=markersize["normal"],
             linewidth=0.0,
             markeredgewidth=0.0,
             legend=legend,
@@ -110,7 +169,7 @@ def plot_div_topk(
                 sizes=1,
                 alpha=1,
                 markers=MARKER_MODELS,
-                markersize=4.8,
+                markersize=markersize["highlight"],
                 linewidth=0.0,
                 markeredgewidth=0.0,
                 legend=False,
@@ -129,9 +188,9 @@ def plot_div_topk(
         row=row,
         col=col,
         margin_titles=True,
-        height=1.5,
-        aspect=1.7,
-        gridspec_kws={"wspace": 0.05, "hspace": 0.05},
+        height=height,
+        aspect=aspect,
+        gridspec_kws={"wspace": 0.05, "hspace": 0.15},
     )
     g.map_dataframe(draw)
     # Add legend to the top right
@@ -150,8 +209,8 @@ def plot_div_topk(
             loc="lower center",
             bbox_to_anchor=legend_bbox,
             ncols=legend_ncols,
-            fontsize=8,
-            title_fontsize=10,
+            fontsize=10,
+            title_fontsize=12,
         )
     # Add grid
     for ax in g.axes.flatten():
@@ -159,71 +218,128 @@ def plot_div_topk(
     return g
 
 
+def run_figure(config_path: Path, display: bool) -> None:
+    """Generate figure(s) from config. Handles single or multiple fingerprints."""
+    config = load_config(config_path)
+    df, sub_sample_prompts = load_data(config)
+    fig_path, full_output_path = setup_paths(config)
+
+    plot_config = config["plot"]
+    sim_values = get_sim_values(config["sim_values"])
+    output_suffix = config["paths"]["output_suffix"]
+
+    # Determine fingerprints to iterate over
+    fingerprints = plot_config.get("fingerprints", [plot_config.get("fp_name")])
+    legend_fingerprint = plot_config.get("legend_fingerprint")
+
+    # Get x_vals from range config if present, otherwise from direct config
+    x_vals = get_x_vals(plot_config.get("x_vals_range")) or plot_config.get("x_vals")
+
+    for fp_name in fingerprints:
+        # Determine legend settings for this fingerprint
+        if legend_fingerprint is not None:
+            has_legend = fp_name == legend_fingerprint
+        else:
+            has_legend = plot_config.get("legend", False)
+
+        # Determine xlabel_x based on legend
+        if has_legend and "xlabel_x_with_legend" in plot_config:
+            xlabel_x = plot_config["xlabel_x_with_legend"]
+            ylabel_x = plot_config["ylabel_x_with_legend"]
+        elif "xlabel_x_without_legend" in plot_config:
+            xlabel_x = plot_config["xlabel_x_without_legend"]
+            ylabel_x = plot_config["ylabel_x_without_legend"]
+        else:
+            xlabel_x = plot_config.get("xlabel_x", 0.5)
+            ylabel_x = plot_config.get("ylabel_x", -0.01)
+
+        # Build kwargs for plot_div_topk
+        plot_kwargs = {
+            "df": df,
+            "sub_sample_prompts": sub_sample_prompts,
+            "fp_name": fp_name,
+            "cols_vals": plot_config["cols_vals"],
+            "x_vals": x_vals,
+            "row": plot_config["row"],
+            "col": plot_config["col"],
+            "x": plot_config["x"],
+            "column_name": plot_config["column_name"],
+            "xlabel": plot_config["xlabel"],
+            "xlabel_x": xlabel_x,
+            "ylabel_x": ylabel_x,
+            "legend": has_legend,
+            "legend_bbox": tuple(plot_config["legend_bbox"]),
+            "legend_ncols": plot_config["legend_ncols"],
+            "height": plot_config["height"],
+            "aspect": plot_config["aspect"],
+            "markersize": plot_config["markersize"],
+            "sim_values": sim_values,
+        }
+
+        # Add optional k_max if present
+        if "k_max" in plot_config:
+            plot_kwargs["k_max"] = plot_config["k_max"]
+
+        g = plot_div_topk(**plot_kwargs)
+
+        # Add suptitle if configured (for secondary figures)
+        if "suptitle_y" in plot_config:
+            g.fig.suptitle(fp_name, y=plot_config["suptitle_y"])
+
+        output_file = f"{full_output_path}/{fp_name}{output_suffix}.pdf"
+        plt.savefig(output_file, bbox_inches="tight")
+        if display:
+            plt.show()
+        else:
+            plt.close()
+        print(f"Saved: {output_file}")
+
+
 if __name__ == "__main__":
-    MAIN_FP = "ecfp6-2048"
-    common_kwargs = {
-        "df": df,
-        "column_name": "k",
-        "xlabel": "Similarity threshold between candidate clusters",
-        "sim_values": np.logspace(-1.2, -0.01, 18).tolist(),
-    }
+    import argparse
 
-    g = plot_div_topk(
-        fp_name=MAIN_FP,
-        cols_vals=[
-            5,
-            10,
-            20,
-        ],
-        legend=True,
-        xlabel_x=0.33,
-        ylabel_x=0.08,
-        legend_bbox=(0.3, -0.2),
-        **common_kwargs,
+    CONFIG_DIR = Path(__file__).parent / "configs"
+
+    parser = argparse.ArgumentParser(
+        description="Generate DivTopK plots from YAML configs"
     )
-    plt.savefig(f"{fig_name.format(MAIN_FP) + '-main'}.pdf", bbox_inches="tight")
-    plt.show()
-
-    for fp_name in [
-        "ecfp4-2048",
-        "ecfp6-2048",
-        "maccs",
-        "rdkit",
-        "Avalon",
-        "Gobbi2d",
-    ]:
-        g = plot_div_topk(
-            fp_name=fp_name,
-            cols_vals=[
-                5,
-                10,
-            ],
-            legend=fp_name == "Avalon",
-            xlabel_x=0.5,
-            legend_bbox=(0.9, 0.5),
-            legend_ncols=1,
-            **common_kwargs,
-        )
-        g.fig.suptitle(fp_name, y=1.05)
-        plt.savefig(f"{fig_name.format(fp_name)}.pdf", bbox_inches="tight")
-        plt.show()
-
-    g = plot_div_topk(
-        df=df,
-        fp_name=MAIN_FP,
-        col="sim",
-        x="k",
-        k_max=50,
-        cols_vals=[0.3, 0.5, 0.7, 0.8],
-        sim_values=[0.3, 0.5, 0.7, 0.8],
-        x_vals=[1.0] + [float(i) for i in range(5, 50, 5)],
-        legend=True,
-        column_name="Sim. thresh.",
-        xlabel="k",
-        xlabel_x=0.3,
-        legend_bbox=(0.3, -0.2),
-        legend_ncols=4,
+    parser.add_argument(
+        "--config",
+        type=str,
+        choices=["main", "secondary", "last", "all"],
+        default="all",
+        help="Which config to run (default: all)",
+    )
+    parser.add_argument(
+        "--config-file",
+        type=str,
+        default=None,
+        help="Path to a custom config file (overrides --config)",
     )
 
-    plt.savefig(f"{fig_name.format(MAIN_FP) + '_kx-main'}.pdf", bbox_inches="tight")
-    plt.show()
+    parser.add_argument(
+        "--display", action="store_true", help="Display plots interactively"
+    )
+
+    args = parser.parse_args()
+
+    if args.config_file:
+        run_figure(args.config_file, args.display)
+    else:
+        if args.config in ["main", "all"]:
+            print("=" * 50)
+            print("Running main figure...")
+            print("=" * 50)
+            run_figure(CONFIG_DIR / "main_figure.yaml", args.display)
+
+        if args.config in ["secondary", "all"]:
+            print("=" * 50)
+            print("Running secondary figures...")
+            print("=" * 50)
+            run_figure(CONFIG_DIR / "secondary_figures.yaml", args.display)
+
+        if args.config in ["last", "all"]:
+            print("=" * 50)
+            print("Running last figure...")
+            print("=" * 50)
+            run_figure(CONFIG_DIR / "last_figure.yaml", args.display)

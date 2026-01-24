@@ -1,0 +1,48 @@
+# Configuration for secondary figures (for loop over fingerprints)
+paths:
+  molstral_path: "MolGenOutput/test_ood"
+  fig_path: "MolGenDocking-latex/Figures/Results/MolGen"
+  output_subdir: "diversity_rewards"
+  output_suffix: ""
+
+data:
+  subsample_models:
+    - "MiniMax-M2_"
+    - "Qwen3-Next-80B-A3B-Thinking_"
+
+plot:
+  fingerprints:
+    - "ecfp4-2048"
+    - "ecfp6-2048"
+    - "maccs"
+    - "rdkit"
+    - "Avalon"
+#    - "Gobbi2d"
+  legend_fingerprint: "Avalon"  # Only this fingerprint gets a legend
+  cols_vals:
+    - 5
+    - 10
+  x_vals: null
+  row: "n_rollout"
+  col: "k"
+  x: "sim"
+  column_name: "k"
+  xlabel: "Similarity threshold"
+  xlabel_x_with_legend: 0.25
+  xlabel_x_without_legend: 0.5
+  ylabel_x_with_legend: 0.0
+  ylabel_x_without_legend: -0.05
+  legend_bbox: [0.9, 0.3]
+  legend_ncols: 1
+  height: 1.3
+  aspect: 1.2
+  suptitle_y: 1.0
+  markersize:
+    normal: 3.5
+    highlight: 3.9
+
+sim_values:
+  type: "logspace"
+  start: -1.2
+  stop: -0.01
+  num: 18
