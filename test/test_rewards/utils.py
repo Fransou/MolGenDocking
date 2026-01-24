@@ -5,9 +5,9 @@ import pandas as pd
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.rl_rewards import has_bridged_bond
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
+    has_bridged_bond,
     inverse_rescale_property_values,
     rescale_property_values,
 )

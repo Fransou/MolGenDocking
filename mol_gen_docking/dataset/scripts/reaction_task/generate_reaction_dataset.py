@@ -263,6 +263,7 @@ def get_args() -> argparse.Namespace:
         )
     os.makedirs(os.path.dirname(args.out_path), exist_ok=True)
     assert len(args.proba_obj) == len(PROMPT_TEMPLATES)
+    args.proba_obj = [p / sum(args.proba_obj) for p in args.proba_obj]
     return args
 
 

@@ -7,7 +7,14 @@ import pytest
 import torch
 from rdkit import Chem
 
-from mol_gen_docking.reward.rl_rewards import RewardScorer, has_bridged_bond
+from mol_gen_docking.reward import (
+    GenerationVerifierConfigModel,
+    MolecularVerifier,
+    MolecularVerifierConfigModel,
+)
+from mol_gen_docking.utils.property_utils import (
+    has_bridged_bond,
+)
 
 from ..utils import (
     compare_obj_reward_to_max,
@@ -20,24 +27,29 @@ from ..utils import (
 # =============================================================================
 
 
-@pytest.fixture(scope="module")
-def valid_scorer(data_path: str) -> RewardScorer:
+@pytest.fixture(scope="module")  # type:ignore
+def valid_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES checking."""
-    return RewardScorer(
-        data_path,
-        "valid_smiles",
-        parse_whole_completion=False,
-        rescale=False,
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            reward="valid_smiles",
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=data_path
+            ),
+        )
     )
 
 
-@pytest.fixture(scope="module")
-def property_scorer(data_path: str) -> RewardScorer:
+@pytest.fixture(scope="module")  # type:ignore
+def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
-    return RewardScorer(
-        data_path,
-        "property",
-        parse_whole_completion=False,
+    return MolecularVerifier(
+        MolecularVerifierConfigModel(
+            reward="property",
+            generation_verifier_config=GenerationVerifierConfigModel(
+                path_to_mappings=data_path
+            ),
+        )
     )
 
 
@@ -51,21 +63,27 @@ class TestValidSmiles:
 
     def test_valid_smiles_with_fake_molecule(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
     ) -> None:
         """Test that fake SMILES return zero reward."""
         completions = ["<answer> FAKE </answer>"]
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
+            ).rewards
         )
         assert rewards.sum() == 0.0
 
     def test_valid_smiles_with_real_molecule(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
     ) -> None:
         """Test that valid SMILES return non-zero reward."""
         valid_smiles = "CCC"
@@ -74,14 +92,20 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
+            ).rewards
         )
         assert rewards.sum() == 1.0
 
     def test_valid_smiles_scoring_single(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completion_smile: tuple[str, str],
     ) -> None:
         """Test the valid SMILES reward function with a single SMILES."""
@@ -91,8 +115,14 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
+            ).rewards
         )
 
         # Check if completion pattern is valid (doesn't start with [N])
@@ -106,7 +136,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_multiple_in_one(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completion_smiles: tuple[str, list[str]],
     ) -> None:
         """Test the valid SMILES reward function with multiple SMILES in one completion."""
@@ -116,8 +146,14 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}],
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ],
+            ).rewards
         )
 
         are_smi_valid = [
@@ -134,7 +170,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_batch_single_smiles(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
     ) -> None:
         """Test the valid SMILES reward function with a batch of completions, each with one SMILES."""
@@ -143,8 +179,15 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}] * len(completions),
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ]
+                * len(completions),
+            ).rewards
         )
 
         assert len(rewards) == len(completions)
@@ -159,7 +202,7 @@ class TestValidSmiles:
 
     def test_valid_smiles_scoring_batch_multiple_smiles(
         self,
-        valid_scorer: RewardScorer,
+        valid_scorer: MolecularVerifier,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
         """Test the valid SMILES reward function with a batch of completions, each with multiple SMILES."""
@@ -168,8 +211,15 @@ class TestValidSmiles:
         rewards = np.array(
             valid_scorer(
                 completions,
-                metadata=[{"objectives": ["maximize"]}] * len(completions),
-            )[0]
+                metadata=[
+                    {
+                        "objectives": ["maximize"],
+                        "properties": ["QED"],
+                        "target": [0.0],
+                    }
+                ]
+                * len(completions),
+            ).rewards
         )
 
         assert len(rewards) == len(completions)
@@ -199,14 +249,15 @@ class TestMultiPromptMultiGeneration:
 
     def test_single_molecule_single_property(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completion_smile: tuple[str, str],
     ) -> None:
         """Test reward calculation for a single molecule with a single property."""
         prop = "QED"
         completion, smiles = completion_smile
         metadata = [{"properties": [prop], "objectives": ["maximize"], "target": [0]}]
-        rewards, _ = property_scorer([completion], metadata)
+        output = property_scorer([completion], metadata)
+        rewards = output.rewards
         assert len(rewards) == 1
         is_smi_valid = Chem.MolFromSmiles(smiles) is not None and not has_bridged_bond(
             Chem.MolFromSmiles(smiles)
@@ -221,7 +272,7 @@ class TestMultiPromptMultiGeneration:
 
     def test_multi_prompt_single_smiles(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
     ) -> None:
         """Test the reward function for multiple prompts with single SMILES each."""
@@ -233,7 +284,8 @@ class TestMultiPromptMultiGeneration:
             for _ in range(len(completions))
         ]
 
-        rewards, meta = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        rewards = output.rewards
 
         assert len(rewards) == len(completions)
         for i, (reward, smi, completion) in enumerate(
@@ -250,7 +302,7 @@ class TestMultiPromptMultiGeneration:
 
     def test_multi_prompt_multiple_smiles(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
         """Test the reward function for multiple prompts with multiple SMILES each."""
@@ -260,13 +312,14 @@ class TestMultiPromptMultiGeneration:
             {"properties": [p], "objectives": ["maximize"], "target": [0]}
             for p in properties
         ]
-        rewards, metas_r = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        metas_r = output.verifier_metadatas
         for i, (meta, smiles_list, completion) in enumerate(
             zip(metas_r, smiles_chunks, completions)
         ):
             if completion.startswith("[N]"):
                 continue
-            reward = meta["all_smi_rewards"]
+            reward = meta.all_smi_rewards
             smiles_v = [
                 smi
                 for smi in smiles_list
@@ -288,7 +341,7 @@ class TestObjectiveBasedRewards:
 
     def test_all_objectives(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         completions_smile: tuple[List[str], List[str]],
         objective_to_test: str,
         prop: str,
@@ -310,7 +363,8 @@ class TestObjectiveBasedRewards:
             }
         ] * len(completions)
 
-        rewards, _ = property_scorer(completions + completions, metadata)
+        output = property_scorer(completions + completions, metadata)
+        rewards = output.rewards
         assert len(rewards) == len(completions) * 2
         mask = []
         for completion, smiles in zip(completions, smiles_chunks):
@@ -323,11 +377,11 @@ class TestObjectiveBasedRewards:
                 else:
                     mask.append(True)
         mask = torch.tensor(mask).float()
-        rewards = torch.Tensor(rewards)
-        assert not rewards.isnan().any()
+        rewards_tensor = torch.Tensor(rewards)
+        assert not rewards_tensor.isnan().any()
 
-        rewards_prop = rewards[: len(completions)]
-        rewards_max = rewards[len(completions) :]
+        rewards_prop = rewards_tensor[: len(completions)]
+        rewards_max = rewards_tensor[len(completions) :]
 
         objective = obj_func.split()[0]
         expected_val = compare_obj_reward_to_max(
@@ -337,7 +391,7 @@ class TestObjectiveBasedRewards:
 
     def test_maximize_objective(
         self,
-        property_scorer: RewardScorer,
+        property_scorer: MolecularVerifier,
         prop: str,
         completions_smiles: tuple[List[str], List[List[str]]],
     ) -> None:
@@ -347,7 +401,9 @@ class TestObjectiveBasedRewards:
             {"properties": [prop], "objectives": ["maximize"], "target": [0]}
             for _ in smiles_batch
         ]
-        rewards, meta_rs = property_scorer(completions, metadata)
+        output = property_scorer(completions, metadata)
+        rewards = output.rewards
+        meta_rs = output.verifier_metadatas
         assert len(rewards) == len(completions)
 
         for reward, meta_r, completion, smiles in zip(
@@ -363,7 +419,7 @@ class TestObjectiveBasedRewards:
                 assert reward == 0.0
             else:
                 smis_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
-                all_smi_rewards = meta_r["all_smi_rewards"]
+                all_smi_rewards = meta_r.all_smi_rewards
                 is_reward_valid(all_smi_rewards, smis_v, [prop])
 
 

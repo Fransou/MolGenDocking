@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 import requests
 
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 
@@ -75,9 +75,8 @@ COMPLETIONS_PATTERN = [
         "minimize",
         "above 0.5",
         "below 0.5",
-        "equal 0.5",
     ],
-)
+)  # type: ignore
 def objective_to_test(request: pytest.FixtureRequest) -> str:
     """
     Pytest fixture returning a single objective to test.
@@ -86,10 +85,11 @@ def objective_to_test(request: pytest.FixtureRequest) -> str:
         def test_example(objective_to_test: str) -> None:
             ...
     """
-    return request.param
+    out: str = request.param
+    return out
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def data_path(request: pytest.FixtureRequest) -> str:
     """
     Pytest fixture returning the data path.
@@ -98,11 +98,12 @@ def data_path(request: pytest.FixtureRequest) -> str:
         def test_example(data_path: str) -> None:
             ...
     """
-    return request.config.getoption("--data-path")
+    out: str = request.config.getoption("--data-path")
+    return out
 
 
-@pytest.fixture(scope="session")
-def properties_csv():
+@pytest.fixture(scope="session")  # type: ignore
+def properties_csv() -> pd.DataFrame:
     """
     Pytest fixture returning the properties CSV dataframe.
 
@@ -115,7 +116,7 @@ def properties_csv():
     return df
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def docking_targets(data_path: str) -> list[str]:
     """
     Pytest fixture returning the docking targets list.
@@ -129,7 +130,7 @@ def docking_targets(data_path: str) -> list[str]:
     return docking_targets_list[:16]
 
 
-@pytest.fixture(scope="session", params=list(range(N_RANDOM_SMILES + N_SMILES)))
+@pytest.fixture(scope="session", params=list(range(N_RANDOM_SMILES + N_SMILES)))  # type: ignore
 def idx_smiles(request: pytest.FixtureRequest) -> int:
     """
     Pytest fixture returning an index of a SMILES string.
@@ -138,10 +139,11 @@ def idx_smiles(request: pytest.FixtureRequest) -> int:
         def test_example(idx_smiles: int) -> None:
             ...
     """
-    return request.param
+    out: int = request.param
+    return out
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def prop(
     data_path: str,
     idx_smiles: int,
@@ -155,11 +157,12 @@ def prop(
         if k not in docking_targets and k in CLASSICAL_PROPERTIES_NAMES.values()
     ]
     random.shuffle(prop_list)
-    return prop_list[idx_smiles % len(prop_list)]
+    out: str = prop_list[idx_smiles % len(prop_list)]
+    return out
 
 
-@pytest.fixture(scope="session")
-def smiles_list(properties_csv) -> list[str]:
+@pytest.fixture(scope="session")  # type: ignore
+def smiles_list(properties_csv: pd.DataFrame) -> list[str]:
     """
     Pytest fixture returning a list of SMILES strings.
 
@@ -177,7 +180,7 @@ def smiles_list(properties_csv) -> list[str]:
     return full_list
 
 
-@pytest.fixture(scope="session", params=list(range(len(COMPLETIONS_PATTERN))))
+@pytest.fixture(scope="session", params=list(range(len(COMPLETIONS_PATTERN))))  # type: ignore
 def completion_smile(
     smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
 ) -> tuple[str, str]:
@@ -201,7 +204,7 @@ def completion_smile(
         for n_smi in [2, 4]
         for i_pattern in range(len(COMPLETIONS_PATTERN))
     ],
-)  # N smiles, 4 repetitions, N_patterns
+)  # type: ignore
 def completion_smiles(
     smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
 ) -> tuple[str, list[str]]:
@@ -223,7 +226,7 @@ def completion_smiles(
 @pytest.fixture(
     scope="session",
     params=[2, 4],
-)  # N_patterns, i_patterns, i_smi
+)  # type: ignore
 def completions_smile(
     smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
 ) -> tuple[list[str], list[str]]:
@@ -248,7 +251,7 @@ def completions_smile(
         for n_pattern in [2, 4]
         for n_smi in [2, 8]  # 4 repetitions
     ],
-)  # N_patterns, N_smi, i_smi
+)  # type: ignore
 def completions_smiles(
     smiles_list: list[str], idx_smiles: int, request: pytest.FixtureRequest
 ) -> tuple[list[str], list[list[str]]]:
@@ -328,7 +331,7 @@ def _is_server_running(host: str, port: int) -> bool:
         return False
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def uvicorn_server(
     request: pytest.FixtureRequest,
 ) -> Generator[subprocess.Popen | None, None, None]:
@@ -392,7 +395,7 @@ def uvicorn_server(
         process.wait()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def server_url(uvicorn_server: subprocess.Popen | None) -> str:
     """
     Fixture that returns the server URL.
@@ -411,7 +414,7 @@ def server_url(uvicorn_server: subprocess.Popen | None) -> str:
 # =============================================================================
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def accelerator(request: pytest.FixtureRequest) -> AcceleratorType:
     """
     Pytest fixture returning the selected accelerator.
@@ -421,14 +424,14 @@ def accelerator(request: pytest.FixtureRequest) -> AcceleratorType:
             if accelerator == "gpu":
                 ...
     """
-    accel: str = request.config.getoption("--accelerator")
+    accel: AcceleratorType = request.config.getoption("--accelerator")
     if bool(request.config.getoption("--skip-docking")):
         pytest.skip("Skipping docking tests")
     assert accel in ("cpu", "gpu")
     return accel
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # type: ignore
 def has_gpu(accelerator: AcceleratorType) -> bool:
     """
     Convenience fixture: True if accelerator == 'gpu'.

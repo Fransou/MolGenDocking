@@ -31,4 +31,4 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pytest test/test_rewards --skip-docking --start-server
+        pytest test/test_rewards --skip-docking

@@ -6,26 +6,15 @@ import jsonlines
 from tqdm import tqdm
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.rl_rewards import (
-    RewardScorer,
+from mol_gen_docking.reward.molecular_verifier import (
+    MolecularVerifier,
 )
-from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierSettings,
+from mol_gen_docking.server_utils.server_setting import (
+    MolecularVerifierServerSettings,
 )
 
-verifier_settings = MolecularVerifierSettings()
-reward_scorer = RewardScorer(
-    path_to_mappings=verifier_settings.data_path,
-    parse_whole_completion=verifier_settings.parse_whole_completion,
-    docking_concurrency_per_gpu=verifier_settings.docking_concurrency_per_gpu,
-    reaction_matrix_path=verifier_settings.reaction_matrix_path,
-    oracle_kwargs=dict(
-        exhaustiveness=verifier_settings.scorer_exhaustiveness,
-        n_cpu=verifier_settings.scorer_ncpus,
-        docking_oracle=verifier_settings.docking_oracle,
-        vina_mode=verifier_settings.vina_mode,
-    ),
-)
+verifier_settings = MolecularVerifierServerSettings()
+reward_scorer = MolecularVerifier(verifier_settings.to_molecular_verifier_config())
 receptor_process: None | ReceptorProcess = None
 
 
@@ -125,12 +114,12 @@ if __name__ == "__main__":
                     all_targets, allow_bad_res=True, use_pbar=False
                 )
             # 2 get reward
-            response, meta = reward_scorer.get_score(
+            output = reward_scorer.get_score(
                 completions=[item["output"] for item in batch],
                 metadata=[item.get("metadata", {}) for item in batch],
             )
-            all_responses.extend(response)
-            all_metas.extend(meta)
+            all_responses.extend(output.rewards)
+            all_metas.extend([m.model_dump() for m in output.verifier_metadatas])
 
         # Save results
         results = []

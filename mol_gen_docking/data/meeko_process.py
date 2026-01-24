@@ -56,7 +56,85 @@ def check_failed_residues_in_box(
 
 
 class ReceptorProcess:
+    """Receptor processing pipeline for preparing proteins for AutoDock-GPU molecular docking.
+
+    This class provides a complete workflow for processing receptor PDB files through
+    Meeko's `mk_prepare_receptor.py` tool and AutoGrid4. It handles common issues like
+    unrecognized residues and heteroatoms, and supports parallel processing via Ray.
+
+    The processing pipeline consists of three main steps:
+
+    1. **Preprocessing (optional)**: Remove heteroatoms (ligands, waters, ions) from the
+       receptor using PDBFixer/OpenMM.
+
+    2. **Meeko processing**: Convert PDB to PDBQT format and generate grid parameter
+       files (.gpf) with specified docking box dimensions.
+
+    3. **AutoGrid computation**: Precompute affinity maps for faster docking.
+
+    The class handles edge cases gracefully:
+
+    - Skips already-processed receptors (checks for `_ag.pdbqt` and `_ag.maps.fld`)
+    - Retries with `--allow_bad_res` flag if unrecognized residues are outside the
+      docking box (non-critical)
+    - Reports critical errors when unrecognized residues are inside the docking box
+
+    Attributes:
+        data_path (str): Root directory containing receptor data.
+        pre_process_receptors (bool): Whether to remove heteroatoms before Meeko.
+        logger (logging.Logger): Logger instance for this class.
+        receptor_path (str): Path to directory containing PDB files.
+        pockets (Dict[str, Dict[str, Any]]): Docking box specifications loaded from
+            `pockets_info.json`. Each entry contains 'center' and 'size' keys.
+        cmd (str): Template command for mk_prepare_receptor.py.
+
+    Example:
+        ```python
+        import ray
+        ray.init()
+
+        processor = ReceptorProcess(
+            data_path="/path/to/data",
+            pre_process_receptors=True
+        )
+
+        # Process all receptors defined in pockets_info.json
+        warnings, errors = processor.process_receptors(use_pbar=True)
+
+        # Process specific receptors
+        warnings, errors = processor.process_receptors(
+            receptors=["1abc", "2def"],
+            allow_bad_res=True
+        )
+        ```
+
+    Note:
+        Requires Ray to be initialized before calling `process_receptors()`.
+        External dependencies: Meeko, AutoGrid4, OpenMM (optional), PDBFixer (optional).
+    """
+
     def __init__(self, data_path: str, pre_process_receptors: bool = False) -> None:
+        """Initialize the receptor processor with data paths and configuration.
+
+        Validates that required files and directories exist, and loads the docking
+        box specifications from `pockets_info.json`.
+
+        Args:
+            data_path (str): Path to the data directory. Must contain:
+
+                - `pdb_files/`: Directory with receptor PDB files
+                - `pockets_info.json`: JSON file mapping receptor names to docking
+                  box specifications with 'center' [x, y, z] and 'size' [sx, sy, sz]
+
+            pre_process_receptors (bool): If True, remove heteroatoms (ligands,
+                waters, ions) from receptors before Meeko processing. Uses PDBFixer.
+                Default: False.
+
+        Raises:
+            AssertionError: If `data_path` does not exist.
+            AssertionError: If `pdb_files/` subdirectory does not exist.
+            AssertionError: If `pockets_info.json` does not exist.
+        """
         self.data_path: str = data_path
         self.pre_process_receptors: bool = pre_process_receptors
         self.logger = logging.getLogger(
@@ -79,6 +157,30 @@ class ReceptorProcess:
     def _run_meeko(
         self, input_path: str, receptor: str, bad_res: bool = False
     ) -> Tuple[str, int, str]:
+        """Execute Meeko's mk_prepare_receptor.py on a single receptor.
+
+        Runs the Meeko command to convert a PDB file to PDBQT format and generate
+        grid parameter files for AutoDock-GPU. The docking box dimensions are
+        retrieved from the loaded pockets configuration.
+
+        Args:
+            input_path (str): Full path to the input PDB file.
+            receptor (str): Receptor identifier (key in pockets dict) used to
+                look up docking box center and size.
+            bad_res (bool): If True, add `--allow_bad_res` flag to permit
+                unrecognized residues. Default: False.
+
+        Returns:
+            Tuple[str, int, str]: A tuple containing:
+
+                - stderr_text: Standard error output from Meeko (useful for
+                  parsing error messages about unrecognized residues)
+                - returncode: Process return code (0 = success)
+                - output_path: Path to output files (without extension)
+
+        Raises:
+            subprocess.TimeoutExpired: If Meeko takes longer than 300 seconds.
+        """
         output_path = input_path.replace(".pdb", "_ag")
 
         box_center = " ".join([str(x) for x in self.pockets[receptor]["center"]])
@@ -112,6 +214,32 @@ class ReceptorProcess:
     def meeko_process(
         self, receptor: str, allow_bad_res: bool = False
     ) -> Tuple[int, str]:
+        """Process a receptor with Meeko, handling unrecognized residue errors.
+
+        This method implements smart error handling for Meeko failures:
+
+        1. First attempts processing without `--allow_bad_res`
+        2. If unrecognized residues are found, checks if they're inside the docking box
+        3. If outside the box: retries with `--allow_bad_res` (returns 0)
+        4. If inside the box: retries with `--allow_bad_res` but flags as warning (returns 1)
+
+        Args:
+            receptor (str): Receptor identifier matching a key in `pockets_info.json`
+                and a file `{receptor}.pdb` in the pdb_files directory.
+            allow_bad_res (bool): If True, always use `--allow_bad_res` flag.
+                Default: False.
+
+        Returns:
+            Tuple[int, str]: A tuple containing:
+
+                - status code:
+                    - 0: Success (no issues or issues outside docking box)
+                    - 1: Warning (unrecognized residues inside docking box)
+                - output_path: Path to the processed output files (without extension)
+
+        Raises:
+            ValueError: If Meeko fails for reasons other than unrecognized residues.
+        """
         input_path = os.path.join(self.receptor_path, f"{receptor}.pdb")
         stderr_text, returncode, output_path = self._run_meeko(
             input_path, receptor, allow_bad_res
@@ -150,6 +278,22 @@ class ReceptorProcess:
         return 0, output_path
 
     def _run_autogrid(self, path: str) -> None:
+        """Run AutoGrid4 to precompute affinity maps for a processed receptor.
+
+        Executes `autogrid4` on the grid parameter file (.gpf) generated by Meeko.
+        The resulting map files are required for AutoDock-GPU docking.
+
+        Args:
+            path (str): Path to the receptor files (with or without extension).
+                The basename is extracted and used to locate the .gpf file
+                in the receptor_path directory.
+
+        Raises:
+            RuntimeError: If AutoGrid4 returns a non-zero exit code.
+
+        Note:
+            AutoGrid4 must be installed and available in PATH.
+        """
         path = os.path.basename(path)
         grid_command = f"autogrid4 -p {path}.gpf -l {path}.glg -d"
         self.logger.info(f"Running command: {grid_command}")
@@ -169,6 +313,22 @@ class ReceptorProcess:
         self.logger.info(f"Successfully ran AutoGrid on {path}")
 
     def remove_heterogenous(self, receptor: str) -> None:
+        """Remove heteroatoms from a receptor PDB file using PDBFixer.
+
+        Removes all heteroatoms including ligands, water molecules, and ions
+        from the receptor structure. The cleaned structure overwrites the
+        original PDB file.
+
+        Args:
+            receptor (str): Receptor identifier. The file
+                `{receptor_path}/{receptor}.pdb` will be modified in-place.
+
+        Note:
+            Requires OpenMM and PDBFixer packages.
+
+        Warning:
+            This method modifies the original PDB file. Make a backup if needed.
+        """
         from openmm.app import PDBFile
         from pdbfixer import PDBFixer
 
@@ -185,6 +345,45 @@ class ReceptorProcess:
         allow_bad_res: bool = False,
         use_pbar: bool = False,
     ) -> Tuple[list[str], list[str]]:
+        """Process multiple receptors in parallel using Ray.
+
+        Orchestrates the full processing pipeline for a batch of receptors:
+
+        1. Filters out already-processed receptors (with existing `_ag.pdbqt`
+           and `_ag.maps.fld` files)
+        2. Optionally removes heteroatoms (if `pre_process_receptors=True`)
+        3. Runs Meeko processing with error recovery
+        4. Runs AutoGrid4 for successful conversions
+        5. Collects and categorizes failures
+
+        Processing is parallelized using Ray remote functions, with each receptor
+        allocated 4 CPU cores.
+
+        Args:
+            receptors (list[str]): List of receptor identifiers to process.
+                If empty, processes all receptors in `pockets_info.json`.
+                Default: [].
+            allow_bad_res (bool): If True, always use `--allow_bad_res` flag
+                in Meeko. Default: False.
+            use_pbar (bool): If True, display a tqdm progress bar via Ray.
+                Default: False.
+
+        Returns:
+            Tuple[list[str], list[str]]: Two lists of receptor identifiers:
+
+                - warnings: Receptors with non-critical issues (unrecognized
+                  residues inside docking box, but processing completed)
+                - errors: Receptors with critical failures (exceptions during
+                  processing)
+
+        Raises:
+            AssertionError: If any receptor in the list is not found in
+                `pockets_info.json`.
+
+        Note:
+            Ray must be initialized before calling this method.
+        """
+
         @ray.remote(num_cpus=4)
         def process_receptor(
             receptor: str,

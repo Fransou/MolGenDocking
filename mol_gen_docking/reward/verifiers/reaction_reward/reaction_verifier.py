@@ -1,3 +1,10 @@
+"""Reaction verifier for chemical reaction and retro-synthesis tasks.
+
+This module provides the ReactionVerifier class which computes rewards for
+chemical reaction tasks including retro-synthesis planning, SMARTS prediction,
+and reaction product verification.
+"""
+
 import logging
 import pickle
 import re
@@ -11,27 +18,59 @@ from rdkit.Chem import AllChem
 from mol_gen_docking.data.reactions.mol import Molecule
 from mol_gen_docking.data.reactions.reaction import Reaction, ReactionContainer
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
-from mol_gen_docking.reward.verifiers.abstract_verifier import Verifier
+from mol_gen_docking.reward.verifiers.abstract_verifier import (
+    Verifier,
+)
+from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
+    BatchVerifiersInputModel,
+)
+from mol_gen_docking.reward.verifiers.reaction_reward.input_metadata import (
+    ReactionVerifierInputMetadataModel,
+)
+from mol_gen_docking.reward.verifiers.reaction_reward.reaction_verifier_pydantic_model import (
+    ReactionVerifierConfigModel,
+    ReactionVerifierMetadataModel,
+    ReactionVerifierOutputModel,
+)
 
 RDLogger.DisableLog("rdApp.*")
 
 
 class ReactionVerifier(Verifier):
+    """Verifier for chemical reaction and retro-synthesis tasks.
+
+    This verifier computes rewards for various reaction-related tasks including:
+    - Final product prediction
+    - Reactant identification
+    - SMARTS pattern prediction
+    - Full retro-synthesis path validation
+
+    The verifier uses a reaction matrix to validate synthesis steps and supports
+    both binary and Tanimoto-based reward computation.
+
+    Attributes:
+        verifier_config: Configuration for the reaction verifier.
+        rxn_matrix: Pre-loaded reaction matrix for validation.
+        check_ground_truth_tasks: List of task types requiring ground truth comparison.
+        run_validation_tasks: List of task types requiring path validation.
+        logger: Logger instance for the verifier.
+    """
+
     def __init__(
         self,
-        reward: Literal["property", "valid_smiles"] = "property",
-        rxn_matrix_path: str | None = None,
-        reaction_reward_type: Literal["binary", "tanimoto"] = "tanimoto",
+        verifier_config: ReactionVerifierConfigModel,
     ):
+        """Initialize the ReactionVerifier.
+
+        Args:
+            verifier_config: Configuration containing reaction matrix path
+                and reward type settings.
+        """
         super().__init__()
-        self.reaction_reward_type = reaction_reward_type
+        self.verifier_config = verifier_config
         self.rxn_matrix: ReactantReactionMatrix
-        if rxn_matrix_path is not None:
-            with open(rxn_matrix_path, "rb") as f:
-                self.rxn_matrix = pickle.load(f)
-        else:
-            self.rxn_matrix = ReactantReactionMatrix([], [], np.array([]))
-        self.reward = reward
+        with open(verifier_config.reaction_matrix_path, "rb") as f:
+            self.rxn_matrix = pickle.load(f)
         self.check_ground_truth_tasks = [
             "final_product",
             "reactant",
@@ -49,7 +88,20 @@ class ReactionVerifier(Verifier):
     def r_ground_truth_mols(
         self, mol_y: List[Molecule], mol_label: List[Molecule]
     ) -> float:
-        """Returns 0.1 if the molecules are valid, 0.1 + 0.4*iou if the molecules are not in the same order, 1 otherwise."""
+        """Compute reward for molecule prediction against ground truth.
+
+        The reward is computed as:
+        - 0.1 base reward if molecules are valid
+        - +0.4 * IoU for partial overlap
+        - +0.5 if molecules match exactly in order
+
+        Args:
+            mol_y: List of predicted molecules.
+            mol_label: List of ground truth molecules.
+
+        Returns:
+            Reward value between 0.1 and 1.0.
+        """
         self.logger.info(
             f"Computed molecules: {[mol.smiles for mol in mol_y]} vs labels: {[mol.smiles for mol in mol_label]}"
         )
@@ -68,6 +120,16 @@ class ReactionVerifier(Verifier):
     def ground_truth_reward_mol(
         self, completion: str, labels: List[str], impossible: bool
     ) -> float:
+        """Compute reward for molecule prediction tasks.
+
+        Args:
+            completion: Model completion containing the answer.
+            labels: List of ground truth SMILES strings.
+            impossible: If True, expects "impossible" as the answer.
+
+        Returns:
+            Reward value between 0.0 and 1.0.
+        """
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         self.logger.info(f"Matches for ground truth mols: {matches}")
         if len(matches) != 1:
@@ -102,6 +164,19 @@ class ReactionVerifier(Verifier):
         product: str,
         impossible: bool,
     ) -> Tuple[float, Dict[str, Any]]:
+        """Compute reward for SMARTS prediction tasks.
+
+        Args:
+            completion: Model completion containing the SMARTS answer.
+            labels: List containing the ground truth SMARTS string.
+            reactants: List of reactant SMILES strings.
+            product: Expected product SMILES string.
+            impossible: If True, expects "impossible" as the answer.
+
+        Returns:
+            Tuple of (reward, metadata_dict) where metadata contains
+            'Reactants_contained' and 'Products_contained' flags.
+        """
         gt_smarts = labels[0]
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
@@ -142,29 +217,43 @@ class ReactionVerifier(Verifier):
         impossible: bool,
         reward_type: Literal["binary", "tanimoto"] = "binary",
     ) -> Tuple[float, Dict[str, Any]]:
-        """
-        Returns 0.9 if the synthesis is deemed impossible, and the model returns 'impossible'.
-        Test all steps with all smarts allowed, and returns the reward as :
-        sum(n_valid)**2 / n_total**2
-        if n_total <= n_steps_max otherwise returns 0.0
-        Valid steps are considered as such:
-            If the first step, uses building blocks and the reaction appears in the Reaction Matrix, and the product is correct.
-            Otherwise, there exist a SMARTS describing the reaction.
-        Finally, if the last product is not the target, or some reactants are unknown, return the original reward * the tanimoto similarity**3
+        """Compute reward for retro-synthesis path validation.
+
+        Validates a multi-step synthesis path by checking:
+        1. All reactants are valid building blocks or previous products
+        2. Each reaction step has a valid SMARTS pattern
+        3. The final product matches the target (exactly or by Tanimoto similarity)
+
+        Args:
+            completion: Model completion containing the synthesis path.
+            label: Target product SMILES string.
+            building_blocks: List of valid starting building block SMILES.
+            smarts: List of allowed SMARTS patterns (empty = use reaction matrix).
+            n_steps_max: Maximum allowed number of synthesis steps.
+            impossible: If True, expects "impossible" as the answer.
+            reward_type: "binary" for exact match or "tanimoto" for similarity-based.
+
+        Returns:
+            Tuple of (reward, metadata_dict) containing validation results.
+
+        Notes:
+            - Path format: "reactant1 + reactant2 -> product" per line
+            - Reward is scaled by (n_valid/n_total)^2 for partial paths
+            - Tanimoto similarity is cubed (sim^3) for reward scaling
         """
         matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
         if len(matches) != 1:
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         if impossible and matches[0] == "impossible":
             self.logger.info("Reaction predicted impossible correctly")
             return 0.9, {
-                "prop_valid": 1.0,
-                "correct_last_product": True,
-                "correct_bb": True,
+                "valid": 1.0,
+                "correct_product": 0.0,
+                "correct_reactant": True,
             }
         # Ensure one reaction per line
         self.logger.info("Running reaction verifier on: {}".format(matches[0]))
@@ -173,9 +262,9 @@ class ReactionVerifier(Verifier):
         if len(steps) == 0 or not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         basic_smiles_pattern = re.compile(r"^[A-Za-z0-9=#:\+\-\[\]\(\)/\\@.%]+$")
         if not all(
@@ -189,9 +278,9 @@ class ReactionVerifier(Verifier):
         ):
             self.logger.info("Invalid SMILES pattern found in reaction steps")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         reactants = [
             [Molecule(smi.strip()) for smi in step.split("->")[0].split(" + ")]
@@ -210,9 +299,9 @@ class ReactionVerifier(Verifier):
                 f"Invalid molecule found in synthesis path : reactants {invalid_reactants}, products {invalid_products}"
             )
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
             }
         n_steps = len(reactants)
 
@@ -220,9 +309,9 @@ class ReactionVerifier(Verifier):
         if n_steps > n_steps_max:
             self.logger.info("Too many steps for synthesis")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_product": False,
+                "correct_reactant": False,
             }
         reward_mult: List[float] = [1.0 for _ in products]
         if reward_type == "binary" and not any(
@@ -230,9 +319,9 @@ class ReactionVerifier(Verifier):
         ):
             self.logger.info("Product not found")
             return 0.0, {
-                "prop_valid": 0.0,
-                "correct_last_product": False,
-                "correct_bb": False,
+                "valid": 0.0,
+                "correct_last_product": 0.0,
+                "correct_reactant": False,
             }
         elif reward_type == "tanimoto":
             # Compute the tanimoto similarity between the label and products at each step
@@ -252,24 +341,28 @@ class ReactionVerifier(Verifier):
             building_blocks_mol = list(self.rxn_matrix.reactants)
         else:
             building_blocks_mol = [Molecule(smi) for smi in building_blocks]
+
+        error = False
         for reactant, product in zip(reactants, products):
             for r in reactant:
                 if r not in building_blocks_mol:
                     self.logger.info("Using unkown molecule: {}".format(r.smiles))
-                    return 0.0, {
-                        "prop_valid": 0.0,
-                        "correct_last_product": True,
-                        "correct_bb": False,
-                    }
-                if product == []:
-                    self.logger.info("Missing product")
-                    return 0.0, {
-                        "prop_valid": 0.0,
-                        "correct_last_product": True,
-                        "correct_bb": False,
-                    }
-                for p in product:
-                    building_blocks_mol.append(p)
+                    error = True
+                    break
+            if error:
+                break
+            if product == []:
+                self.logger.info("Missing product")
+                error = True
+                break
+            for p in product:
+                building_blocks_mol.append(p)
+        if error:
+            return 0.0, {
+                "valid": 0.0,
+                "correct_product": reward_mult[-1],
+                "correct_reactant": False,
+            }
         reactions: ReactionContainer
         if smarts == []:
             reactions = self.rxn_matrix.reactions
@@ -313,67 +406,122 @@ class ReactionVerifier(Verifier):
                 n_valid += 1
         if n_valid < n_steps:
             return reward_mult[n_valid - 1] * (n_valid / n_steps) ** 2, {
-                "prop_valid": n_valid / n_steps,
-                "correct_last_product": True,
-                "correct_bb": True,
+                "valid": n_valid / n_steps,
+                "correct_product": reward_mult[n_valid - 1],
+                "correct_reactant": True,
             }
 
         return reward_mult[n_valid - 1], {
-            "prop_valid": 1.0,
-            "correct_last_product": True,
-            "correct_bb": True,
+            "valid": 1.0,
+            "correct_product": reward_mult[n_valid - 1],
+            "correct_reactant": True,
         }
 
     def get_score(
-        self, completions: List[Any], metadata: List[Dict[str, Any]]
-    ) -> Tuple[List[float], List[Dict[str, Any]]]:
-        rewards = []
-        rewards_meta: List[Dict[str, Any]] = []
-        for meta, answer in zip(metadata, completions):
-            objective = meta["objectives"][0]
-            impossible: bool = meta.get("impossible", False)
+        self, inputs: BatchVerifiersInputModel
+    ) -> List[ReactionVerifierOutputModel]:
+        """Compute reaction rewards for a batch of completions.
+
+        This method routes each completion to the appropriate reward function
+        based on the objective type specified in the metadata.
+
+        Args:
+            inputs: Batch of completions and metadata for verification.
+
+        Returns:
+            List of ReactionVerifierOutputModel containing rewards and metadata.
+
+        Notes:
+            - Ground truth tasks: final_product, reactant, all_reactants
+            - SMARTS tasks: smarts prediction with reaction validation
+            - Path tasks: full_path with step-by-step validation
+        """
+        completions = inputs.completions
+        assert all(
+            isinstance(meta, ReactionVerifierInputMetadataModel)
+            for meta in inputs.metadatas
+        )
+        metadatas: List[ReactionVerifierInputMetadataModel] = inputs.metadatas
+
+        output_models = []
+        for answer, meta in zip(completions, metadatas):
+            objective = meta.objectives[0]
+            impossible: bool = meta.impossible
+            reward = 0.0
+            reward_metadata = {
+                "valid": 0.0,
+                "correct_product": 0.0,
+                "correct_reactant": False,
+            }
             if objective in self.check_ground_truth_tasks:
-                rewards.append(
-                    self.ground_truth_reward_mol(
-                        answer, meta["target"], impossible=impossible
-                    )
+                reward = self.ground_truth_reward_mol(
+                    answer, meta.target, impossible=impossible
                 )
-                rewards_meta.append({})
+                reward_metadata = {
+                    "valid": float(reward > 0.0),
+                    "correct_product": reward > 0.0,
+                    "correct_reactant": reward > 0.0,
+                }
             elif objective == "smarts":
-                reward, reward_metadata = self.reward_smarts(
+                assert len(meta.reactants) > 0, (
+                    "Reactants must be provided for SMARTS objective"
+                )
+                assert len(meta.products) > 0, (
+                    "Product must be provided for SMARTS objective"
+                )
+                reward, raw_metadata = self.reward_smarts(
                     answer,
-                    meta["target"],
-                    meta["reactants"][0],
-                    meta["products"][0],
+                    meta.target,
+                    meta.reactants[0],
+                    meta.products[0],
                     impossible=impossible,
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
+                reward_metadata = {
+                    "valid": reward,
+                    "correct_product": raw_metadata.get("Products_contained", False),
+                    "correct_reactant": raw_metadata.get("Reactants_contained", False),
+                }
             elif objective in self.run_validation_tasks:
-                reward, reward_metadata = self.reward_run_path(
-                    answer,
-                    meta["target"][0],
-                    meta["building_blocks"],
-                    meta["smarts"],
-                    n_steps_max=meta.get("n_steps_max", 5),
-                    impossible=False,  # We always try to generate a compound
-                    reward_type=self.reaction_reward_type,
+                assert len(meta.target) > 0, (
+                    "Target must be provided for run validation tasks"
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
-            elif objective == "analog_gen":
-                reward, reward_metadata = self.reward_run_path(
+                reward, raw_metadata = self.reward_run_path(
                     answer,
-                    meta["target"][0],
-                    meta["building_blocks"],
-                    meta["smarts"],
-                    n_steps_max=meta.get("n_steps_max", 5),
+                    meta.target[0],
+                    meta.building_blocks if meta.building_blocks else [],
+                    meta.smarts if meta.smarts else [],
+                    n_steps_max=meta.n_steps_max,
+                    impossible=False,  # We always try to generate a compound
+                    reward_type=self.verifier_config.reaction_reward_type,
+                )
+                reward_metadata = raw_metadata
+            elif objective == "analog_gen":
+                assert len(meta.target) > 0, (
+                    "Target must be provided for analog generation task"
+                )
+                reward, raw_metadata = self.reward_run_path(
+                    answer,
+                    meta.target[0],
+                    meta.building_blocks if meta.building_blocks else [],
+                    meta.smarts if meta.smarts else [],
+                    n_steps_max=meta.n_steps_max,
                     reward_type="tanimoto",
                     impossible=False,
                 )
-                rewards.append(reward)
-                rewards_meta.append(reward_metadata)
+                reward_metadata = raw_metadata
 
-        if self.reward == "valid_smiles":
-            return [float(r > 0.0) for r in rewards], rewards_meta
-        return rewards, rewards_meta
+            if self.verifier_config.reward == "valid_smiles":
+                reward = float(reward > 0.0)
+
+            # Create the output model
+            output_model = ReactionVerifierOutputModel(
+                reward=reward,
+                verifier_metadata=ReactionVerifierMetadataModel(
+                    valid=reward_metadata["valid"],
+                    correct_product=reward_metadata["correct_product"],
+                    correct_reactant=reward_metadata["correct_reactant"],
+                ),
+            )
+            output_models.append(output_model)
+
+        return output_models

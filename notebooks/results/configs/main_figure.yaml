@@ -1,0 +1,40 @@
+# Configuration for the main figure (1st plot)
+paths:
+  molstral_path: "MolGenOutput/test_ood"
+  fig_path: "MolGenDocking-latex/Figures/Results/MolGen"
+  output_subdir: "diversity_rewards"
+  output_suffix: "-main"
+
+data:
+  subsample_models:
+    - "MiniMax-M2_"
+    - "Qwen3-Next-80B-A3B-Thinking_"
+
+plot:
+  fp_name: "ecfp6-2048"
+  cols_vals:
+    - 5
+    - 10
+    - 20
+  x_vals: null
+  row: "n_rollout"
+  col: "k"
+  x: "sim"
+  column_name: "k"
+  xlabel: "Similarity threshold between candidate clusters"
+  xlabel_x: 0.45
+  ylabel_x: 0.05
+  legend: true
+  legend_bbox: [0.9, 0.3]
+  legend_ncols: 1
+  height: 1.6
+  aspect: 1.3
+  markersize:
+    normal: 5
+    highlight: 7
+
+sim_values:
+  type: "logspace"
+  start: -1.2
+  stop: -0.01
+  num: 18

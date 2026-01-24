@@ -9,14 +9,14 @@ from fastapi import FastAPI
 from tdc import Evaluator
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
-from mol_gen_docking.reward.rl_rewards import (
-    RewardScorer,
+from mol_gen_docking.reward import (
+    MolecularVerifier,
 )
 from mol_gen_docking.server_utils.buffer import RewardBuffer
+from mol_gen_docking.server_utils.server_setting import MolecularVerifierServerSettings
 from mol_gen_docking.server_utils.utils import (
-    MolecularVerifierQuery,
-    MolecularVerifierResponse,
-    MolecularVerifierSettings,
+    MolecularVerifierServerQuery,
+    MolecularVerifierServerResponse,
 )
 
 # Set logging level to info
@@ -24,11 +24,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("molecular_verifier_server")
 logger.setLevel(logging.INFO)
 
-server_settings: MolecularVerifierSettings
-RemoteRewardScorer: Any = ray.remote(RewardScorer)
+server_settings: MolecularVerifierServerSettings
+RemoteRewardScorer: Any = ray.remote(MolecularVerifier)
 
 server_settings_log = "Server settings:\n"
-for field_name, field_value in MolecularVerifierSettings().model_dump().items():
+for field_name, field_value in MolecularVerifierServerSettings().model_dump().items():
     server_settings_log += f"  {field_name}: {field_value}\n"
 logger.info(server_settings_log)
 
@@ -41,37 +41,15 @@ def get_or_create_reward_actor() -> Any:
     global server_settings
     if _reward_model is None or _reward_model.__ray_terminated__:
         _reward_model = RemoteRewardScorer.remote(
-            path_to_mappings=server_settings.data_path,
-            parse_whole_completion=False,
-            docking_concurrency_per_gpu=server_settings.docking_concurrency_per_gpu,
-            reaction_matrix_path=server_settings.reaction_matrix_path,
-            oracle_kwargs=dict(
-                exhaustiveness=server_settings.scorer_exhaustiveness,
-                n_cpu=server_settings.scorer_ncpus,
-                docking_oracle=server_settings.docking_oracle,
-                vina_mode=server_settings.vina_mode,
-            ),
+            server_settings.to_molecular_verifier_config()
         )
     return _reward_model
-
-
-def get_or_create_valid_actor() -> Any:
-    global _valid_reward_model
-    global server_settings
-    if _valid_reward_model is None:
-        _valid_reward_model = RewardScorer(
-            path_to_mappings=server_settings.data_path,
-            reward="valid_smiles",
-            parse_whole_completion=False,
-            reaction_matrix_path=server_settings.reaction_matrix_path,
-        )
-    return _valid_reward_model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     global server_settings
-    server_settings = MolecularVerifierSettings()
+    server_settings = MolecularVerifierServerSettings()
     logger.info(
         f"Initialized molecular docking verifier lifespan with {server_settings}"
     )
@@ -81,8 +59,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     app.state.reward_model = get_or_create_reward_actor()
-    app.state.reward_valid_smiles = get_or_create_valid_actor()
-
     app.state.receptor_processor = (
         ReceptorProcess(data_path=server_settings.data_path)
         if server_settings.docking_oracle == "autodock_gpu"
@@ -106,15 +82,17 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.post("/get_reward")  # type: ignore
-    async def get_reward(query: MolecularVerifierQuery) -> MolecularVerifierResponse:
+    async def get_reward(
+        query: MolecularVerifierServerQuery,
+    ) -> MolecularVerifierServerResponse:
         t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
         if status == "Error":
-            return MolecularVerifierResponse(error="Error in preprocessing")
+            return MolecularVerifierServerResponse(error="Error in preprocessing")
 
-        result: MolecularVerifierResponse = await app.state.reward_buffer.add_query(
-            query
+        result: MolecularVerifierServerResponse = (
+            await app.state.reward_buffer.add_query(query)
         )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
@@ -137,7 +115,7 @@ def create_app() -> FastAPI:
         return result
 
     @app.post("/prepare_receptor")  # type: ignore
-    async def prepare_receptor(query: MolecularVerifierQuery) -> Dict[str, str]:
+    async def prepare_receptor(query: MolecularVerifierServerQuery) -> Dict[str, str]:
         metadata = query.metadata
 
         if app.state.receptor_processor is None:

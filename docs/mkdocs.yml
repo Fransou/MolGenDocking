@@ -37,11 +37,33 @@ nav:
       - Getting Started: reward_server/getting_started.md
       - Server Configuration: reward_server/server_configuration.md
       - Query / Answer Format: reward_server/query_answer_format.md
-      - API Reference: reward_server/api.md
+      - Server Endpoints: reward_server/endpoints.md
+      - Async Reference: reward_server/Server_Asynchronous.md
+  - API Documentation:
+      - Introduction: api/toc.md
+      - Dataset:
+        - Receptor Processing: api/data/meeko_process.md
+        - Dataset: api/data/dataset.md
+      - Evaluation:
+        - Top-k Metric: api/evaluation/top_k.md
+        - Diversity-Aware Top-k: api/evaluation/diversity_aware_top_k.md
+        - Fingerprint Utilities: api/evaluation/fingeprints_utils.md
+      - Reward:
+        - Molecular Verifier: api/reward/molecular_verifier.md
+        - Generation Verifier: api/reward/generation_verifier.md
+        - Property Verifier: api/reward/mol_prop_verifier.md
+        - Reaction Verifier: api/reward/reaction_verifier.md
+
 
 plugins:
   - search
   - table-reader
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            docstring_style: google
 
 markdown_extensions:
   - pymdownx.highlight:

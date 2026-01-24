@@ -7,7 +7,7 @@ from tdc.generation import MolGen
 from tqdm import tqdm
 
 from mol_gen_docking.reward.verifiers.generation_reward.oracle_wrapper import get_oracle
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
 )
 

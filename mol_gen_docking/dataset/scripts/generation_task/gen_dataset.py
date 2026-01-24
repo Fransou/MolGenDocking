@@ -13,30 +13,23 @@ from numpy import random
 from tqdm import tqdm
 
 from mol_gen_docking.data.pydantic_dataset import Conversation, Message, Sample
-from mol_gen_docking.reward.verifiers.generation_reward.property_utils import (
+from mol_gen_docking.utils.property_utils import (
     CLASSICAL_PROPERTIES_NAMES,
     inverse_rescale_property_values,
 )
-from mol_gen_docking.reward.verifiers.generation_reward.utils import (
+
+from .utils import (
+    DOCKING_OBJECTIVES,
+    DOCKING_SOLO_OBJECTIVES,
+    DOCKING_SUFFIX,
+    OBJECTIVES,
     OBJECTIVES_TEMPLATES,
-    POSSIBLE_POCKET_INFO,
     PROMPT_TEMPLATE,
+    PROPERTY_ALLOWED_OBJECTIVES,
+    TARGET_VALUE_OBJECTIVES,
 )
 
 logger = logging.getLogger(__name__)
-
-OBJECTIVES = ["maximize", "minimize", "above", "below", "equal"]
-DOCKING_SOLO_OBJECTIVES = (["minimize", "below"], [0.8, 0.2])
-DOCKING_OBJECTIVES = (["minimize", "below", "above"], [0.6, 0.3, 0.1])
-TARGET_VALUE_OBJECTIVES = ["below", "above", "equal"]
-
-DOCKING_SUFFIX: str = "\n(The docking score represents the free-energy of binding, low scores corresponding to strong binders.)"
-
-# Get the CURRENT_DIR/utils/....json
-with open(
-    os.path.join(os.path.dirname(__file__), "utils", "standard_prop_gen_info.json")
-) as f:
-    PROPERTY_ALLOWED_OBJECTIVES = json.load(f)
 
 
 @dataclass
@@ -343,30 +336,6 @@ class MolGenerationInstructionsDatasetGenerator:
 
         return full_prompt, full_prompt_mm
 
-    def _generate_pocket_additional_data(self, properties: List[str]) -> Dict[str, Any]:
-        pocket_datas: Dict[str, Any] = {}
-        if self.add_pocket_info:
-            for p in properties:
-                pdb_id = self.prop_name_mapping[p]
-                if pdb_id in self.docking_targets and pdb_id in self.pockets_info:
-                    pocket_metadata = self.pockets_info[pdb_id].get("metadata", {})
-                    if not isinstance(pocket_metadata, dict):
-                        pocket_metadata = dict(pocket_metadata)
-                    if self.min_n_pocket_infos < len(POSSIBLE_POCKET_INFO):
-                        n_props = np.random.randint(
-                            self.min_n_pocket_infos, len(POSSIBLE_POCKET_INFO)
-                        )
-                    else:
-                        n_props = len(POSSIBLE_POCKET_INFO)
-                    dict_keys = np.random.choice(
-                        POSSIBLE_POCKET_INFO, n_props, replace=False
-                    )
-                    pocket_data = {
-                        k: pocket_metadata[k] for k in dict_keys if k in pocket_metadata
-                    }
-                    pocket_datas[pdb_id] = pocket_data
-        return pocket_datas
-
     def _get_prompt_metadata(
         self,
         properties: List[str],
@@ -507,14 +476,10 @@ class MolGenerationInstructionsDatasetGenerator:
         self,
         properties: List[str],
         objectives: List[str],
-        pocket_datas: Dict[str, Any],
         has_docking: bool,
     ) -> Dict[str, List[Dict[str, Any]]]:
         prompt_text, prompt_multimodal = self.fill_prompt(
             properties, objectives, has_docking=has_docking
-        )
-        prompt_text_with_pocket = self.add_pocket_info_to_prompt(
-            prompt_text, pocket_datas
         )
 
         sys_prompt = self.system_prompt
@@ -528,13 +493,6 @@ class MolGenerationInstructionsDatasetGenerator:
                 {
                     self.chat_temp["user"]: "user",
                     self.chat_temp["content"]: prompt_text,
-                },
-            ],
-            "with_pocket_descriptors": [
-                {self.chat_temp["user"]: "system", "content": sys_prompt},
-                {
-                    self.chat_temp["user"]: "user",
-                    self.chat_temp["content"]: prompt_text_with_pocket,
                 },
             ],
             "multimodal": [
@@ -600,9 +558,8 @@ class MolGenerationInstructionsDatasetGenerator:
                 self.prop_name_mapping[p] in self.docking_targets for p in properties
             )
 
-            pocket_datas = self._generate_pocket_additional_data(properties)
             prompt = self.generate_text_prompts(
-                properties, objectives, pocket_datas, has_docking=has_docking
+                properties, objectives, has_docking=has_docking
             )
 
             metadata = self._get_prompt_metadata(
@@ -641,7 +598,6 @@ class MolGenerationInstructionsDatasetGenerator:
         )
         data_dict: Dict[str, Any] = {
             "prompt": [],
-            "prompt_pocket_descriptors": [],
             "prompt_multimodal": [],
             "properties": [],
             "objectives": [],
@@ -654,9 +610,6 @@ class MolGenerationInstructionsDatasetGenerator:
         for prompt, metadata in self.generate_with_rule(n, docking_split=docking_split):
             jsonize_dict(metadata)
             data_dict["prompt"].append(prompt["standard"])
-            data_dict["prompt_pocket_descriptors"].append(
-                prompt["with_pocket_descriptors"]
-            )
             data_dict["prompt_multimodal"].append(prompt["multimodal"])
             for k in metadata:
                 if k in data_dict:

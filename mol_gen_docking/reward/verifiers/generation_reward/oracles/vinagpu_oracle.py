@@ -44,7 +44,7 @@ class DockingMoleculeGpuOracle:
         n_conformers: int = 1,
         docking_attempts: int = 10,
         docking_batch_size: int = 1024,
-        exhaustiveness: int = 8000,
+        exhaustiveness: int = 16,
         n_gpu: int = 1,
         gpu_ids: Optional[List[str]] = None,
         n_cpu: Optional[int] = None,
