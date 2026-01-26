@@ -8,6 +8,7 @@ from .molgen_utils import (
 )
 from .molprop_utils import load_molprop_results
 from .pandas_to_latex import PandasTableFormatter
+from .synthesis_utils import load_synth_results
 
 N_COLORS = 13
 CMAP_MODELS = {
@@ -15,6 +16,7 @@ CMAP_MODELS = {
     "ChemDFM-R": sns.color_palette("husl", n_colors=N_COLORS)[0],
     "ChemDFM-v2.0": sns.color_palette("husl", n_colors=N_COLORS)[1],
     "ether0": sns.color_palette("husl", n_colors=N_COLORS)[2],
+    "RL-Mistral": sns.color_palette("husl", n_colors=N_COLORS)[3],
 }
 
 CMAP_MODELS.update(
@@ -47,6 +49,7 @@ MARKER_MODELS = {
     "ChemDFM-R": "^",  # triangle up
     "ChemDFM-v2.0": "o",  # circle
     "ether0": "v",  # triangle down
+    "RL-Mistral": "X",  # filled x
     # Reasoning models
     "MiniMax-M2": "h",  # hexagon
     "Qwen3-Think.": "s",  # square
@@ -59,10 +62,7 @@ MARKER_MODELS = {
     "gemma-3": "*",  # star
 }
 
-HIGHLIGHT_MODELS = [
-    "ChemDFM-R",
-    "MiniMax-M2",
-]
+HIGHLIGHT_MODELS = ["ChemDFM-R", "MiniMax-M2", "RL-Mistral"]
 
 __all__ = [
     "PandasTableFormatter",
@@ -72,4 +72,5 @@ __all__ = [
     "CMAP_MODELS",
     "fp_name_to_fn",
     "load_molprop_results",
+    "load_synth_results",
 ]

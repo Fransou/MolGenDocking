@@ -46,4 +46,8 @@ MODEL_META = {
         "Chem.": False,
         "size": "229B",
     },
+    "RL-": {
+        "thinking": True,
+        "Chem.": True,
+    },
 }
