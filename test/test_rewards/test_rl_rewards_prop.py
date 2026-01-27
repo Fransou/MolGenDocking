@@ -48,17 +48,44 @@ class TestRegression:
     def test_regression(self, property_scorer: MolecularVerifier) -> None:
         """Test that regression rewards are properly ordered by value."""
         target: float = np.random.random()
+        values = [
+            v * np.sign(np.random.random() - 0.5) + target for v in [0, 0.01, 0.5, 1]
+        ]
         completions: List[str] = [
-            "<answer> Here is an answer: {} </answer>".format(
-                v * np.sign(np.random.random() - 0.5) + target
-            )
-            for v in [0, 0.01, 0.5, 1]
-        ] + ["ksdjgf"]
+            "<answer> Here is an answer: {} </answer>".format(v) for v in values
+        ]
+
+        completions += [
+            "<answer> Here is an answer: {} </answer>".format(v)
+            for v in [
+                "0.3x10<sup>1</sup>",
+                "-0.3 x 10<sup>1</sup>",
+                r"1.3 \times 10^{-1}",
+                r"1.2 \times 10^{-1} - 1.4 \times 10^{-1}",
+                r"-1.3 \times 10^{-1}",
+                "-2.1 ± 0.5",
+                "2.1 ± 0.5",
+            ]
+        ]
+        values += [
+            3,
+            -3,
+            0.13,
+            0.13,
+            -0.13,
+            -2.1,
+            2.1,
+        ]
+
         metadata: List[dict[str, Any]] = [
             {"objectives": ["regression"], "properties": [""], "target": [target]}
-        ] * 5
+        ] * len(completions)
+
         rewards: List[float] = property_scorer(completions, metadata).rewards
-        assert sorted(rewards)[::-1] == rewards
+        verif_metadata: Any = property_scorer(completions, metadata).verifier_metadatas
+        assert all(v == m.extracted_answer for v, m in zip(values, verif_metadata)), (
+            f"extracted: {[m.extracted_answer for m in verif_metadata]}, expected: {values}"
+        )
         assert sum(rewards) > 0.0
 
 
@@ -76,13 +103,13 @@ class TestClassification:
         """Test classification with target=1."""
         completions: List[str] = [
             "<answer> My answer is {} </answer>".format(v)
-            for v in [1, 1, 0, 0, "bbfhdsbfsj"]
+            for v in [1, 1, 0, 0, "bbfhdsbfsj", "Y."]
         ]
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [1]}
-        ] * 5
+        ] * 6
         rewards: List[float] = property_scorer(completions, metadata).rewards
-        assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0]
+        assert rewards == [1.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
     def test_classification_target_zero(
         self, property_scorer: MolecularVerifier

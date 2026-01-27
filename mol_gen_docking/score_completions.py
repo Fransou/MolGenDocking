@@ -58,9 +58,9 @@ if __name__ == "__main__":
             and not Path(str(f).replace(".jsonl", "_scored.jsonl")).exists()
         ]
 
-    for input_file in input_files:
+    for i, input_file in enumerate(input_files):
         output_path = input_file.replace(".jsonl", "_scored.jsonl")
-        print("=== Computing Properties")
+        print(f"[{i}/{len(input_files)}] === Computing Properties")
         completions: dict[str, list[dict[str, Any]]] = {}
 
         # Group completions by target property

@@ -143,7 +143,9 @@ class GenerationVerifier(Verifier):
                 flags=re.DOTALL,
             )
             if len(matches) > 0:
-                comp = matches[-1]
+                comp = (
+                    matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
+                )  # In case of nested tags
             else:
                 comp = ""
                 reason = "no_answer"
