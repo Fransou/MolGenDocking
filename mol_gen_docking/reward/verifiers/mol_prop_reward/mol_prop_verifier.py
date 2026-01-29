@@ -97,7 +97,7 @@ class MolPropVerifier(Verifier):
     SCI_CARET_PATTERN = rf"{BASE_FLOAT_PATTERN}\s*{MULT_PATTERN}\s*10\s*\^?\s*\{{?{BASE_FLOAT_PATTERN}\}}?"
 
     # Pattern for plus-minus notation: "-2.1 ± 0.5" or "1.3 +- 4"
-    PM_PATTERN = rf"{BASE_FLOAT_PATTERN}\s*[±+-]\s*{BASE_FLOAT_PATTERN}"
+    PM_PATTERN = rf"{BASE_FLOAT_PATTERN}\s*(?:±|\+-)\s*{BASE_FLOAT_PATTERN}"
 
     # Pattern for standard scientific notation: "1e-3", "1.5E+6"
     SCI_E_PATTERN = rf"{BASE_FLOAT_PATTERN}[eE]{BASE_FLOAT_PATTERN}"
