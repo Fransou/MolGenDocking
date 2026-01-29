@@ -416,7 +416,7 @@ class MolPropVerifier(Verifier):
                             match, meta.properties[0]
                         )
                         if extracted is None:
-                            self.logger.warning(
+                            self.logger.info(
                                 f"Could not extract regression value from: {match}"
                             )
                     else:
