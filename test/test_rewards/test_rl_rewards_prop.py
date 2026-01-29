@@ -45,48 +45,77 @@ def property_scorer_mixed(data_path: str) -> MolecularVerifier:
 class TestRegression:
     """Tests for regression objective."""
 
-    def test_regression(self, property_scorer: MolecularVerifier) -> None:
+    def create_scientific_notation(self, value: float) -> list[str]:
+        return [
+            f"{value / 10**exp}{notation}{exp}"
+            for exp in [-2, -1, 0, 1, 2]
+            for notation in ["e", "E"]
+        ]
+
+    def create_latex_notation(self, value: float) -> list[str]:
+        return [
+            rf"{value / 10**exp} {mult} 10^{exp}".format(value / (10**exp), exp)
+            for exp in [-2, -1, 0, 1, 2]
+            for mult in [r"\times", "×"]
+        ]
+
+    def create_html_notation(self, value: float) -> list[str]:
+        return [
+            f"{value / 10**exp} x 10<sup>{exp}</sup>".format(value / (10**exp), exp)
+            for exp in [-2, -1, 0, 1, 2]
+        ]
+
+    def create_pm_notation(self, value: float) -> list[str]:
+        return [
+            f"{value} {pm} {uncertainty}"
+            for uncertainty in [0.1 * value, 0.2 * value]
+            for pm in ["±", "+/-", "+-"]
+        ]
+
+    def create_range_notation(self, value: float) -> list[str]:
+        return [f"{value - 0.1 * value} - {value + 0.1 * value}"]
+
+    @pytest.mark.parametrize("style", ["scientific", "latex", "html", "pm", "range"])  # type: ignore
+    def test_regression(self, property_scorer: MolecularVerifier, style: str) -> None:
         """Test that regression rewards are properly ordered by value."""
         target: float = np.random.random()
         values = [
             v * np.sign(np.random.random() - 0.5) + target for v in [0, 0.01, 0.5, 1]
         ]
+        if style == "scientific":
+            val_strs = sum([self.create_scientific_notation(v) for v in values], [])
+            n_repets = 10
+        elif style == "latex":
+            val_strs = sum([self.create_latex_notation(v) for v in values], [])
+            n_repets = 10
+        elif style == "html":
+            val_strs = sum([self.create_html_notation(v) for v in values], [])
+            n_repets = 5
+        elif style == "pm":
+            val_strs = sum([self.create_pm_notation(v) for v in values], [])
+            n_repets = 6
+        elif style == "range":
+            val_strs = sum([self.create_range_notation(v) for v in values], [])
+            n_repets = 1
+        else:
+            raise ValueError(f"unknown style: {style}")
+        print(val_strs)
         completions: List[str] = [
-            "<answer> Here is an answer: {} </answer>".format(v) for v in values
+            "<answer> Here is an answer: {} </answer>".format(v) for v in val_strs
         ]
-
-        completions += [
-            "<answer> Here is an answer: {} </answer>".format(v)
-            for v in [
-                "0.3x10<sup>1</sup>",
-                "-0.3 x 10<sup>1</sup>",
-                r"1.3 \times 10^{-1}",
-                r"1.2 \times 10^{-1} - 1.4 \times 10^{-1}",
-                r"-1.3 \times 10^{-1}",
-                "-2.1 ± 0.5",
-                "2.1 ± 0.5",
-            ]
-        ]
-        values += [
-            3,
-            -3,
-            0.13,
-            0.13,
-            -0.13,
-            -2.1,
-            2.1,
-        ]
-
         metadata: List[dict[str, Any]] = [
             {"objectives": ["regression"], "properties": [""], "target": [target]}
         ] * len(completions)
 
-        rewards: List[float] = property_scorer(completions, metadata).rewards
         verif_metadata: Any = property_scorer(completions, metadata).verifier_metadatas
-        assert all(v == m.extracted_answer for v, m in zip(values, verif_metadata)), (
-            f"extracted: {[m.extracted_answer for m in verif_metadata]}, expected: {values}"
-        )
-        assert sum(rewards) > 0.0
+        extracted_answers = [
+            [m.extracted_answer for m in verif_metadata[i : i + n_repets]]
+            for i in range(0, len(verif_metadata), n_repets)
+        ]
+        for ext_ans, expected_val in zip(extracted_answers, values):
+            assert all(np.isclose(ext, expected_val, rtol=1e-3) for ext in ext_ans), (
+                f"extracted: {ext_ans}, expected: {expected_val}"
+            )
 
 
 # =============================================================================

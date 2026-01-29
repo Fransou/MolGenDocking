@@ -328,6 +328,7 @@ def run_figure(config_path: Path, display: bool) -> None:
         if display:
             plt.show()
         else:
+            plt.clf()
             plt.close()
         print(f"Saved: {output_file}")
 
