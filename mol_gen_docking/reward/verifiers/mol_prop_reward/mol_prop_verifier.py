@@ -314,7 +314,7 @@ class MolPropVerifier(Verifier):
             ) / 2
 
         # Check for range patterns: "{num} to {num}" or "{num} - {num}"
-        range_regex = rf"({self.NUM_PATTERN})\s*(?:-|to)\s*({self.NUM_PATTERN})"
+        range_regex = rf"\b({self.NUM_PATTERN})\b\s*(?:-\s*|to\s+)\b({self.NUM_PATTERN})\b"
         range_matches = re.findall(range_regex, answer_text)
 
         if len(range_matches) > 0 and all(
