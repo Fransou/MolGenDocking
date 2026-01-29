@@ -130,13 +130,9 @@ class ReactionVerifier(Verifier):
         Returns:
             Reward value between 0.0 and 1.0.
         """
-        matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
-        self.logger.info(f"Matches for ground truth mols: {matches}")
-        if len(matches) != 1:
+        match = self.parse_answer(completion)
+        if match == "":
             return 0.0
-        match: str = (
-            matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
-        )  # In case of nested tags
         if impossible:
             return float(match == "impossible")
         mol_label = [Molecule(smi) for smi in labels]
@@ -179,12 +175,9 @@ class ReactionVerifier(Verifier):
             'Reactants_contained' and 'Products_contained' flags.
         """
         gt_smarts = labels[0]
-        matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
-        if len(matches) != 1:
+        match = self.parse_answer(completion)
+        if match == "":
             return 0.0, {"Reactants_contained": False, "Products_contained": False}
-        match: str = (
-            matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
-        )  # In case of nested tags
         if impossible:
             return float(match == "impossible"), {
                 "Reactants_contained": True,
@@ -353,20 +346,15 @@ class ReactionVerifier(Verifier):
             - Reward is scaled by (n_valid/n_total)^2 for partial paths
             - Tanimoto similarity is cubed (sim^3) for reward scaling
         """
-        matches = re.findall(
-            r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
-            completion,
-            flags=re.DOTALL,
-        )
-        if len(matches) == 0:
+
+        match = self.parse_answer(completion)
+        if match == "":
+            self.logger.info("No synthesis path found in completion")
             return 0.0, {
                 "valid": 0.0,
                 "correct_product": 0.0,
                 "correct_reactant": False,
             }
-        match: str = (
-            matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
-        )  # In case of nested tags
         steps: List[str] = match.split("\n")
         if impossible and match == "impossible":
             self.logger.info("Reaction predicted impossible correctly")

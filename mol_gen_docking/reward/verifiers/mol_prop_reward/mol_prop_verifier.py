@@ -400,26 +400,16 @@ class MolPropVerifier(Verifier):
 
         verifier_metadatas: List[MolPropVerifierMetadataModel] = []
         for answer, meta in zip(completions, metadatas):
-            matches = re.findall(
-                r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
-                answer,
-                flags=re.DOTALL,
-            )
-            self.logger.info(f"Matches: {matches}")
+            match = self.parse_answer(answer)
+            self.logger.info(f"Match: {match}")
             extracted: float | int | None = None
-            if len(matches) > 0:
-                match: str = (
-                    matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
-                )  # In case of nested tags
-                if "-0.3577 min^-1" in match:
-                    print("debug")
-                assert "<answer>" not in match, "Nested <answer> tags detected."
+            if match != "":
                 try:
                     if meta.objectives[0] == "classification":
                         extracted = self._extract_classification_answer(match)
                         if extracted is None:
                             self.logger.info(
-                                f"Could not extract classification value from: {matches}"
+                                f"Could not extract classification value from: {match}"
                             )
                     elif meta.objectives[0] == "regression":
                         extracted = self._extract_regression_answer(
