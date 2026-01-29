@@ -8,7 +8,7 @@ def process_model_name(model_name: str) -> str:
         .replace("-A3B", "")
         .replace("-Distill", "")
         .replace("-it", "")
-        .replace("Thinking", "Think.")
+        .replace("-Thinking", "")
         .replace("DeepSeek-", "")
         .replace("-Instruct", "")
         .replace("_", "")

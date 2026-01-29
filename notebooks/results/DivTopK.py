@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
+from matplotlib.lines import Line2D
 
 from notebooks.utils import (
     CMAP_MODELS,
@@ -82,8 +83,8 @@ def load_data(config: dict) -> tuple[pd.DataFrame, list]:
             sub_sample_prompts = model_prompts
     else:
         sub_sample_prompts = df.prompt_id.unique().tolist()
-
-    return df, sub_sample_prompts
+    df = df[~df.Model.isin(config["data"].get("remove_model", []))]
+    return df, sub_sample_prompts[:]
 
 
 def setup_paths(config: dict) -> tuple[str, str]:
@@ -106,6 +107,7 @@ def plot_div_topk(
     cols_vals: list[float] = [10, 30],
     x_vals: list[float] | None = None,
     row: str = "n_rollout",
+    rollouts: list[int] = [32, 64, 128],
     col: str = "k",
     x: str = "sim",
     column_name: str = "k",
@@ -136,7 +138,7 @@ def plot_div_topk(
             data,
             sizes=1,
             alpha=0.7,
-            linewidth=1.0,
+            linewidth=1.2,
             legend=False,
             **kwargs,
         )
@@ -159,7 +161,7 @@ def plot_div_topk(
                 highlighted_data,
                 sizes=1,
                 alpha=1,
-                linewidth=1.4,
+                linewidth=1.6,
                 legend=False,
                 **kwargs,
             )
@@ -177,7 +179,10 @@ def plot_div_topk(
             )
 
     div_clus_df = get_top_k_div_df(
-        df[df.prompt_id.isin(sub_sample_prompts[:])], fp_name=fp_name, **kwargs
+        df[df.prompt_id.isin(sub_sample_prompts[:])],
+        fp_name=fp_name,
+        rollouts=rollouts,
+        **kwargs,
     )
     if cols_vals is not None:
         div_clus_df = div_clus_df[div_clus_df[col].isin(cols_vals)]
@@ -203,15 +208,46 @@ def plot_div_topk(
     )
     g.fig.supxlabel(xlabel, y=0.0, x=xlabel_x)
     g.fig.supylabel("Diversity-Aware Top-k Score", x=ylabel_x)
+
     if legend:
-        g.add_legend(
+        handles = []
+        labels = []
+        for name, color in CMAP_MODELS.items():
+            if name not in df.Model.unique():
+                continue
+            marker = MARKER_MODELS.get(name, None)
+            is_highlight = name in HIGHLIGHT_MODELS
+            lw = 1.4 if is_highlight else 1.0
+            ms = markersize["highlight"] if is_highlight else markersize["normal"]
+
+            if marker:
+                handle = Line2D(
+                    [0],
+                    [0],
+                    color=color,
+                    lw=lw,
+                    marker=marker,
+                    markersize=ms,
+                    markeredgewidth=0.0,
+                )
+            else:
+                handle = Line2D([0], [0], color=color, lw=lw)
+
+            handles.append(handle)
+            labels.append(name)
+
+        leg = g.fig.legend(
+            handles=handles,
+            labels=labels,
             title="Model",
             loc="lower center",
             bbox_to_anchor=legend_bbox,
-            ncols=legend_ncols,
-            fontsize=10,
-            title_fontsize=12,
+            ncol=legend_ncols,
+            fontsize=8,
+            title_fontsize=10,
         )
+        # Ensure legend background is fully opaque
+        leg.get_frame().set_alpha(1.0)
     # Add grid
     for ax in g.axes.flatten():
         ax.grid(True, which="both", linestyle="--", linewidth=0.05, alpha=0.5)
@@ -261,6 +297,7 @@ def run_figure(config_path: Path, display: bool) -> None:
             "cols_vals": plot_config["cols_vals"],
             "x_vals": x_vals,
             "row": plot_config["row"],
+            "rollouts": plot_config.get("rollouts", [32, 64, 128]),
             "col": plot_config["col"],
             "x": plot_config["x"],
             "column_name": plot_config["column_name"],
@@ -291,6 +328,7 @@ def run_figure(config_path: Path, display: bool) -> None:
         if display:
             plt.show()
         else:
+            plt.clf()
             plt.close()
         print(f"Saved: {output_file}")
 

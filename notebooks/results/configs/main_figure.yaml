@@ -9,32 +9,38 @@ data:
   subsample_models:
     - "MiniMax-M2_"
     - "Qwen3-Next-80B-A3B-Thinking_"
+    - "RL-Mistral-24B_"
+    - "RL-Mistral-24B-100_"
+  remove_model:
+    - "gpt-oss"
+    - "R1-Llama"
+    - "R1-Qwen"
 
 plot:
   fp_name: "ecfp6-2048"
   cols_vals:
-    - 5
-    - 10
-    - 20
+    - 4
+    - 8
+    - 16
   x_vals: null
   row: "n_rollout"
   col: "k"
   x: "sim"
   column_name: "k"
   xlabel: "Similarity threshold between candidate clusters"
-  xlabel_x: 0.45
+  xlabel_x: 0.5
   ylabel_x: 0.05
   legend: true
-  legend_bbox: [0.9, 0.3]
+  legend_bbox: [1.02, 0.25]
   legend_ncols: 1
-  height: 1.6
-  aspect: 1.3
+  height: 1.9
+  aspect: 1.4
   markersize:
-    normal: 5
-    highlight: 7
+    normal: 4.3
+    highlight: 5
 
 sim_values:
   type: "logspace"
   start: -1.2
-  stop: -0.01
-  num: 18
+  stop: -0.001
+  num: 15

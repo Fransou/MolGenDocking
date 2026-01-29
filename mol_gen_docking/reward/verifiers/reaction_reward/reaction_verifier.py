@@ -130,21 +130,18 @@ class ReactionVerifier(Verifier):
         Returns:
             Reward value between 0.0 and 1.0.
         """
-        matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
-        self.logger.info(f"Matches for ground truth mols: {matches}")
-        if len(matches) != 1:
+        match = self.parse_answer(completion)
+        if match == "":
             return 0.0
         if impossible:
-            return float(matches[0] == "impossible")
-
+            return float(match == "impossible")
         mol_label = [Molecule(smi) for smi in labels]
         if not all([m.is_valid for m in mol_label]):
             self.logger.error("Invalid ground truth molecule")
             return 0.0
         mols = [
             Molecule(smi)
-            for smi in matches[0]
-            .replace(", ", " and ")
+            for smi in match.replace(", ", " and ")
             .replace(" + ", " and ")
             .strip()
             .split("and")
@@ -178,21 +175,21 @@ class ReactionVerifier(Verifier):
             'Reactants_contained' and 'Products_contained' flags.
         """
         gt_smarts = labels[0]
-        matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
-        if len(matches) != 1:
+        match = self.parse_answer(completion)
+        if match == "":
             return 0.0, {"Reactants_contained": False, "Products_contained": False}
         if impossible:
-            return float(matches[0] == "impossible"), {
+            return float(match == "impossible"), {
                 "Reactants_contained": True,
                 "Products_contained": True,
             }
-        if matches[0].strip() == gt_smarts:
+        if match.strip() == gt_smarts:
             return 1.0, {"Reactants_contained": True, "Products_contained": True}
         self.logger.info(
-            f"Proposed SMARTS: {matches[0].strip()} | GT SMARTS: {gt_smarts}, checking reaction..."
+            f"Proposed SMARTS: {match.strip()} | GT SMARTS: {gt_smarts}, checking reaction..."
         )
         try:
-            rxnB = Reaction(matches[0].strip())
+            rxnB = Reaction(match.strip())
             p = rxnB([Molecule(r) for r in reactants])
             reward = 0.0
             if product in p:
@@ -203,9 +200,117 @@ class ReactionVerifier(Verifier):
             }
         except Exception as e:
             self.logger.info(
-                f"Error in reaction SMARTS parsing: {e} (proposed: {matches[0]} | gt: {gt_smarts})"
+                f"Error in reaction SMARTS parsing: {e} (proposed: {match} | gt: {gt_smarts})"
             )
             return 0.0, {"Reactants_contained": False, "Products_contained": False}
+
+    def _find_reaction_smarts(
+        self,
+        reactants_step: List[Molecule],
+        products_step: List[Molecule],
+        allowed_smarts: ReactionContainer,
+    ) -> List[Reaction]:
+        """Find valid reaction SMARTS that can produce products from reactants.
+
+        Args:
+            reactants_step: List of reactant molecules for this step.
+            products_step: List of expected product molecules.
+            allowed_smarts: Container of allowed reaction SMARTS patterns.
+
+        Returns:
+            List of Reaction objects that successfully produce the expected products.
+        """
+        found_reactions: List[Reaction] = []
+        id_poss_smarts: List[List[int]] = []
+        for r in reactants_step:
+            id_poss_smarts.append(list(allowed_smarts.match_reactions(r).keys()))
+        possible = reduce(
+            np.intersect1d, tuple(np.array(ids) for ids in id_poss_smarts)
+        )
+        possible = [  # type:ignore
+            p
+            for p in possible
+            if allowed_smarts[p].num_reactants == len(reactants_step)
+        ]
+        for id_reaction in possible:
+            run_product = allowed_smarts[id_reaction](reactants_step)
+            all_found: bool = True
+            for p in products_step:
+                if p not in run_product:
+                    all_found = False
+                    break
+            if all_found:
+                found_reactions.append(allowed_smarts[id_reaction])
+        return found_reactions
+
+    def _check_valid_step(
+        self,
+        reactants_step: List[Molecule],
+        products_step: List[Molecule],
+        possible_reactants: List[Molecule],
+        allowed_smarts: ReactionContainer,
+    ) -> Tuple[bool, str]:
+        """Check if a synthesis step is valid.
+
+        Validates that:
+        1. All reactants and products are valid molecules
+        2. All reactants are in building blocks or previous products
+        3. At least one reaction can produce the products from the reactants
+
+        Args:
+            reactants_step: List of reactant molecules for this step.
+            products_step: List of expected product molecules.
+            possible_reactants: List of valid starting materials (building blocks + previous products).
+            allowed_smarts: Container of allowed reaction SMARTS patterns.
+
+        Returns:
+            Tuple of (is_valid, fail_reason) where fail_reason is empty string if valid,
+            or one of "reactants", "products", "reaction" indicating what failed.
+        """
+        # 1. Check that all reactants and products are valid molecules
+        if not all([r.is_valid for r in reactants_step]):
+            self.logger.info(
+                "Reactants not valid in {}".format([r.smiles for r in reactants_step])
+            )
+            return False, "reactants"
+        if not all([p.is_valid for p in products_step]):
+            self.logger.info(
+                "Products not valid in {}".format([p.smiles for p in products_step])
+            )
+            return False, "products"
+        # 2. Check that all reactants are in building blocks or previous products
+        for r in reactants_step:
+            if r not in possible_reactants:
+                self.logger.info(
+                    "Reactant {} not in building blocks or previous products".format(
+                        r.smiles
+                    )
+                )
+                return False, "reactants"
+        if products_step == []:
+            self.logger.info("No products in step")
+            return False, "products"
+
+        # 3. Check that there is at least one reaction that can produce the products from the reactants
+        found_reactions = self._find_reaction_smarts(
+            reactants_step, products_step, allowed_smarts
+        )
+        if len(found_reactions) == 0:
+            self.logger.info(
+                "No reaction found for step: {} -> {}".format(
+                    [r.smiles for r in reactants_step],
+                    [p.smiles for p in products_step],
+                )
+            )
+            return False, "reaction"
+        # Log success
+        self.logger.info(
+            "Found valid reaction for step: {} -> {}".format(
+                [r.smiles for r in reactants_step],
+                [p.smiles for p in products_step],
+            )
+        )
+        return True, ""
 
     def reward_run_path(
         self,
@@ -241,14 +346,17 @@ class ReactionVerifier(Verifier):
             - Reward is scaled by (n_valid/n_total)^2 for partial paths
             - Tanimoto similarity is cubed (sim^3) for reward scaling
         """
-        matches = re.findall(r"<answer>(.*?)</answer>", completion, flags=re.DOTALL)
-        if len(matches) != 1:
+
+        match = self.parse_answer(completion)
+        if match == "":
+            self.logger.info("No synthesis path found in completion")
             return 0.0, {
                 "valid": 0.0,
                 "correct_product": 0.0,
                 "correct_reactant": False,
             }
-        if impossible and matches[0] == "impossible":
+        steps: List[str] = match.split("\n")
+        if impossible and match == "impossible":
             self.logger.info("Reaction predicted impossible correctly")
             return 0.9, {
                 "valid": 1.0,
@@ -256,8 +364,7 @@ class ReactionVerifier(Verifier):
                 "correct_reactant": True,
             }
         # Ensure one reaction per line
-        self.logger.info("Running reaction verifier on: {}".format(matches[0]))
-        steps: List[str] = matches[0].split("\n")
+        self.logger.info("Running reaction verifier on: {}".format(match))
         steps = [step for step in steps if not step.strip() == "" and "->" in step]
         if len(steps) == 0 or not all([len(step.split("->")) == 2 for step in steps]):
             self.logger.info("Template error")
@@ -290,21 +397,7 @@ class ReactionVerifier(Verifier):
             [Molecule(smi.strip()) for smi in step.split("->")[1].split(" + ")]
             for step in steps
         ]
-        if any([not r.is_valid for r in sum(reactants, [])]) or any(
-            [not p.is_valid for p in sum(products, [])]
-        ):
-            invalid_reactants = [r.smiles for r in sum(reactants, []) if not r.is_valid]
-            invalid_products = [p.smiles for p in sum(products, []) if not p.is_valid]
-            self.logger.info(
-                f"Invalid molecule found in synthesis path : reactants {invalid_reactants}, products {invalid_products}"
-            )
-            return 0.0, {
-                "valid": 0.0,
-                "correct_product": 0.0,
-                "correct_reactant": False,
-            }
         n_steps = len(reactants)
-
         label_mol = Molecule(label)
         if n_steps > n_steps_max:
             self.logger.info("Too many steps for synthesis")
@@ -331,76 +424,37 @@ class ReactionVerifier(Verifier):
             for i, product in enumerate(products):
                 all_sims = []
                 for p in product:
-                    fp_p = AllChem.GetMorganFingerprintAsBitVect(
-                        p._rdmol, 2, nBits=2048
-                    )
-                    all_sims.append(DataStructs.TanimotoSimilarity(label_fp, fp_p))
+                    if p.is_valid:
+                        fp_p = AllChem.GetMorganFingerprintAsBitVect(
+                            p._rdmol, 2, nBits=2048
+                        )
+                        all_sims.append(DataStructs.TanimotoSimilarity(label_fp, fp_p))
+                    else:
+                        all_sims.append(0.0)
                 reward_mult[i] = max(all_sims) ** 3
 
-        if building_blocks == []:
-            building_blocks_mol = list(self.rxn_matrix.reactants)
-        else:
-            building_blocks_mol = [Molecule(smi) for smi in building_blocks]
-
-        error = False
-        for reactant, product in zip(reactants, products):
-            for r in reactant:
-                if r not in building_blocks_mol:
-                    self.logger.info("Using unkown molecule: {}".format(r.smiles))
-                    error = True
-                    break
-            if error:
-                break
-            if product == []:
-                self.logger.info("Missing product")
-                error = True
-                break
-            for p in product:
-                building_blocks_mol.append(p)
-        if error:
-            return 0.0, {
-                "valid": 0.0,
-                "correct_product": reward_mult[-1],
-                "correct_reactant": False,
-            }
         reactions: ReactionContainer
         if smarts == []:
             reactions = self.rxn_matrix.reactions
         else:
             reactions = ReactionContainer([Reaction(sma) for sma in smarts])
 
+        if building_blocks == []:
+            building_blocks_mol = list(self.rxn_matrix.reactants)
+        else:
+            building_blocks_mol = [Molecule(smi) for smi in building_blocks]
+
         n_valid = 0
+        fail_reason = ""
         for i_reac, (reactant, product) in enumerate(zip(reactants, products)):
-            id_poss_smarts: List[List[int]] = []
-            for r in reactant:
-                id_poss_smarts.append(list(reactions.match_reactions(r).keys()))
-            possible = reduce(
-                np.intersect1d, tuple(np.array(ids) for ids in id_poss_smarts)
+            is_valid, fail_reason = self._check_valid_step(
+                reactant,
+                product,
+                building_blocks_mol + [p for step in products[:i_reac] for p in step],
+                reactions,
             )
-            possible = [
-                p for p in possible if reactions[p].num_reactants == len(reactant)
-            ]  # type:ignore
-            if len(possible) == 0:
-                break
-            all_found: bool
-            for id_reaction in possible:
-                run_product = reactions[id_reaction](reactant)
-                for p in product:
-                    all_found = True
-                    if p not in run_product:
-                        all_found = False
-                        break
-                if all_found:
-                    self.logger.info(
-                        "Found correct smart: {}".format(reactions[id_reaction].smarts)
-                    )
-                    break
-            if not all_found:
-                self.logger.info(
-                    "No reaction found for: {} -> {}".format(
-                        [r.smiles for r in reactant], [p.smiles for p in product]
-                    )
-                )
+            if not is_valid:
+                self.logger.info(f"Invalid step at index {i_reac} due to {fail_reason}")
                 break
             else:
                 n_valid += 1
@@ -408,7 +462,7 @@ class ReactionVerifier(Verifier):
             return reward_mult[n_valid - 1] * (n_valid / n_steps) ** 2, {
                 "valid": n_valid / n_steps,
                 "correct_product": reward_mult[n_valid - 1],
-                "correct_reactant": True,
+                "correct_reactant": fail_reason != "reactants",
             }
 
         return reward_mult[n_valid - 1], {

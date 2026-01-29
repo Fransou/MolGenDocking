@@ -137,15 +137,8 @@ class GenerationVerifier(Verifier):
         comp = comp.strip()
         reason: str = ""
         if not self.verifier_config.parse_whole_completion:
-            matches = re.findall(
-                r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
-                comp,
-                flags=re.DOTALL,
-            )
-            if len(matches) > 0:
-                comp = matches[-1]
-            else:
-                comp = ""
+            comp = self.parse_answer(comp)
+            if comp == "":
                 reason = "no_answer"
         else:
             # We just need to not match any special token (which we will assume to be in the format: <...>) so we

@@ -1,6 +1,7 @@
-import json
+import re
 from pathlib import Path
 
+import jsonlines
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -42,6 +43,10 @@ PROP_NAME = {
     "tdcommons/vdss-lombardo": "vdss",
 }
 
+float_pattern = (
+    r"(?<![/\w.\^+−-])(?<!\^\{)(?<!\^\()([-−+]?\d+(?:\.\d+)?)(?![%\d/])(?!°C)"
+)
+
 
 def load_molprop_results(
     filenames: list[Path],
@@ -49,10 +54,22 @@ def load_molprop_results(
     generations = []
 
     for f in tqdm(filenames):
-        with f.open("r") as fd:
-            for i_l, line in enumerate(fd):
-                g = json.loads(line)
-                valid = g["reward_meta"]["extracted_answer"] is not None
+        with jsonlines.open(f) as reader:
+            for i_l, g in enumerate(reader):
+                matches = re.findall(
+                    r"(?:<answer>|<\|answer_start\|>)((?:(?!<answer>|<\|answer_start\|>).)*?)(?:</answer>|<\|answer_end\|>)",
+                    g["output"],
+                    flags=re.DOTALL,
+                )
+                if matches:
+                    match: str = (
+                        matches[-1].split("<answer>")[-1].split("<|answer_start|>")[-1]
+                    )
+                else:
+                    match = ""
+                contains_numeric = bool(re.search(float_pattern, match))
+
+                valid = g["reward_meta"].get("extracted_answer", None) is not None
                 objective = g["metadata"]["objectives"][0]
                 target = float(g["metadata"]["target"][0])
                 norm_var = float(g["metadata"]["norm_var"])
@@ -60,9 +77,9 @@ def load_molprop_results(
                 if valid:
                     extracted = g["reward_meta"]["extracted_answer"]
                 else:
-                    extracted = "invalid"
+                    extracted = np.nan
                 if objective == "classification":
-                    reward = 0.5 if not valid else float(extracted) == target
+                    reward = 0.0 if not valid else float(extracted) == target
                 elif objective == "regression":
                     reward = (
                         0.0
@@ -93,11 +110,13 @@ def load_molprop_results(
                         "objectives": objective,
                         "validity": valid,
                         "Task": PROP_NAME[",".join(g["metadata"]["properties"])],
+                        "match": match,
+                        "contains_numeric": contains_numeric,
                     }
                 )
 
     df = pd.DataFrame(generations)
-    df["gen_id"] = df.index % 3
+    df["gen_id"] = df.index % 5
 
     df["Model"] = df["model"].apply(process_model_name)
     return df

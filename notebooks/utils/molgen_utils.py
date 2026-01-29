@@ -44,7 +44,10 @@ def load_molgen_results(
                 elif len(all_smis) > 1:
                     valid = 1
                     smiles = all_smis[-1]
-                    reward = float(g["reward_meta"]["all_smi_rewards"][-1])
+                    if g["reward_meta"]["all_smi_rewards"][-1] is None:
+                        reward = 0.0
+                    else:
+                        reward = float(g["reward_meta"]["all_smi_rewards"][-1])
                 else:
                     valid = 1
                     smiles = all_smis[0]
@@ -259,7 +262,7 @@ def compute_fps(fp_name: str, df: pd.DataFrame) -> pd.DataFrame:
 def get_top_k_div_df(
     df: pd.DataFrame,
     sim_values: List[float] = SIM_VALUES_DEF,
-    rollouts: List[int] = [50, 75, 100],
+    rollouts: List[int] = [15, 50, 100],
     k_max: int = 30,
     fp_name: str = "ecfp4-2048",
 ) -> pd.DataFrame:
@@ -280,12 +283,11 @@ def get_top_k_div_df(
                 .to_frame("value")
                 .reset_index()
             )
-            div_clus_df_single["k"] = df.Model.apply(
+            div_clus_df_single["k"] = div_clus_df_single.Model.apply(
                 lambda x: [i + 1 for i in range(k_max)]
             )
             div_clus_df_single["n_rollout"] = n_rollout
             div_clus_df_single["sim"] = sim
-
             div_clus_df_single = div_clus_df_single.explode(["k", "value"]).reset_index(
                 drop=True
             )
