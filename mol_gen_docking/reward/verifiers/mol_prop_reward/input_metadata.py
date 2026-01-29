@@ -17,7 +17,7 @@ class MolPropVerifierInputMetadataModel(BaseModel):
         description="The type of objective for the property: regression or classification.",
     )
     properties: List[str] = Field(
-        ...,
+        default_factory=list,
         description="The molecular properties to be verified.",
     )
     target: List[float | int] = Field(
