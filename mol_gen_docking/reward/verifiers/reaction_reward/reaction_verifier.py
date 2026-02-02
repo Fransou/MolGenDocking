@@ -66,8 +66,7 @@ class ReactionVerifier(Verifier):
             verifier_config: Configuration containing reaction matrix path
                 and reward type settings.
         """
-        super().__init__()
-        self.verifier_config = verifier_config
+        super().__init__(verifier_config)
         self.rxn_matrix: ReactantReactionMatrix
         with open(verifier_config.reaction_matrix_path, "rb") as f:
             self.rxn_matrix = pickle.load(f)
@@ -227,7 +226,7 @@ class ReactionVerifier(Verifier):
         possible = reduce(
             np.intersect1d, tuple(np.array(ids) for ids in id_poss_smarts)
         )
-        possible = [  # type:ignore
+        possible = [
             p
             for p in possible
             if allowed_smarts[p].num_reactants == len(reactants_step)

@@ -171,7 +171,7 @@ def smiles_list(properties_csv: pd.DataFrame) -> list[str]:
             ...
     """
     characters = string.ascii_letters + string.digits
-    full_list = properties_csv["smiles"].sample(N_SMILES).tolist() + [
+    full_list: list[str] = properties_csv["smiles"].sample(N_SMILES).tolist() + [
         "".join(random.choices(characters, k=random.randint(5, 15)))
         for _ in range(N_RANDOM_SMILES)
     ]

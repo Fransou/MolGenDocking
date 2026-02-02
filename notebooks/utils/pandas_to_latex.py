@@ -206,7 +206,7 @@ class PandasTableFormatter:
         df_agg = pd.concat(dataframes_to_concatenate, axis=1)
         if self.global_agg:
             df_glob = pd.concat(df_glob, axis=1)
-            df_agg = pd.concat([df_agg, df_glob], axis=1)  # type: ignore
+            df_agg = pd.concat([df_agg, df_glob], axis=1)
         df_agg.index.name = None
         try:
             # If one of the column's key contains a number, use the float of this number
@@ -320,7 +320,7 @@ class PandasTableFormatter:
         if row_order is not None:
             df_agg = df_agg.loc[row_order]
         style = df_agg.style.format(
-            formatter,  # type: ignore
+            formatter,
             precision=self.n_decimals,
         )
         # Apply the highlight function to the specified columns
@@ -364,13 +364,13 @@ class PandasTableFormatter:
                 del kwargs["column_format"]
             column_format = ""
             if isinstance(cols_sep, int):
-                for idx in style.data.index.names:  # type: ignore
+                for idx in style.data.index.names:
                     print(idx)
                     column_format += "c|"
                 # cols reprents the level of the multindex we want to separate
-                assert cols_sep <= style.data.columns.nlevels - 1  # type: ignore
+                assert cols_sep <= style.data.columns.nlevels - 1
                 prev_col_name = "************"
-                for i_c, c in enumerate(style.data.columns):  # type: ignore
+                for i_c, c in enumerate(style.data.columns):
                     if c[cols_sep] != prev_col_name:
                         column_format += "|c"
                         prev_col_name = c[cols_sep]
@@ -379,7 +379,7 @@ class PandasTableFormatter:
 
             elif isinstance(cols_sep, str):
                 column_format = cols_sep
-        latex: str = style.to_latex(  # type: ignore
+        latex: str = style.to_latex(
             convert_css=True,
             column_format=column_format,
             **kwargs,

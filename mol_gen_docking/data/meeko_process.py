@@ -421,7 +421,7 @@ class ReceptorProcess:
 
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
         if use_pbar:
-            pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")  # type: ignore
+            pbar = remote_tqdm.remote(total=len(receptors), desc="Processing receptors")
         else:
             pbar = None
         # Find receptors that already have a _ag.pdbqt and_ag.maps.fld file

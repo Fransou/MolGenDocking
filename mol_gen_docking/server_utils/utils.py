@@ -15,11 +15,9 @@ class MolecularVerifierServerQuery(BaseModel):
             object for scoring.
 
         query: List of completion strings from the language model.
-            Each completion should contain the answer wrapped in tags:
-            `<answer>SMILES</answer>` or `<|answer_start|>...</|answer_end|>`
 
-            The parser extracts content between these tags unless
-            parse_whole_completion is enabled.
+            The parser extracts content between these tags based on
+            'parsing_method'
 
         prompts: Optional. Original prompts used to generate the completions.
             Useful for tracking and debugging. If provided, should have

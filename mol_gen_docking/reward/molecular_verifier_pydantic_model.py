@@ -22,10 +22,10 @@ class MolecularVerifierConfigModel(BaseModel):
     ensuring consistent reward type usage across all verifiers.
 
     Attributes:
-        parse_whole_completion: Whether to parse the entire model completion or only
-            the content between special answer tokens (<answer>...</answer>).
-            If False (default), extracts SMILES/values from answer tags.
-            If True, parses the whole completion (useful for models without structured output).
+        parsing_method: Method to parse model completions:
+            - "none": No parsing, use full completion (not recommended, risks of ambiguity in the answer extraction)
+            - "answer_tags": Extract content within <answer>...</answer> tags
+            - "boxed": Extract content within answer tags and boxed in the '\boxed{...}' LaTeX command
         reward: Type of reward to compute. Affects all sub-verifiers:
             - "property": Computes property-based rewards (docking scores, molecular properties)
             - "valid_smiles": Computes validity rewards (1.0 for valid single SMILES, 0.0 otherwise)
@@ -42,7 +42,7 @@ class MolecularVerifierConfigModel(BaseModel):
     Notes:
         - At least one sub-verifier configuration should be provided for the verifier to work
         - The propagate_reward_to_subconfigs validator automatically sets the reward type
-          and parse_whole_completion flag in all sub-verifier configurations
+          and parsing_method flag in all sub-verifier configurations
         - Invalid configurations will raise Pydantic ValidationError with detailed messages
 
     Example:
@@ -63,7 +63,7 @@ class MolecularVerifierConfigModel(BaseModel):
 
         # Full configuration with all verifiers
         config = MolecularVerifierConfigModel(
-            parse_whole_completion=False,
+            parsing_method="answer_tags",
             reward="property",
             generation_verifier_config=GenerationVerifierConfigModel(
                 path_to_mappings="data/molgendata",
@@ -93,9 +93,9 @@ class MolecularVerifierConfigModel(BaseModel):
         - MolecularVerifier: Main orchestrator class using this config
     """
 
-    parse_whole_completion: bool = Field(
-        default=False,
-        description="Whether to parse the whole completion from the model or just the extracted answer between special tokens.",
+    parsing_method: Literal["none", "answer_tags", "boxed"] = Field(
+        default="answer_tags",
+        description="Method to parse model completions for SMILES or property values.",
     )
     reward: Literal["valid_smiles", "property"] = Field(
         default="property",
@@ -119,12 +119,12 @@ class MolecularVerifierConfigModel(BaseModel):
         """Propagate the fields shared to all sub-verifier configurations."""
         if self.generation_verifier_config is not None:
             self.generation_verifier_config.reward = self.reward
-            self.generation_verifier_config.parse_whole_completion = (
-                self.parse_whole_completion
-            )
+            self.generation_verifier_config.parsing_method = self.parsing_method
         if self.mol_prop_verifier_config is not None:
+            self.mol_prop_verifier_config.parsing_method = self.parsing_method
             self.mol_prop_verifier_config.reward = self.reward
         if self.reaction_verifier_config is not None:
+            self.reaction_verifier_config.parsing_method = self.parsing_method
             self.reaction_verifier_config.reward = self.reward
         return self
 
@@ -134,7 +134,7 @@ class MolecularVerifierConfigModel(BaseModel):
         arbitrary_types_allowed = True
         json_schema_extra = {
             "example": {
-                "parse_whole_completion": False,
+                "parsing_method": "answer_tags",
                 "reward": "property",
                 "generation_verifier_config": {
                     "path_to_mappings": "data/molgendata",

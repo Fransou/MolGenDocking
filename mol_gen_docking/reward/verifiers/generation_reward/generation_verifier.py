@@ -93,8 +93,7 @@ class GenerationVerifier(Verifier):
             verifier_config: Configuration containing paths to mappings,
                 reward type, and docking oracle settings.
         """
-        super().__init__()
-        self.verifier_config = verifier_config
+        super().__init__(verifier_config)
         self.logger = logging.getLogger("GenerationVerifier")
 
         with open(
@@ -136,14 +135,7 @@ class GenerationVerifier(Verifier):
         """
         comp = comp.strip()
         reason: str = ""
-        if not self.verifier_config.parse_whole_completion:
-            comp = self.parse_answer(comp)
-            if comp == "":
-                reason = "no_answer"
-        else:
-            # We just need to not match any special token (which we will assume to be in the format: <...>) so we
-            # replace < and > by spaces
-            comp = re.sub(r"<|>", " ", comp)
+        comp = self.parse_answer(comp)
 
         # Now we identify which elements are possibly SMILES
         # First we split the completion by newlines and spaces

@@ -181,7 +181,7 @@ def diversity_aware_top_k(
             assert all(isinstance(mol, Chem.Mol) for mol in mols), (
                 "All elements must be RDKit Mol objects since the first is a Mol."
             )
-            mols_list = mols  # type: ignore
+            mols_list = mols
         dist_mat = 1 - get_sim_matrix(mols_list, fingerprint_name=fingerprint_name)
     else:
         assert isinstance(mols, np.ndarray), "Unknown type for mols."

@@ -60,9 +60,10 @@ class MolecularVerifierServerSettings(BaseSettings):
             Allows batch processing of concurrent requests to improve efficiency.
             Default: 20
 
-        parse_whole_completion (bool): Whether to parse entire completion output
-            or only extract answers from tagged regions (<answer>...</answer>).
-            Default: False
+        parsing_method: Method to parse model completions:
+            - "none": No parsing, use full completion (not recommended, risks of ambiguity in the answer extraction)
+            - "answer_tags": Extract content within <answer>...</answer> tags
+            - "boxed": Extract content within answer tags and boxed in the '\boxed{...}' LaTeX command
 
     Example:
         ```python
@@ -90,7 +91,7 @@ class MolecularVerifierServerSettings(BaseSettings):
         - VINA_MODE
         - DATA_PATH
         - BUFFER_TIME
-        - PARSE_WHOLE_COMPLETION
+        - PARSING_METHODS
     """
 
     scorer_exhaustiveness: int = 8
@@ -101,7 +102,7 @@ class MolecularVerifierServerSettings(BaseSettings):
     vina_mode: str = "autodock_gpu_256wi"
     data_path: str = "data/molgendata"
     buffer_time: int = 20
-    parse_whole_completion: bool = False
+    parsing_method: Literal["none", "answer_tags", "boxed"] = "answer_tags"
 
     def __post_init__(self) -> None:
         """Validate all settings after initialization.
@@ -205,7 +206,7 @@ class MolecularVerifierServerSettings(BaseSettings):
 
         # Create and return MolecularVerifierConfigModel
         return MolecularVerifierConfigModel(
-            parse_whole_completion=self.parse_whole_completion,
+            parsing_method=self.parsing_method,
             reward=reward,
             generation_verifier_config=generation_config,
             reaction_verifier_config=reaction_config,

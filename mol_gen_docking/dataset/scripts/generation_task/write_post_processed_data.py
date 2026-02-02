@@ -136,7 +136,7 @@ if __name__ == "__main__":
             pocket_info = json.load(f)
 
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    pbar = remote_tqdm.remote(total=len(pocket_info))  # type: ignore
+    pbar = remote_tqdm.remote(total=len(pocket_info))
 
     kept_pockets_jobs = []
 

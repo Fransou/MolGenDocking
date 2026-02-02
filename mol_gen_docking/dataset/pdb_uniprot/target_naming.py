@@ -62,7 +62,7 @@ def get_names_mapping_uniprot(
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
     pbar = remote_tqdm.remote(
         total=len(docking_targets), desc="Querying Uniprot for textual description: "
-    )  # type: ignore
+    )
 
     docking_desc = ray.get(
         [

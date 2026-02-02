@@ -27,7 +27,7 @@ def scorer(has_gpu: bool, data_path: str, exhaustiveness: int) -> MolecularVerif
         return MolecularVerifier(
             MolecularVerifierConfigModel(
                 reward="property",
-                parse_whole_completion=True,
+                parsing_method="none",
                 generation_verifier_config=GenerationVerifierConfigModel(
                     rescale=False,
                     path_to_mappings=data_path,
@@ -44,7 +44,7 @@ def scorer(has_gpu: bool, data_path: str, exhaustiveness: int) -> MolecularVerif
         return MolecularVerifier(
             MolecularVerifierConfigModel(
                 reward="property",
-                parse_whole_completion=True,
+                parsing_method="none",
                 generation_verifier_config=GenerationVerifierConfigModel(
                     rescale=False,
                     path_to_mappings=data_path,

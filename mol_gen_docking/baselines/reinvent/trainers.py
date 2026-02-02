@@ -281,11 +281,11 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
         if "token_type_ids" in forward_kwargs:
             token_type_ids = forward_kwargs["token_type_ids"]
             forward_kwargs["token_type_ids"] = torch.cat(
-                [token_type_ids, token_type_ids.new_zeros(completion_ids.shape)],  # type: ignore
+                [token_type_ids, token_type_ids.new_zeros(completion_ids.shape)],
                 dim=1,
             )
 
-        logits_to_keep = completion_ids.size(1)  # type: ignore
+        logits_to_keep = completion_ids.size(1)
         batch_size = (
             self.args.per_device_train_batch_size
             if mode == "train"
@@ -450,7 +450,7 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
 
         if self.use_vllm and self.vllm_importance_sampling_correction:
             delta = torch.abs(old_per_token_logps - sampling_per_token_logps)
-            delta = delta[completion_mask.bool()]  # type: ignore
+            delta = delta[completion_mask.bool()]
             mean_delta = (
                 torch.mean(delta)
                 if delta.numel() > 0
@@ -468,7 +468,7 @@ class VanillaReinventTrainer(ReinventGRPOTrainer):
                 self.accelerator.gather(max_delta).max().item()
             )
 
-            flat_is_ratio = importance_sampling_ratio[completion_mask.bool()]  # type: ignore
+            flat_is_ratio = importance_sampling_ratio[completion_mask.bool()]
             min_importance_sampling_ratio = (
                 torch.min(flat_is_ratio)
                 if flat_is_ratio.numel() > 0

@@ -14,12 +14,15 @@ from mol_gen_docking.reward import (
 from mol_gen_docking.utils.property_utils import rescale_property_values
 
 
-@pytest.fixture(scope="module")  # type: ignore
-def property_scorer(data_path: str) -> MolecularVerifier:
+@pytest.fixture(scope="module", params=["answer_tags", "boxed"])  # type: ignore
+def property_scorer(
+    data_path: str, request: pytest.FixtureRequest
+) -> MolecularVerifier:
     """Create a RewardScorer for property scoring."""
     return MolecularVerifier(
         MolecularVerifierConfigModel(
-            mol_prop_verifier_config=MolPropVerifierConfigModel()
+            parsing_method=request.param,
+            mol_prop_verifier_config=MolPropVerifierConfigModel(),
         )
     )
 
@@ -99,10 +102,19 @@ class TestRegression:
             n_repets = 1
         else:
             raise ValueError(f"unknown style: {style}")
-        print(val_strs)
-        completions: List[str] = [
-            "<answer> Here is an answer: {} </answer>".format(v) for v in val_strs
-        ]
+        if property_scorer.verifier_config.parsing_method == "answer_tags":
+            completions: List[str] = [
+                "<answer> Here is an answer: {} </answer>".format(v) for v in val_strs
+            ]
+        elif property_scorer.verifier_config.parsing_method == "boxed":
+            completions = [
+                "<answer> Here is an answer: 128.3 \\boxed{{ {} }} </answer>".format(v)
+                for v in val_strs
+            ]
+        else:
+            raise ValueError(
+                f"unknown parsing method: {property_scorer.verifier_config.parsing_method}"
+            )
         metadata: List[dict[str, Any]] = [
             {"objectives": ["regression"], "properties": [""], "target": [target]}
         ] * len(completions)
@@ -130,10 +142,22 @@ class TestClassification:
         self, property_scorer: MolecularVerifier
     ) -> None:
         """Test classification with target=1."""
-        completions: List[str] = [
-            "<answer> My answer is {} </answer>".format(v)
-            for v in [1, 1, 0, 0, "bbfhdsbfsj", "Y."]
-        ]
+        values = [1, 1, 0, 0, "bbfhdsbfsj", "Y."]
+        if property_scorer.verifier_config.parsing_method == "answer_tags":
+            completions: List[str] = [
+                "<answer> My answer is {} </answer>".format(v) for v in values
+            ]
+        elif property_scorer.verifier_config.parsing_method == "boxed":
+            completions = [
+                "My answer is \\boxed{{64}} <answer> \\boxed{{ {} }} </answer>".format(
+                    v
+                )
+                for v in values
+            ]
+        else:
+            raise ValueError(
+                f"unknown parsing method: {property_scorer.verifier_config.parsing_method}"
+            )
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [1]}
         ] * 6
@@ -144,10 +168,20 @@ class TestClassification:
         self, property_scorer: MolecularVerifier
     ) -> None:
         """Test classification with target=0."""
-        completions: List[str] = [
-            "<answer> My answer is {} </answer>".format(v)
-            for v in [1, 1, 0, 0, "bbfhdsbfsj"]
-        ]
+        values = [1, 1, 0, 0, "bbfhdsbfsj"]
+        if property_scorer.verifier_config.parsing_method == "answer_tags":
+            completions: List[str] = [
+                "<answer> My answer is {} </answer>".format(v) for v in values
+            ]
+        elif property_scorer.verifier_config.parsing_method == "boxed":
+            completions = [
+                "<answer> My answer is \\boxed{{ {} }}</answer>".format(v)
+                for v in values
+            ]
+        else:
+            raise ValueError(
+                f"unknown parsing method: {property_scorer.verifier_config.parsing_method}"
+            )
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [0]}
         ] * 5
@@ -203,12 +237,25 @@ class TestMixedGeneration:
         self, property_scorer: MolecularVerifier
     ) -> None:
         """Test mixed classification and generation with target=0."""
-        completions: List[str] = [
-            "<answer> {} </answer>".format(v) for v in [1, 1, 0, 0, 0]
-        ] + [
-            "<answer> CCC{} </answer>".format(smi)
-            for smi in ["C" * i for i in range(5)]
-        ]
+        values = [1, 1, 0, 0, 0]
+        smis = ["C" * i for i in range(5)]
+        if property_scorer.verifier_config.parsing_method == "answer_tags":
+            completions: List[str] = [
+                "<answer> {} </answer>".format(v) for v in values
+            ] + ["<answer> CCC{} </answer>".format(smi) for smi in smis]
+        elif property_scorer.verifier_config.parsing_method == "boxed":
+            completions = [
+                "<answer> \\boxed{{ {} }} </answer>".format(v) for v in values
+            ] + [
+                "<answer> \\boxed{{CCC{}}} </answer>".format(
+                    smi,
+                )
+                for smi in smis
+            ]
+        else:
+            raise ValueError(
+                f"unknown parsing method: {property_scorer.verifier_config.parsing_method}"
+            )
         metadata: List[dict[str, Any]] = [
             {"objectives": ["classification"], "properties": [""], "target": [0]}
         ] * 5 + [

@@ -119,7 +119,7 @@ def get_pocket_cif(cif_path: str, topk: int = 3) -> Tuple[List[Any], Any]:
                     for atom in residue:
                         dist = np.linalg.norm(atom.coord - ligand_coord)
                         distances.append((dist, residue))
-        distances.sort(key=lambda x: x[0])  # type: ignore
+        distances.sort(key=lambda x: x[0])
         closest_residues = [distances[i][1] for i in range(min(topk, len(distances)))]
         pocket_residues_set.update(closest_residues)
     pocket_residues = list(set(pocket_residues_set))
@@ -472,7 +472,7 @@ def process_sair_dataset(
     # Process the CIF files to get pocket residues and sequences
     final_dfs_jobs = []
     remote_tqdm = ray.remote(tqdm_ray.tqdm)
-    pbar = remote_tqdm.remote(total=len(protein_cif_files), desc="Processing Proteins")  # type: ignore
+    pbar = remote_tqdm.remote(total=len(protein_cif_files), desc="Processing Proteins")
 
     for prot in protein_cif_files:
         df_prot = protein_dfs[prot]

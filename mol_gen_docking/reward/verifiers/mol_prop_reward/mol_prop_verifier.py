@@ -160,8 +160,7 @@ class MolPropVerifier(Verifier):
         Args:
             verifier_config: Configuration containing reward type settings.
         """
-        super().__init__()
-        self.verifier_config = verifier_config
+        super().__init__(verifier_config)
         self.logger = logging.getLogger("MolPropVerifier")
 
     def _parse_float_with_sup(self, s: str) -> float:
@@ -195,6 +194,7 @@ class MolPropVerifier(Verifier):
             perc = s[:-1].replace("−", "-")
             return float(perc) / 100
 
+        out: float
         # Match standard scientific notation: "1e-3" or "1E-3"
         sci_e_match = re.match(self.SCI_E_EXTRACT, s)
         if sci_e_match:
