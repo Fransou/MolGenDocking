@@ -22,8 +22,8 @@ plot:
     - "Gobbi2d"
   legend_fingerprint: "Avalon"  # Only this fingerprint gets a legend
   cols_vals:
-    - 8
-    - 16
+    - 5
+    - 25
   x_vals: null
   row: "n_rollout"
   col: "k"
