@@ -36,6 +36,7 @@ class PromptGenerator:
         Args:
             transform_fn: Optional custom function that transforms metadata dict to text.
                          If None, uses the default transformation.
+                         Jinja2 template strings are also supported.
             data_path: Optional path to data directory for loading property mappings
                       and objective templates.
         """
