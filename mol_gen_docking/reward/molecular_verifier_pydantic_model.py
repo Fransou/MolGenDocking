@@ -124,7 +124,13 @@ class MolecularVerifierConfigModel(BaseModel):
             self.mol_prop_verifier_config.parsing_method = self.parsing_method
             self.mol_prop_verifier_config.reward = self.reward
         if self.reaction_verifier_config is not None:
-            self.reaction_verifier_config.parsing_method = self.parsing_method
+            ### FOR REACTION VERIFIER, SPECIAL BEHAVIOR:
+            ###     - if parsing_method is "none", set it to "none" for reaction verifier
+            ###     - else, set it to "answer_tags" for reaction verifier (boxed not supported)
+            if self.parsing_method == "none":
+                self.reaction_verifier_config.parsing_method = "none"
+            else:
+                self.reaction_verifier_config.parsing_method = "answer_tags"
             self.reaction_verifier_config.reward = self.reward
         return self
 
