@@ -255,8 +255,8 @@ class FragDB:
                 _frag_elems.append(
                     np.asarray([atomic_numbers[e] for e in frag_elem], dtype=np.float32)
                 )
-            frag_elems = _frag_elems  # type: ignore
-        return frag_elems, frag_coords, jun_bonds, ufrag_idxs  # type: ignore
+            frag_elems = _frag_elems
+        return frag_elems, frag_coords, jun_bonds, ufrag_idxs
 
     def save_state(self, fragdb_path: str) -> None:
         "write this object to the disk"
@@ -271,16 +271,16 @@ class FragDB:
         assert all(np.asarray(nr) == nr[0]), (
             "database columns are not of the same length"
         )
-        np.save(os.path.join(fragdb_path, "frag_names.npy"), self.frag_names)  # type: ignore
+        np.save(os.path.join(fragdb_path, "frag_names.npy"), self.frag_names)
         np.save(os.path.join(fragdb_path, "frag_counts.npy"), self.frag_counts)
         save_json(os.path.join(fragdb_path, "frag_elem.json"), self.frag_elem)
         print(self.frag_r)
         save_pickle(os.path.join(fragdb_path, "frag_r.pkl"), self.frag_r)
-        np.save(os.path.join(fragdb_path, "frag_symmgroups.npy"), self.frag_symmgroups)  # type: ignore
+        np.save(os.path.join(fragdb_path, "frag_symmgroups.npy"), self.frag_symmgroups)
         assert len(self.ufrag_names) == len(self.ufrag_counts), (
             "broken database of ufragments"
         )
-        np.save(os.path.join(fragdb_path, "ufrag_names.npy"), self.ufrag_names)  # type: ignore
+        np.save(os.path.join(fragdb_path, "ufrag_names.npy"), self.ufrag_names)
         np.save(os.path.join(fragdb_path, "ufrag_counts.npy"), self.ufrag_counts)
         print("saved database state nfrag:", len(self.frag_names))
 

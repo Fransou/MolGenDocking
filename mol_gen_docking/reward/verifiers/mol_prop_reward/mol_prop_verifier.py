@@ -160,8 +160,7 @@ class MolPropVerifier(Verifier):
         Args:
             verifier_config: Configuration containing reward type settings.
         """
-        super().__init__()
-        self.verifier_config = verifier_config
+        super().__init__(verifier_config)
         self.logger = logging.getLogger("MolPropVerifier")
 
     def _parse_float_with_sup(self, s: str) -> float:
@@ -195,6 +194,7 @@ class MolPropVerifier(Verifier):
             perc = s[:-1].replace("−", "-")
             return float(perc) / 100
 
+        out: float
         # Match standard scientific notation: "1e-3" or "1E-3"
         sci_e_match = re.match(self.SCI_E_EXTRACT, s)
         if sci_e_match:
@@ -422,15 +422,21 @@ class MolPropVerifier(Verifier):
                     else:
                         extracted = None
                     verifier_metadatas.append(
-                        MolPropVerifierMetadataModel(extracted_answer=extracted)
+                        MolPropVerifierMetadataModel(
+                            extracted_answer=extracted, extraction_success=True
+                        )
                     )
                 except ValueError:
                     verifier_metadatas.append(
-                        MolPropVerifierMetadataModel(extracted_answer=None)
+                        MolPropVerifierMetadataModel(
+                            extracted_answer=-10000.0, extraction_success=False
+                        )
                     )
             else:
                 verifier_metadatas.append(
-                    MolPropVerifierMetadataModel(extracted_answer=None)
+                    MolPropVerifierMetadataModel(
+                        extracted_answer=-10000.0, extraction_success=False
+                    )
                 )
 
         if self.verifier_config.reward == "valid_smiles":
@@ -446,7 +452,7 @@ class MolPropVerifier(Verifier):
 
         rewards = []
         for meta, verifier_meta in zip(metadatas, verifier_metadatas):
-            if verifier_meta.extracted_answer is None:
+            if not verifier_meta.extraction_success:
                 rewards.append(0.0)
             else:
                 if meta.objectives[0] == "regression":

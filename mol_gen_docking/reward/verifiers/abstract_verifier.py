@@ -8,6 +8,8 @@ verifiers must implement.
 import re
 from typing import List
 
+from pydantic import BaseModel
+
 from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
     BatchVerifiersInputModel,
     VerifierOutputModel,
@@ -33,18 +35,25 @@ class Verifier:
     ENTRY_ANSWER: List[str] = ["<answer>", r"<\|answer_start\|>"]
     EXIT_ANSWER: List[str] = ["</answer>", r"<\|answer_end\|>"]
 
-    def __init__(self) -> None:
+    def __init__(self, verifier_config: BaseModel) -> None:
         """Initialize the base verifier."""
+        self.verifier_config = verifier_config
         pass
 
-    def parse_answer(self, completion: str) -> str:
-        """Parse the answer from a model completion.
+    def parse_none(self, completion: str) -> str:
+        """Parse the answer using no special parsing.
+        Simply returns the completion with special tokens removed.
 
         Args:
             completion: The full text completion from the model.
         Returns:
             The extracted answer string.
         """
+        comp = re.sub(r"<|>", " ", completion)
+        return comp.strip()
+
+    def parse_answer_tags(self, completion: str) -> str:
+        """Parse the answer using <answer>...</answer> tags."""
         entry_pattern = "|".join(self.ENTRY_ANSWER)
         exit_pattern = "|".join(self.EXIT_ANSWER)
 
@@ -67,6 +76,44 @@ class Verifier:
                 )
             return matches[-1]
         return ""
+
+    def parse_boxed(self, completion: str) -> str:
+        """Parse the answer enclosed `\boxed{...}`."""
+
+        boxed_pattern = r"\\boxed\{((?:(?!\\boxed\{).)*?)\}"
+        matches: List[str] = re.findall(
+            boxed_pattern,
+            completion,
+            flags=re.DOTALL,
+        )
+        if len(matches) > 0:
+            return matches[-1]
+        return ""
+
+    def parse_answer(self, completion: str) -> str:
+        """Parse the answer from a model completion.
+
+        Args:
+            completion: The full text completion from the model.
+        Returns:
+            The extracted answer string.
+        """
+        if self.verifier_config.parsing_method == "none":
+            # We just need to not match any special token (which we will assume to be in the format: <...>) so we
+            # replace < and > by spaces
+            return self.parse_none(completion)
+
+        tags_extraction = self.parse_answer_tags(completion)
+
+        if self.verifier_config.parsing_method == "answer_tags":
+            return tags_extraction
+        elif self.verifier_config.parsing_method == "boxed":
+            boxed_extraction = self.parse_boxed(tags_extraction)
+            return boxed_extraction
+        else:
+            raise ValueError(
+                f"Unknown parsing method: {self.verifier_config.parsing_method}"
+            )
 
     def get_score(self, inputs: BatchVerifiersInputModel) -> List[VerifierOutputModel]:
         """Compute scores for a batch of inputs.

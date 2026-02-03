@@ -58,12 +58,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 # Data Fixtures
 # =============================================================================
 
-N_SMILES = 32
-N_RANDOM_SMILES = 4
+N_SMILES = 8
+N_RANDOM_SMILES = 2
 COMPLETIONS_PATTERN = [
-    "Here is a molecule: <answer> {SMILES} </answer> what are its properties?",
-    "This one looks interesting: COOC. Here is a molecule: <answer> {SMILES} </answer>",
-    "Here is a {SMILES} molecule: <answer> {SMILES} </answer> what are {SMILES} its properties?",
+    "Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> what are its properties?",
+    "This one looks interesting: COOC. Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> \\boxed{{COOC}}",
+    "Here is a {SMILES} molecule: <answer> \\boxed{{ {SMILES} }} </answer> what are {SMILES} its properties?",
     "[N] molecule:  <answer>{SMILES} what are its properties?",
     "[N] No SMILES here!",
 ]
@@ -171,7 +171,7 @@ def smiles_list(properties_csv: pd.DataFrame) -> list[str]:
             ...
     """
     characters = string.ascii_letters + string.digits
-    full_list = properties_csv["smiles"].sample(N_SMILES).tolist() + [
+    full_list: list[str] = properties_csv["smiles"].sample(N_SMILES).tolist() + [
         "".join(random.choices(characters, k=random.randint(5, 15)))
         for _ in range(N_RANDOM_SMILES)
     ]

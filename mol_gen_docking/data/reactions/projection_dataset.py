@@ -48,7 +48,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             ray.init()
         reaction_matrix_ref = ray.put(self._reaction_matrix)
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
-        pbar = remote_tqdm.remote(total=self._virtual_length)  # type: ignore
+        pbar = remote_tqdm.remote(total=self._virtual_length)
         all_stacks = ray.get(
             [
                 create_stack_ray.remote(

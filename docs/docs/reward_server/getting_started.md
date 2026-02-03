@@ -13,7 +13,6 @@ Set required environment variables ([see here for all options](server_configurat
 ```bash
 export DOCKING_ORACLE=autodock_gpu
 export DATA_PATH=data
-export MAX_CONCURRENT_REQUESTS=128
 ```
 
 Start the server:

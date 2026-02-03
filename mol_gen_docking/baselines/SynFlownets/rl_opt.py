@@ -27,7 +27,7 @@ def get_reward_fn(
     SCORER = MolecularVerifier(
         MolecularVerifierConfigModel(
             reward="property",
-            parse_whole_completion=True,
+            parsing_method="none",
             generation_verifier_config=GenerationVerifierConfigModel(
                 path_to_mappings=datasets_path
             ),

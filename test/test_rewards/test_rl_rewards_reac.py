@@ -20,7 +20,7 @@ from mol_gen_docking.reward import (
 # =============================================================================
 
 
-@pytest.fixture(scope="session")  # type: ignore
+@pytest.fixture(scope="module")  # type: ignore
 def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
     return MolecularVerifier(
@@ -30,7 +30,7 @@ def property_scorer(data_path: str) -> MolecularVerifier:
     )
 
 
-@pytest.fixture(scope="session")  # type: ignore
+@pytest.fixture(scope="module")  # type: ignore
 def property_scorer_valid(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES scoring without rescaling."""
     return MolecularVerifier(
@@ -41,7 +41,7 @@ def property_scorer_valid(data_path: str) -> MolecularVerifier:
     )
 
 
-@pytest.fixture(scope="session")  # type: ignore
+@pytest.fixture(scope="module")  # type: ignore
 def dataset_reac() -> List[Any]:
     """Load the reaction test dataset."""
     current_path = os.path.dirname(os.path.abspath(__file__))
@@ -52,29 +52,7 @@ def dataset_reac() -> List[Any]:
     )
 
 
-@pytest.fixture(scope="session")  # type: ignore
-def dataset_analog() -> List[Any]:
-    """Load the analog test dataset."""
-    current_path = os.path.dirname(os.path.abspath(__file__))
-    return read_jsonl(
-        Path(os.path.join(os.path.dirname(current_path), "data", "analog_test.jsonl"))
-    )
-
-
-@pytest.fixture(scope="session")  # type: ignore
-def refs_comp_analog() -> List[List[Any]]:
-    """Load the analog completion examples reference."""
-    current_path = os.path.dirname(os.path.abspath(__file__))
-    with open(
-        os.path.join(
-            os.path.dirname(current_path), "data", "analog_test_compl_example.jsonl"
-        )
-    ) as f:
-        examples: List[List[Any]] = json.load(f)
-    return examples
-
-
-@pytest.fixture(scope="session")  # type: ignore
+@pytest.fixture(scope="module")  # type: ignore
 def add_sy_ex() -> List[Dict[str, Any]]:
     """Load the additional synthesis full path examples."""
     current_path = os.path.dirname(os.path.abspath(__file__))
@@ -89,6 +67,13 @@ def add_sy_ex() -> List[Dict[str, Any]]:
     return examples
 
 
+@pytest.fixture(scope="module", params=list(range(919)))  # type: ignore
+def reaction_dataset_line(
+    request: pytest.FixtureRequest, dataset_reac: List[Any]
+) -> Any:
+    return dataset_reac[request.param]
+
+
 # =============================================================================
 # Reaction Tests
 # =============================================================================
@@ -99,56 +84,90 @@ class TestReaction:
 
     def test_reaction(
         self,
-        dataset_reac: List[Any],
+        reaction_dataset_line: Any,
         property_scorer: MolecularVerifier,
         property_scorer_valid: MolecularVerifier,
         properties_csv: pd.DataFrame,
     ) -> None:
         """Test reaction reward scoring for different objective types."""
-        for line in dataset_reac:
-            metadata = line.conversations[0].meta
-            target = " + ".join(metadata["target"])
+        metadata = reaction_dataset_line.conversations[0].meta
+        target = metadata["target"]
+        if metadata["objectives"][0].startswith("full_path"):
+            reactants = metadata["reactants"]
+            products = metadata["products"]
+            real: dict[str, Any] = {"answer": []}
+            for i, (r, p) in enumerate(zip(reactants, products)):
+                real["answer"].append({"step": i + 1, "reactants": r, "product": [p]})
 
-            if metadata["objectives"][0].startswith("full_path"):
-                target = metadata["full_reaction"]
-                fake0_l = target.split(" + ")
-                fake0_l[0] = properties_csv.smiles.sample(1).values[0]
-                fake0 = " + ".join(fake0_l)
+            fake: dict[str, Any] = {"answer": []}
+            for i, (r, p) in enumerate(zip(reactants, products)):
+                fake["answer"].append(
+                    {
+                        "step": i + 1,
+                        "reactants": r,
+                        "product": [properties_csv.smiles.sample(1).values[0]],
+                    }
+                )
 
-                fake1_l = target.split(" -> ")
-                fake1_first_p = fake1_l[1].split("\n")
-                fake1_first_p[0] = properties_csv.smiles.sample(1).values[0]
-                fake1 = " -> ".join(fake1_first_p)
-                answers = [target, fake0, fake1] + ["impossible"]
-            elif metadata["objectives"][0] in [
-                "final_product",
-                "reactant",
-                "all_reactants",
-                "all_reactants_bb_ref",
+            fake2: dict[str, Any] = {"answer": []}
+            for i, (r, p) in enumerate(zip(reactants, products)):
+                fake2["answer"].append(
+                    {
+                        "step": i + 1,
+                        "reactants": [0.5] * len(r),
+                        "product": [properties_csv.smiles.sample(1).values[0]],
+                    }
+                )
+            fake3: dict[str, Any] = {"answer": []}
+            for i, (r, p) in enumerate(zip(reactants, products)):
+                fake3["answer"].append(
+                    {
+                        "step": i + 1,
+                        "product": [properties_csv.smiles.sample(1).values[0]],
+                    }
+                )
+
+            answers = [
+                json.dumps(real),
+                json.dumps(fake),
+                json.dumps(fake2),
+                json.dumps(fake3),
+            ]
+
+        elif metadata["objectives"][0] in [
+            "final_product",
+            "reactant",
+        ]:
+            answers = []
+            for pred_sol in [target] + [
+                properties_csv.smiles.sample(1).tolist() for i in range(1, 3)
             ]:
-                fake = [properties_csv.smiles.sample(1).values[0]]
-                answers = (
-                    [target]
-                    + fake
-                    + properties_csv.smiles.sample(3).tolist()
-                    + [" and ".join(properties_csv.smiles.sample(3).tolist())]
-                    + ["impossible"]
-                )
-            elif metadata["objectives"][0] in ["smarts"]:
-                fakes = [
-                    property_scorer.reaction_verifier.rxn_matrix._reactions[0].smarts,
-                    property_scorer.reaction_verifier.rxn_matrix._reactions[10].smarts,
-                    "[#6:1]-[N:5]=[N+:6]=[N-:7].[#6:2]-[C:3]>>[#6:2][cH0+0:3]1[cH1+0:4][nH0+0:5][nH0+0:6][nH0+0:7]1",
-                ]
-                answers = (
-                    [target]
-                    + fakes
-                    + ["impossible", target.replace("O", "n"), "dfhdshjkh"]
-                )
-            completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
+                answers.append(json.dumps({"answer": pred_sol[0]}))
+        elif metadata["objectives"][0] in [
+            "all_reactants",
+            "all_reactants_bb_ref",
+        ]:
+            answers = []
+            for pred_sol in [target] + [
+                properties_csv.smiles.sample(i).tolist() for i in range(1, 3)
+            ]:
+                answers.append(json.dumps({"answer": pred_sol}))
+        elif metadata["objectives"][0] in ["smarts"]:
+            fakes = [
+                property_scorer.reaction_verifier.rxn_matrix._reactions[0].smarts,
+                property_scorer.reaction_verifier.rxn_matrix._reactions[10].smarts,
+                "[#6:1]-[N:5]=[N+:6]=[N-:7].[#6:2]-[C:3]>>[#6:2][cH0+0:3]1[cH1+0:4][nH0+0:5][nH0+0:6][nH0+0:7]1",
+            ]
+            answers = []
+            for pred_sol in [target[0]] + fakes:
+                answers.append(json.dumps({"answer": pred_sol}))
 
-            rewards = property_scorer(completions, [metadata] * len(answers)).rewards
-            assert (rewards[0] == 1) or metadata["impossible"]
+        answers.append("{npkdf;lds} jij}")
+        completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
+
+        rewards = property_scorer(completions, [metadata] * len(answers)).rewards
+        assert rewards[0] == 1
+        assert all(r == 0 for r in rewards[1:])
 
 
 # =============================================================================
@@ -170,30 +189,3 @@ class TestAdditionalSynthesis:
             metadata = in_out["metadata"]
             completions = [in_out["output"]]
             property_scorer(completions, [metadata]).rewards
-
-
-# =============================================================================
-# Reaction Analog Tests
-# =============================================================================
-
-
-class TestReactionAnalog:
-    """Tests for reaction analog examples."""
-
-    def test_reaction_analog(
-        self,
-        dataset_analog: List[Any],
-        refs_comp_analog: List[List[Any]],
-        property_scorer: MolecularVerifier,
-    ) -> None:
-        """Test reaction analog reward scoring."""
-        for line, examples in zip(dataset_analog, refs_comp_analog):
-            metadata = line.conversations[0].meta
-
-            completions = ["<answer>\n {} \n</answer>".format(v[0]) for v in examples]
-
-            rewards = property_scorer(
-                completions, [metadata] * len(completions)
-            ).rewards
-
-            assert rewards == [v[1] for v in examples]

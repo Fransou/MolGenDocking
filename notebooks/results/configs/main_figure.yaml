@@ -19,9 +19,9 @@ data:
 plot:
   fp_name: "ecfp6-2048"
   cols_vals:
-    - 4
-    - 8
-    - 16
+    - 5
+    - 10
+    - 25
   x_vals: null
   row: "n_rollout"
   col: "k"

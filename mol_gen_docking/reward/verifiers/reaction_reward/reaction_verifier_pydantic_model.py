@@ -29,11 +29,7 @@ class ReactionVerifierConfigModel(BaseModel):
 
     Attributes:
         path_to_mappings: Optional path to property mappings and docking targets configuration directory.
-        reward: Type of reward to compute. Either "property" for property-based rewards or "valid_smiles"
-                for validity-based rewards.
         rescale: Whether to rescale the rewards to a normalized range.
-        parse_whole_completion: Whether to parse the entire completion output or only the content
-                                between answer tags.
         reaction_matrix_path: Path to the reaction matrix pickle file used for reaction verification.
         oracle_kwargs: Dictionary of keyword arguments to pass to the docking oracle. Can include:
                        - exhaustiveness: Docking exhaustiveness parameter
@@ -43,6 +39,11 @@ class ReactionVerifierConfigModel(BaseModel):
         docking_concurrency_per_gpu: Number of concurrent docking runs to allow per GPU.
                                      Default is 2 (uses ~1GB per run on 80GB GPU).
     """
+
+    parsing_method: Literal["none", "answer_tags", "boxed"] = Field(
+        default="answer_tags",
+        description="Method to parse model completions for SMILES or property values.",
+    )
 
     reward: Literal["property", "valid_smiles"] = Field(
         default="property",

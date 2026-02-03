@@ -14,13 +14,14 @@ Our dataset currently supports 3 downstream tasks:
 
 ## Downloading Datasets
 Our dataset is available on [huggingface.](https://huggingface.co/datasets/Franso/MolGenData)
-The three tasks are separated into three compressed folders: `molgendata.tar.gz`, `polaris.tar.gz`, and `synthesis.tar.gz`.
+The three tasks are separated into three compressed folders: `molgendata.tar.gz`, `property_predictions.tar.gz`, and `synthesis_tasks.tar.gz`.
+HF datasets are also available, but do not include the metadatas necessary for the reward computation, and are thus only meant for inference.
 
 ```bash
 # Extract tarball datasets
 tar -xzf molgendata.tar.gz
-tar -xzf analog_gen.tar.gz
-tar -xzf synthesis.tar.gz
+tar -xzf property_prediction.tar.gz
+tar -xzf synthesis_tasks.tar.gz
 ```
 !!! warning
     To perform *de novo* molecular generation with docking constraints, the path to the `molgendata` folder should be provided to the reward server via the `DATA_PATH` environment variable. (See [Reward Server Configuration](../reward_server/getting_started.md) for more details.)
@@ -34,28 +35,28 @@ tar -xzf synthesis.tar.gz
     ├── names_mapping.json
     ├── pockets_info.json
     ├── pdb_files/
-    ├── train_prompts.jsonl
+    ├── train_data/
+    │   └── train_prompts.jsonl
+    │   └── train_prompts_boxed.jsonl
     ├── eval_data/
-    │   └── eval_prompts.jsonl
+    │   └── eval_prompts_ood_boxed.jsonl
     │   └── eval_prompts_ood.jsonl
     └── test_data/
+        └── test_prompts_ood_boxed.jsonl
         └── test_prompts_ood.jsonl
     ```
 === "Property Prediction Data"
     ```plaintext
-    synthesis/               # Reaction data
-    ├── train_prompts.jsonl
-    ├── chembl_test.jsonl
-    └── enamine_test.jsonl
+    property_prediction/               # Reaction data
+    ├── train_prompts_boxed.jsonl
+    └── eval_prompts_ood_boxed.jsonl
     ```
 === "Retro-Synthesis Data"
     ```plaintext
-    polaris/                 # Multi-task benchmarks
-    ├── eval_concatenated.jsonl
-    └── [dataset]
-        ├── train.jsonl
-        ├── eval.jsonl
-        └── test.jsonl
+    synthesis_tasks/                 # Multi-task benchmarks
+    ├── train_prompts.jsonl
+    └── eval_prompts
+        └── eval_prompts_[chembl/enamine]_[#building blocks].jsonl
     ```
 
 

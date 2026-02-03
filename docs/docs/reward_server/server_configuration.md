@@ -18,7 +18,6 @@ Simply export environment variables before starting the server:
 ```bash
 export DOCKING_ORACLE="autodock_gpu"
 export DATA_PATH="/path/to/data"
-export MAX_CONCURRENT_REQUESTS="256"
 uvicorn ...
 ```
 

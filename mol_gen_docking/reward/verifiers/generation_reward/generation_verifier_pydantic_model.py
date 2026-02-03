@@ -144,9 +144,9 @@ class GenerationVerifierConfigModel(BaseModel):
         description="Number of concurrent docking runs per GPU (each uses ~1GB on 80GB GPU)",
     )
 
-    parse_whole_completion: bool = Field(
-        default=False,
-        description="Whether to parse the whole completion for SMILES extraction",
+    parsing_method: Literal["none", "answer_tags", "boxed"] = Field(
+        default="answer_tags",
+        description="Method to parse model completions for SMILES or property values.",
     )
 
     class Config:

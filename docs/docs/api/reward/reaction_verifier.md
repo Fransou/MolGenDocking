@@ -62,25 +62,6 @@ The Reaction Verifier supports various reaction-related tasks:
             - ReactionVerifier
 
 
-
-!!! note "Synthesis Path Format"
-
-    Synthesis paths must follow this format:
-
-    ```
-    reactant1 + reactant2 -> product1
-    product1 + reactant3 -> product2
-    product2 + reactant4 -> final_product
-    ```
-    example:
-    ```
-    <answer>
-    CC(=O)O + CCO -> CC(=O)OCC
-    CC(=O)OCC + c1ccccc1N -> CC(=O)Nc1ccccc1
-    </answer>
-    ```
-
-
 ## Related
 
 - [Molecular Verifier](molecular_verifier.md) - Main orchestrator

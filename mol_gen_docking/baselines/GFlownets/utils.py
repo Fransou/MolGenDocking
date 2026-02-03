@@ -152,7 +152,7 @@ def break_on_bonds(
                 )
             )
         else:
-            frag_coord.append(None)  # type:ignore
+            frag_coord.append(None)
     # find junction/fragment bonds for each of the groups
     bonds = np.asarray(
         [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in list(mol.GetBonds())]
@@ -203,24 +203,24 @@ def find_rota_murcko_bonds(
                 for bond in r_groups[rgroup_num].GetBonds()
             ]
             # print ([bond.GetBondType() for bond in r_groups[rgroup_num].GetBonds()])
-            rg_bonds = np.asarray(rg_bonds)  # type: ignore
+            rg_bonds = np.asarray(rg_bonds)
             # remove bonds that lead to dummy atoms added by BreakBRICSBonds
             dummy_atoms = np.asarray(r_atmids[rgroup_num]) >= mol.GetNumAtoms()
-            dummy_bonds = dummy_atoms[rg_bonds.reshape([-1])].reshape([-1, 2])  # type: ignore
+            dummy_bonds = dummy_atoms[rg_bonds.reshape([-1])].reshape([-1, 2])
             dummy_bonds = np.logical_or(dummy_bonds[:, 0], dummy_bonds[:, 1])
             rg_bonds = rg_bonds[np.logical_not(dummy_bonds)]
             # filter out only the ones that connect core with something outside of the core
             mcore_atmid = np.asarray(r_groups[rgroup_num].GetSubstructMatch(m_core))
             m_bonds = np.reshape(np.in1d(rg_bonds, mcore_atmid), [-1, 2])
-            m_bonds = rg_bonds[np.logical_xor(m_bonds[:, 0], m_bonds[:, 1])]  # type: ignore
+            m_bonds = rg_bonds[np.logical_xor(m_bonds[:, 0], m_bonds[:, 1])]
             # return bond-numbering to the one for a whole molecule
             m_bonds = np.asarray(r_atmids[rgroup_num])[np.reshape(m_bonds, [-1])]
             m_bonds = np.reshape(m_bonds, [-1, 2])
             [murcko_bonds.append(m_bond) for m_bond in m_bonds]  # type: ignore
 
     rota_bonds = np.reshape(np.asarray(rota_bonds, dtype=np.int64), [-1, 2])
-    murcko_bonds = np.reshape(np.asarray(murcko_bonds, dtype=np.int64), [-1, 2])  # type: ignore
-    return rota_bonds, murcko_bonds  # type: ignore
+    murcko_bonds = np.reshape(np.asarray(murcko_bonds, dtype=np.int64), [-1, 2])
+    return rota_bonds, murcko_bonds
 
 
 def fragment_molecule(
