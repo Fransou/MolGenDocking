@@ -42,9 +42,13 @@ class MolPropVerifierMetadataModel(BaseModel):
     Attributes:
     """
 
-    extracted_answer: float | int | None = Field(
-        default=None,
+    extracted_answer: float = Field(
+        ...,
         description="The extracted answer string from the model completion.",
+    )
+    extraction_success: bool = Field(
+        ...,
+        description="Indicates whether the answer extraction was successful.",
     )
 
 

@@ -61,9 +61,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 N_SMILES = 32
 N_RANDOM_SMILES = 4
 COMPLETIONS_PATTERN = [
-    "Here is a molecule: <answer> {SMILES} </answer> what are its properties?",
-    "This one looks interesting: COOC. Here is a molecule: <answer> {SMILES} </answer>",
-    "Here is a {SMILES} molecule: <answer> {SMILES} </answer> what are {SMILES} its properties?",
+    "Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> what are its properties?",
+    "This one looks interesting: COOC. Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> \\boxed{{COOC}}",
+    "Here is a {SMILES} molecule: <answer> \\boxed{{ {SMILES} }} </answer> what are {SMILES} its properties?",
     "[N] molecule:  <answer>{SMILES} what are its properties?",
     "[N] No SMILES here!",
 ]

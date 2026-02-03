@@ -203,8 +203,8 @@ class TestMixedGeneration:
         completions: List[str] = sum(
             [
                 [
-                    "<answer> {} </answer>".format(v),
-                    "<answer> CCC{} </answer>".format(smi),
+                    "<answer> \\boxed{{ {} }} </answer>".format(v),
+                    "<answer> \\boxed{{ CCC{} }} </answer>".format(smi),
                 ]
                 for v, smi in zip([1, 1, 0, 0, 0], ["C" * i for i in range(5)])
             ],

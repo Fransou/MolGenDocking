@@ -187,7 +187,9 @@ class TestValidSmilesServer:
     ) -> None:
         """Test that valid SMILES return non-zero reward."""
         valid_smiles = "CCC"
-        completions = f"Here is a molecule: <answer> {valid_smiles} </answer>"
+        completions = (
+            f"Here is a molecule: <answer> \\boxed{{ {valid_smiles} }} </answer>"
+        )
         metadata = {
             "properties": ["qed"],
             "objectives": ["maximize"],

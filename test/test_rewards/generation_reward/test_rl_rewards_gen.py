@@ -32,6 +32,7 @@ def valid_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for valid SMILES checking."""
     return MolecularVerifier(
         MolecularVerifierConfigModel(
+            parsing_method="answer_tags",
             reward="valid_smiles",
             generation_verifier_config=GenerationVerifierConfigModel(
                 path_to_mappings=data_path
@@ -45,6 +46,7 @@ def property_scorer(data_path: str) -> MolecularVerifier:
     """Create a RewardScorer for property scoring without rescaling."""
     return MolecularVerifier(
         MolecularVerifierConfigModel(
+            parsing_method="answer_tags",
             reward="property",
             generation_verifier_config=GenerationVerifierConfigModel(
                 path_to_mappings=data_path
@@ -87,7 +89,9 @@ class TestValidSmiles:
     ) -> None:
         """Test that valid SMILES return non-zero reward."""
         valid_smiles = "CCC"
-        completions = [f"Here is a molecule: <answer> {valid_smiles} </answer>"]
+        completions = [
+            f"Here is a molecule: <answer> \\boxed{{ {valid_smiles} }} </answer>"
+        ]
 
         rewards = np.array(
             valid_scorer(

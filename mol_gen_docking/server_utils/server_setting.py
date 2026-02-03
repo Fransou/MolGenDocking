@@ -103,7 +103,7 @@ class MolecularVerifierServerSettings(BaseSettings):
     vina_mode: str = "autodock_gpu_256wi"
     data_path: str = "data/molgendata"
     buffer_time: int = 20
-    parsing_method: Literal["none", "answer_tags", "boxed"] = "boxed"
+    parsing_method: Literal["none", "answer_tags", "boxed"] = "answer_tags"
 
     def __post_init__(self) -> None:
         """Validate all settings after initialization.

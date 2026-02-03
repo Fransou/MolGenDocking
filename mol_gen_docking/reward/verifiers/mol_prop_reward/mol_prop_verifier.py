@@ -422,15 +422,21 @@ class MolPropVerifier(Verifier):
                     else:
                         extracted = None
                     verifier_metadatas.append(
-                        MolPropVerifierMetadataModel(extracted_answer=extracted)
+                        MolPropVerifierMetadataModel(
+                            extracted_answer=extracted, extraction_success=True
+                        )
                     )
                 except ValueError:
                     verifier_metadatas.append(
-                        MolPropVerifierMetadataModel(extracted_answer=None)
+                        MolPropVerifierMetadataModel(
+                            extracted_answer=-10000.0, extraction_success=False
+                        )
                     )
             else:
                 verifier_metadatas.append(
-                    MolPropVerifierMetadataModel(extracted_answer=None)
+                    MolPropVerifierMetadataModel(
+                        extracted_answer=-10000.0, extraction_success=False
+                    )
                 )
 
         if self.verifier_config.reward == "valid_smiles":
@@ -446,7 +452,7 @@ class MolPropVerifier(Verifier):
 
         rewards = []
         for meta, verifier_meta in zip(metadatas, verifier_metadatas):
-            if verifier_meta.extracted_answer is None:
+            if not verifier_meta.extraction_success:
                 rewards.append(0.0)
             else:
                 if meta.objectives[0] == "regression":
