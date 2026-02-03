@@ -472,7 +472,7 @@ class GenerationVerifier(Verifier):
                 self.logger.warning(
                     f"Warning: Reward is None or NaN for completion id {id_completion} with smiles {smiles}\n"
                 )
-                reward = 0
+                reward = 0.0
             if len(smiles) > 1:
                 reward = 0.0
 

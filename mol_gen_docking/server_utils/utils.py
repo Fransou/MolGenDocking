@@ -1,6 +1,7 @@
+import math
 from typing import Any, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class MolecularVerifierServerQuery(BaseModel):
@@ -141,3 +142,31 @@ class MolecularVerifierServerResponse(BaseModel):
     error: Optional[str] = None
     meta: List[MolecularVerifierServerMetadata] = []
     next_turn_feedback: Optional[str] = None
+
+    @field_validator("reward")  # type: ignore
+    @classmethod
+    def validate_reward(cls, v: Any) -> float:
+        """Validate and normalize reward value.
+
+        If reward is None or NaN, sets it to 0.0.
+        Ensures reward is a valid float.
+
+        Args:
+            v: The reward value to validate
+
+        Returns:
+            The validated reward value (float), or 0.0 if None/NaN
+
+        Raises:
+            ValueError: If reward is not a valid numeric type
+        """
+        # Handle None case
+        if v is None:
+            return 0.0
+        # Handle NaN case
+        if math.isnan(float(v)):
+            return 0.0
+        # Check if it's a numeric type
+        if not isinstance(v, (int, float)):
+            raise ValueError(f"reward must be a float, got {type(v).__name__}")
+        return float(v)
