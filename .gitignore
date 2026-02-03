@@ -178,14 +178,17 @@ SFT*
 /data/synthesis
 /data/synthesis_eval
 /data/analog_gen
+/data/property_prediction
 /data/molgendata/pdb_files
 /data/molgendata/eval_data
 /data/molgendata/test_data
-/data/molgendata/train_prompts
-/data/molgendata/train_prompts.jsonl
+/data/molgendata/train_data
 /data/*.tar.gz
 /data/*.zip
 /data/*.tab
+
+/mol_gen_docking/dataset/generate_prompts.ipynb
+/notebooks/others/*.csv
 
 /MolGenOutput
 

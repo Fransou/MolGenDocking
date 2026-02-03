@@ -26,10 +26,6 @@ class ReactionVerifierInputMetadataModel(BaseModel):
         ...,
         description="The type of objective for the reaction verification.",
     )
-    impossible: bool = Field(
-        default=False,
-        description="Whether the reaction is supposed impossible.",
-    )
     target: List[str] = Field(
         default_factory=list,
         description="The target molecule or SMARTS string for verification.",
@@ -46,12 +42,20 @@ class ReactionVerifierInputMetadataModel(BaseModel):
         None,
         description="List of valid building blocks for the reaction.",
     )
-    smarts: List[str] | None = Field(
-        None,
+    smarts: List[str] = Field(
+        ...,
         description="Reference SMARTS strings for the reaction steps.",
+    )
+    or_smarts: List[str] = Field(
+        ...,
+        description="Original Reference SMARTS strings for the reaction steps.",
     )
     n_steps_max: int = Field(
         default=5,
         gt=0,
         description="Maximum number of reaction steps allowed in the synthesis route.",
+    )
+    idx_chosen: int = Field(
+        ...,
+        description="Index of the chosen reaction.",
     )

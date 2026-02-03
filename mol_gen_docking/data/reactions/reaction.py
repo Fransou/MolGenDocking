@@ -97,7 +97,32 @@ class Reaction:
     @cached_property
     def product_templates(self) -> tuple[Template, ...]:
         product_smarts = self.smarts.split(">")[2].split(".")
-        return tuple(Template(s) for s in product_smarts)
+
+        # verify parenthesis
+        def update_parenthesis(s: str) -> str:
+            if not s[0] == "(" and not s[-1] == ")":
+                return s
+            open_p = s.count("(")
+            close_p = s.count(")")
+            if s[0] == "(" and open_p > close_p:
+                s = s[1:]
+                open_p -= 1
+            if s[-1] == ")" and close_p > open_p:
+                s = s[:-1]
+                close_p -= 1
+            return s
+
+        return tuple(Template(update_parenthesis(s)) for s in product_smarts)
+
+    def match_product_templates(self, mol: Molecule) -> bool:
+        for i, template in enumerate(self.product_templates):
+            try:
+                template.match(mol)
+            except Exception as e:
+                print(e)
+            if template.match(mol):
+                return True
+        return False
 
     def is_reactant(self, mol: Molecule) -> bool:
         isreac = self._reaction.IsMoleculeReactant(mol._rdmol)
@@ -152,4 +177,12 @@ class ReactionContainer(Sequence[Reaction]):
             m = rxn.match_reactant_templates(mol)
             if len(m) > 0:
                 matched[i] = m
+        return matched
+
+    def match_product_reactions(self, mol: Molecule) -> list[int]:
+        matched = []
+        for i, rxn in enumerate(self._reactions):
+            if rxn.match_product_templates(mol):
+                matched.append(i)
+
         return matched
