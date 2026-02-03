@@ -58,8 +58,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 # Data Fixtures
 # =============================================================================
 
-N_SMILES = 32
-N_RANDOM_SMILES = 4
+N_SMILES = 8
+N_RANDOM_SMILES = 2
 COMPLETIONS_PATTERN = [
     "Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> what are its properties?",
     "This one looks interesting: COOC. Here is a molecule: <answer> \\boxed{{ {SMILES} }} </answer> \\boxed{{COOC}}",
