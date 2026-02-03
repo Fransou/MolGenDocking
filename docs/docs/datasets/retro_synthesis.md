@@ -178,15 +178,6 @@ We created nine distinct objective templates to train models on complementary sy
 
 </div>
 
-### Negative Samples
-
-To prevent trivial memorization, approximately **10% of prompts** are converted to negative samples by:
-
-- Swapping the answer(s) with incorrect alternatives from the full dataset
-- For multi-step paths, replacing the reaction SMARTS or building blocks with incompatible alternatives
-- Maintaining the same prompt format to create balanced classification challenges
-
-Samples marked as "impossible" during training allow models to learn when synthesis is infeasible.
 
 ---
 
@@ -200,9 +191,9 @@ The reward functions for chemical reaction tasks are designed to progressively g
 
     ---
 
-    $$R = \frac{\mathbb{1}_{pred = ref} + \text{IoU}(pred, ref)}{2}$$
+    $$R = \begin{cases} 1 & \text{if prediction is correct} \\ 0 & \text{otherwise} \end{cases}$$
 
-    Combines exact match with Intersection over Union between predicted and ground truth molecule lists.
+    Evaluates correctness by verifying if using the predicted reactants/products in the reaction yields the expected product/reactants.
 
 -   :material-code-braces:{ .lg .middle } __SMARTS Prediction__
 
@@ -241,7 +232,7 @@ Following established methodology, we evaluate on **real-world synthesis predict
 For each molecule, we either:
 
 1. Directly prompt the model to predict the synthesis route
-2. Provide the **top-20 most structurally similar building blocks** to assist the prediction
+2. Using an heuristic to identify the building blocks to use (by using their similarity to the target molecule and their ability to be used in different reactions).
 
 ### Evaluation Metrics
 

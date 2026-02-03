@@ -29,7 +29,7 @@ class MolecularVerifierServerSettings(BaseSettings):
             Default: 8
 
         scorer_ncpus (int): Number of CPU cores to allocate for scoring operations.
-            Must be compatible with exhaustiveness and max_concurrent_requests.
+            Must be compatible with exhaustiveness.
             Default: 8
 
         docking_concurrency_per_gpu (int): Number of concurrent docking jobs per GPU.
@@ -61,9 +61,10 @@ class MolecularVerifierServerSettings(BaseSettings):
             Default: 20
 
         parsing_method: Method to parse model completions:
+
             - "none": No parsing, use full completion (not recommended, risks of ambiguity in the answer extraction)
-            - "answer_tags": Extract content within <answer>...</answer> tags
-            - "boxed": Extract content within answer tags and boxed in the '\boxed{...}' LaTeX command
+            - "answer_tags": Extract content within special tags
+            - "boxed": Extract content within answer tags and boxed in the '\\boxed{...}' LaTeX command
 
     Example:
         ```python
@@ -102,7 +103,7 @@ class MolecularVerifierServerSettings(BaseSettings):
     vina_mode: str = "autodock_gpu_256wi"
     data_path: str = "data/molgendata"
     buffer_time: int = 20
-    parsing_method: Literal["none", "answer_tags", "boxed"] = "answer_tags"
+    parsing_method: Literal["none", "answer_tags", "boxed"] = "boxed"
 
     def __post_init__(self) -> None:
         """Validate all settings after initialization.
@@ -116,21 +117,11 @@ class MolecularVerifierServerSettings(BaseSettings):
 
                 - scorer_exhaustiveness > 0
                 - scorer_ncpus > 0
-                - max_concurrent_requests > 0
-                - scorer_ncpus == scorer_exhaustiveness * max_concurrent_requests
                 - docking_concurrency_per_gpu > 0
                 - reaction_matrix_path file exists
-
-        Note:
-            The constraint scorer_ncpus == scorer_exhaustiveness * max_concurrent_requests
-            ensures that CPU allocation matches the docking configuration.
-            For example, with exhaustiveness=8 and max_concurrent=16, you need 128 CPUs.
         """
         assert self.scorer_exhaustiveness > 0, "Exhaustiveness must be greater than 0"
         assert self.scorer_ncpus > 0, "Number of CPUs must be greater than 0"
-        assert self.max_concurrent_requests > 0, (
-            "Max concurrent requests must be greater than 0"
-        )
 
         assert Path(self.reaction_matrix_path).exists(), (
             f"Reaction matrix file {self.reaction_matrix_path} does not exist"
@@ -148,6 +139,7 @@ class MolecularVerifierServerSettings(BaseSettings):
 
         Args:
             reward (Literal["property", "valid_smiles"]): Type of reward to compute.
+
                 - "property": Use property-based rewards for molecular optimization.
                   Evaluates predicted property values against target objectives.
                 - "valid_smiles": Use validity-based rewards. Returns 1.0 for valid

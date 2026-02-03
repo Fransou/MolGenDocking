@@ -152,8 +152,11 @@ class ReactionVerifier(Verifier):
     ) -> float:
         """Compute reward for molecule prediction tasks.
 
+        Notes
+        The answer must be contained in a JSON object with an "answer" key, which can be either a single SMILES string or a list of SMILES strings.
+
         Args:
-            completion: Model completion containing the answer.
+            answer: Model completion containing the answer.
             labels: List of ground truth SMILES strings.
             reactants: List of reactant SMILES strings.
             product: Expected product SMILES string.
@@ -199,8 +202,15 @@ class ReactionVerifier(Verifier):
     ) -> Tuple[float, Dict[str, Any]]:
         """Compute reward for SMARTS prediction tasks.
 
+        Notes
+        The answer must be contained in a JSON object with an "answer" key,
+        which should be a SMARTS string representing the reaction. The reward is computed based
+        on whether the proposed SMARTS can produce the expected product from the given reactants.
+        A reward of 1.0 is given for an exact match with the ground truth SMARTS, 0.1 if the SMARTS
+        is valid and produces the correct product, and 0.0 otherwise.
+
         Args:
-            completion: Model completion containing the SMARTS answer.
+            answer: Model completion containing the SMARTS answer.
             labels: List containing the ground truth SMARTS string.
             reactants: List of reactant SMILES strings.
             product: Expected product SMILES string.
@@ -292,6 +302,7 @@ class ReactionVerifier(Verifier):
         allowed_smarts: ReactionContainer,
     ) -> Tuple[bool, str]:
         """Check if a synthesis step is valid.
+        Used in the reward_run_path method to validate each step of the proposed synthesis path.
 
         Validates that:
         1. All reactants and products are valid molecules
@@ -369,8 +380,15 @@ class ReactionVerifier(Verifier):
         2. Each reaction step has a valid SMARTS pattern
         3. The final product matches the target (exactly or by Tanimoto similarity)
 
+        Notes
+        The answer must be contained in a JSON object with an "answer" key,
+        which should contain a list of steps: Dictionaries containing the keys:
+
+            - reactants: List of reactant SMILES strings for this step
+            - product: List of product SMILES strings for this step
+
         Args:
-            completion: Model completion containing the synthesis path.
+            answer: Model completion containing the synthesis path.
             label: Target product SMILES string.
             building_blocks: List of valid starting building block SMILES.
             smarts: List of allowed SMARTS patterns (empty = use reaction matrix).
@@ -379,11 +397,6 @@ class ReactionVerifier(Verifier):
 
         Returns:
             Tuple of (reward, metadata_dict) containing validation results.
-
-        Notes:
-            - Path format: "reactant1 + reactant2 -> product" per line
-            - Reward is scaled by (n_valid/n_total)^2 for partial paths
-            - Tanimoto similarity is cubed (sim^3) for reward scaling
         """
         if answer == {}:
             self.logger.info("No synthesis path found in completion")

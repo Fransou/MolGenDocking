@@ -94,7 +94,7 @@ class MolecularVerifierConfigModel(BaseModel):
     """
 
     parsing_method: Literal["none", "answer_tags", "boxed"] = Field(
-        default="answer_tags",
+        default="boxed",
         description="Method to parse model completions for SMILES or property values.",
     )
     reward: Literal["valid_smiles", "property"] = Field(
