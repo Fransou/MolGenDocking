@@ -20,7 +20,7 @@ HF datasets are also available, but do not include the metadatas necessary for t
 ```bash
 # Extract tarball datasets
 tar -xzf molgendata.tar.gz
-tar -xzf property_predictions.tar.gz
+tar -xzf property_prediction.tar.gz
 tar -xzf synthesis_tasks.tar.gz
 ```
 !!! warning
@@ -54,7 +54,7 @@ tar -xzf synthesis_tasks.tar.gz
 === "Retro-Synthesis Data"
     ```plaintext
     synthesis_tasks/                 # Multi-task benchmarks
-    ├── train_prompts.jsonl.jsonl
+    ├── train_prompts.jsonl
     └── eval_prompts
         └── eval_prompts_[chembl/enamine]_[#building blocks].jsonl
     ```

@@ -123,7 +123,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--n_bb_retry",
         type=int,
-        default=5,
+        default=100,
     )
 
     args = parser.parse_args()

@@ -109,6 +109,7 @@ class TestRegression:
         elif property_scorer.verifier_config.parsing_method == "boxed":
             completions = [
                 "<answer> Here is an answer: 128.3 \\boxed{{ {} }} </answer>".format(v)
+                + "\\boxed{123111315}"
                 for v in val_strs
             ]
         else:

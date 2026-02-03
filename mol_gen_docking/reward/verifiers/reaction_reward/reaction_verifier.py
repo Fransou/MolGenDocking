@@ -429,7 +429,7 @@ class ReactionVerifier(Verifier):
                     "correct_product": 0.0,
                     "correct_reactant": False,
                 }
-            if not isinstance(step["reactant"], list) or not all(
+            if not isinstance(step["reactants"], list) or not all(
                 isinstance(r, str) for r in step["reactants"]
             ):
                 self.logger.info("One or more reactants in step are not strings")

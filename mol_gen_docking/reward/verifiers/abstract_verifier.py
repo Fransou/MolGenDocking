@@ -108,7 +108,7 @@ class Verifier:
         if self.verifier_config.parsing_method == "answer_tags":
             return tags_extraction
         elif self.verifier_config.parsing_method == "boxed":
-            boxed_extraction = self.parse_boxed(completion)
+            boxed_extraction = self.parse_boxed(tags_extraction)
             return boxed_extraction
         else:
             raise ValueError(

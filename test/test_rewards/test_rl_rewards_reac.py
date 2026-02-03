@@ -93,14 +93,13 @@ class TestReaction:
         metadata = reaction_dataset_line.conversations[0].meta
         target = metadata["target"]
         if metadata["objectives"][0].startswith("full_path"):
-            return
             reactants = metadata["reactants"]
             products = metadata["products"]
-            real = {"answer": []}
+            real: dict[str, Any] = {"answer": []}
             for i, (r, p) in enumerate(zip(reactants, products)):
                 real["answer"].append({"step": i + 1, "reactants": r, "product": [p]})
 
-            fake = {"answer": []}
+            fake: dict[str, Any] = {"answer": []}
             for i, (r, p) in enumerate(zip(reactants, products)):
                 fake["answer"].append(
                     {
@@ -110,7 +109,7 @@ class TestReaction:
                     }
                 )
 
-            fake2 = {"answer": []}
+            fake2: dict[str, Any] = {"answer": []}
             for i, (r, p) in enumerate(zip(reactants, products)):
                 fake2["answer"].append(
                     {
@@ -119,7 +118,7 @@ class TestReaction:
                         "product": [properties_csv.smiles.sample(1).values[0]],
                     }
                 )
-            fake3 = {"answer": []}
+            fake3: dict[str, Any] = {"answer": []}
             for i, (r, p) in enumerate(zip(reactants, products)):
                 fake3["answer"].append(
                     {

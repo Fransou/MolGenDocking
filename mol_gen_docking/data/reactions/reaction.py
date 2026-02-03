@@ -116,10 +116,6 @@ class Reaction:
 
     def match_product_templates(self, mol: Molecule) -> bool:
         for i, template in enumerate(self.product_templates):
-            try:
-                template.match(mol)
-            except Exception as e:
-                print(e)
             if template.match(mol):
                 return True
         return False
