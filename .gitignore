@@ -177,6 +177,7 @@ SFT*
 /data/synflownet
 /data/synthesis
 /data/synthesis_eval
+/data/synthesis_tasks
 /data/analog_gen
 /data/property_prediction
 /data/molgendata/pdb_files

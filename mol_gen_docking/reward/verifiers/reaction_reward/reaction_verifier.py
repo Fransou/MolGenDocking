@@ -466,9 +466,9 @@ class ReactionVerifier(Verifier):
             reactions = ReactionContainer([Reaction(sma) for sma in smarts])
 
         if building_blocks == []:
-            building_blocks_mol = self.reactants_csi
+            building_blocks_csi = self.reactants_csi
         else:
-            building_blocks_mol = [Molecule(smi).csmiles for smi in building_blocks]
+            building_blocks_csi = [Molecule(smi).csmiles for smi in building_blocks]
 
         n_valid = 0
         fail_reason = ""
@@ -476,7 +476,7 @@ class ReactionVerifier(Verifier):
             is_valid, fail_reason = self._check_valid_step(
                 reactant,
                 product,
-                building_blocks_mol
+                building_blocks_csi
                 + [p.csmiles for step in products[:i_reac] for p in step],
                 reactions,
             )

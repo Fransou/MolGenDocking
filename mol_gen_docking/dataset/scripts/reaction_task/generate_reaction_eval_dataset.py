@@ -138,7 +138,7 @@ def update_data_dict(
     data_dict["objectives"].append([prop])
     data_dict["target"].append([smi])
     data_dict["prompt_id"].append(
-        f"{args.data_json.split('/')[-1].replace('.json', '')}:{i}"
+        f"{args.data_json.split('/')[-1].replace('.json', '')}:{args.n_bb_max}:{i}"
     )
     data_dict["full_reaction"].append("")
     data_dict["smarts"].append([])
