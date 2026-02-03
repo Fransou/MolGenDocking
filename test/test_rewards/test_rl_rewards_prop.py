@@ -40,6 +40,13 @@ def property_scorer_mixed(data_path: str) -> MolecularVerifier:
     )
 
 
+@pytest.fixture(scope="module", params=[0.01, 0.1, 1, 10, 100])  # type: ignore
+def scale(request: pytest.FixtureRequest) -> int:
+    """Scale factor for regression tests."""
+    out: int = request.param
+    return out
+
+
 # =============================================================================
 # Regression Tests
 # =============================================================================
@@ -50,21 +57,21 @@ class TestRegression:
 
     def create_scientific_notation(self, value: float) -> list[str]:
         return [
-            f"{value / 10**exp}{notation}{exp}"
+            f"{value / 10**exp:f}{notation}{exp}"
             for exp in [-2, -1, 0, 1, 2]
             for notation in ["e", "E"]
         ]
 
     def create_latex_notation(self, value: float) -> list[str]:
         return [
-            rf"{value / 10**exp} {mult} 10^{exp}".format(value / (10**exp), exp)
+            rf"{value / 10**exp:f} {mult} 10^{exp}".format(value / (10**exp), exp)
             for exp in [-2, -1, 0, 1, 2]
             for mult in [r"\times", "×"]
         ]
 
     def create_html_notation(self, value: float) -> list[str]:
         return [
-            f"{value / 10**exp} x 10<sup>{exp}</sup>".format(value / (10**exp), exp)
+            f"{value / 10**exp:f} x 10<sup>{exp}</sup>".format(value / (10**exp), exp)
             for exp in [-2, -1, 0, 1, 2]
         ]
 
@@ -79,9 +86,11 @@ class TestRegression:
         return [f"{value - 0.1 * value} - {value + 0.1 * value}"]
 
     @pytest.mark.parametrize("style", ["scientific", "latex", "html", "pm", "range"])  # type: ignore
-    def test_regression(self, property_scorer: MolecularVerifier, style: str) -> None:
+    def test_regression(
+        self, property_scorer: MolecularVerifier, scale: int, style: str
+    ) -> None:
         """Test that regression rewards are properly ordered by value."""
-        target: float = np.random.random()
+        target: float = np.random.random() / scale
         values = [
             v * np.sign(np.random.random() - 0.5) + target for v in [0, 0.01, 0.5, 1]
         ]
@@ -126,7 +135,7 @@ class TestRegression:
             for i in range(0, len(verif_metadata), n_repets)
         ]
         for ext_ans, expected_val in zip(extracted_answers, values):
-            assert all(np.isclose(ext, expected_val, rtol=1e-3) for ext in ext_ans), (
+            assert all(np.isclose(ext, expected_val, atol=1e-3) for ext in ext_ans), (
                 f"extracted: {ext_ans}, expected: {expected_val}"
             )
 

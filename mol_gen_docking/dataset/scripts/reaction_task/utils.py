@@ -151,7 +151,7 @@ class ReactionTaskSampler:
     def get_smarts(self, or_smarts: List[str], prop: str) -> List[str]:
         if prop not in ["full_path_smarts_ref", "full_path_smarts_bb_ref"]:
             return or_smarts
-        assert self.args.n_smarts_max > len(or_smarts) * 2, (
+        assert self.args.n_smarts_max >= len(or_smarts) * 2, (
             f"n_smarts_max {self.args.n_smarts_max} too small for or_smarts length {len(or_smarts)}"
         )
 
