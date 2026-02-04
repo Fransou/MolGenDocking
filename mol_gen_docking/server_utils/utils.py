@@ -49,50 +49,52 @@ class MolecularVerifierServerQuery(BaseModel):
 class MolecularVerifierServerMetadata(BaseModel):
     """Metadata returned with each scored molecule.
 
-    Contains detailed information about the scoring result, including
-    extracted SMILES, rewards for individual properties, and task-specific
-    verification results.
+    Aggregates detailed scoring information from all verifier types (Generation,
+    Molecular Property, and Reaction). Each field may be populated or empty
+    depending on which verifier was used.
 
     Attributes:
+    **Generation Verifier Fields:**
         smiles_extraction_failure: Error message if SMILES extraction failed.
-            None if extraction was successful.
-
+            Empty string if extraction was successful.
         all_smi: List of all valid SMILES strings extracted from the completion.
-
         all_smi_rewards: List of reward values corresponding to each SMILES.
-
         individual_rewards: List of individual reward values for each property
             evaluated on the first SMILES.
-
         properties: List of property names that were evaluated.
 
-        extracted_answer: Extracted answer text from property prediction tasks.
+    **Molecular Property Verifier Fields:**
+        extracted_answer: Extracted numerical answer from property prediction tasks.
+            Default to 0.0 if not applicable.
+        extraction_success: Whether a property prediction value was successfully
+            extracted from the completion.
 
-        valid: Validity score for reaction predictions.
-            Range: [0.0, 1.0]
-
-        correct_product: Whether the product matches expected output
-            in reaction tasks. For synthesis tasks with tanimoto similarity,
-            this is the similarity score to the target molecule.
-
-        correct_reactant: Whether all reactants are from the allowed
-            building blocks in reaction synthesis tasks.
+    **Reaction Verifier Fields:**
+        valid: Validity score for reaction predictions. Range: [0.0, 1.0].
+            For synthesis route prediction, represents the proportion of valid
+            reaction steps.
+        correct_product: Whether the product matches expected output.
+            For synthesis tasks with tanimoto similarity, this is the similarity
+            score to the target molecule (range [0.0, 1.0]).
+        correct_reactant: Whether all reactants/building blocks are valid or
+            from the allowed set in reaction synthesis tasks.
     """
 
     # Generation Verifier Fields
-    smiles_extraction_failure: Optional[str] = None
-    all_smi_rewards: Optional[List[float]] = None
-    all_smi: Optional[List[str]] = None
-    individual_rewards: Optional[List[float]] = None
-    properties: Optional[List[str]] = None
+    smiles_extraction_failure: str = ""
+    all_smi_rewards: List[float] = []
+    all_smi: List[str] = []
+    individual_rewards: List[float] = []
+    properties: List[str] = []
 
     # Molecular Property Verifier Fields
-    extracted_answer: Optional[float | int] = None
+    extracted_answer: float = 0.0
+    extraction_success: bool = False
 
     # Reaction Verifier Fields
-    valid: Optional[float] = None
-    correct_product: Optional[float] = None
-    correct_reactant: Optional[bool] = None
+    valid: float = 0.0
+    correct_product: float = 0.0
+    correct_reactant: Optional[bool] = False
 
 
 class MolecularVerifierServerResponse(BaseModel):
