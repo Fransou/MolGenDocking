@@ -23,6 +23,11 @@ class MolecularVerifierServerSettings(BaseSettings):
     validation of settings and conversion to verifier config models.
 
     Attributes:
+        server_mode (Literal["singleton", "batch"]): Server operation mode.
+
+            - "singleton": Handles one request at a time.
+            - "batch": Accepts multiple concurrent requests for batch processing.
+            Default: "singleton"
         scorer_exhaustiveness (int): Exhaustiveness parameter for docking scoring.
             Controls the thoroughness of the docking search. Higher values increase
             accuracy but require more computation time.
@@ -84,6 +89,7 @@ class MolecularVerifierServerSettings(BaseSettings):
     Environment Variables:
         Settings can be configured via environment variables (non-case sensitive) names:
 
+        - SERVER_MODE
         - SCORER_EXHAUSTIVENESS
         - SCORER_NCPUS
         - DOCKING_CONCURRENCY_PER_GPU
@@ -95,6 +101,7 @@ class MolecularVerifierServerSettings(BaseSettings):
         - PARSING_METHODS
     """
 
+    server_mode: Literal["singleton", "batch"] = "singleton"
     scorer_exhaustiveness: int = 8
     scorer_ncpus: int = 8
     docking_concurrency_per_gpu: int = 2

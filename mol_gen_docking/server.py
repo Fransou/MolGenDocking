@@ -55,7 +55,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Initializing socket")
     app.state.reward_buffer = RewardBuffer(
-        app, buffer_time=server_settings.buffer_time, max_batch_size=1000000000
+        app,
+        buffer_time=server_settings.buffer_time,
+        max_batch_size=1000000000,
+        server_mode=server_settings.server_mode,
     )
 
     app.state.reward_model = get_or_create_reward_actor()
@@ -85,6 +88,13 @@ def create_app() -> FastAPI:
     async def get_reward(
         query: MolecularVerifierServerQuery,
     ) -> MolecularVerifierServerResponse:
+        if server_settings.server_mode == "singleton":
+            # Ensures the query does not contain multiple items
+            if len(query.metadata) != 1:
+                return MolecularVerifierServerResponse(
+                    error="Singleton mode only supports single query items."
+                )
+
         t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
