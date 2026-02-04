@@ -1,7 +1,7 @@
 import math
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class MolecularVerifierServerQuery(BaseModel):
@@ -68,9 +68,15 @@ class MolecularVerifierServerQuery(BaseModel):
     ```
     """
 
-    metadata: List[dict[str, Any]]
-    query: List[str]
-    prompts: Optional[List[str]] = None
+    metadata: List[dict[str, Any]] = Field(
+        ..., description="List of metadata dictionaries, one per query item."
+    )
+    query: List[str] = Field(
+        ..., description="List of completion strings from the language model."
+    )
+    prompts: Optional[List[str]] = Field(
+        None, description="Original prompts used to generate the completions."
+    )
 
     @field_validator("metadata", "query", "prompts", mode="before")  # type: ignore
     @classmethod
@@ -92,6 +98,30 @@ class MolecularVerifierServerQuery(BaseModel):
         if not isinstance(v, list):
             return [v]
         return v
+
+    @model_validator(mode="after")  # type: ignore
+    def validate_equal_lengths(self) -> "MolecularVerifierServerQuery":
+        """Validate that all fields have equal length.
+
+        Ensures that metadata, query, and prompts lists all have the same length.
+        This validator runs after all fields have been set and converted.
+
+        Returns:
+            The validated instance
+
+        Raises:
+            ValueError: If field lengths are not equal
+        """
+        # Extract lengths of non-None fields
+        lengths = {}
+        lengths["metadata"] = len(self.metadata)
+        lengths["query"] = len(self.query)
+        if self.prompts is not None:
+            lengths["prompts"] = len(self.prompts)
+        unique_lengths = set(lengths.values())
+        if len(unique_lengths) > 1:
+            raise ValueError(f"All query fields must have equal length. Got: {lengths}")
+        return self
 
 
 class MolecularVerifierServerMetadata(BaseModel):
@@ -124,20 +154,43 @@ class MolecularVerifierServerMetadata(BaseModel):
     """
 
     # Generation Verifier Fields
-    smiles_extraction_failure: str = ""
-    all_smi_rewards: List[float] = []
-    all_smi: List[str] = []
-    individual_rewards: List[float] = []
-    properties: List[str] = []
+    smiles_extraction_failure: str = Field(
+        default="", description="Error message if SMILES extraction failed."
+    )
+    all_smi_rewards: List[float] = Field(
+        default_factory=list, description="List of reward values for each SMILES."
+    )
+    all_smi: List[str] = Field(
+        default_factory=list, description="List of all valid SMILES strings extracted."
+    )
+    individual_rewards: List[float] = Field(
+        default_factory=list, description="Individual reward values for each property."
+    )
+    properties: List[str] = Field(
+        default_factory=list, description="List of property names evaluated."
+    )
 
     # Molecular Property Verifier Fields
-    extracted_answer: float = 0.0
-    extraction_success: bool = False
+    extracted_answer: float = Field(
+        default=0.0,
+        description="Extracted numerical answer from property prediction tasks.",
+    )
+    extraction_success: bool = Field(
+        default=False,
+        description="Whether property prediction value was successfully extracted.",
+    )
 
     # Reaction Verifier Fields
-    valid: float = 0.0
-    correct_product: float = 0.0
-    correct_reactant: Optional[bool] = False
+    valid: float = Field(
+        default=0.0, description="Validity score for reaction predictions (0.0-1.0)."
+    )
+    correct_product: float = Field(
+        default=0.0,
+        description="Whether product matches expected output or similarity score.",
+    )
+    correct_reactant: Optional[bool] = Field(
+        default=None, description="Whether reactants/building blocks are valid."
+    )
 
 
 class MolecularVerifierServerResponse(BaseModel):
@@ -182,11 +235,17 @@ class MolecularVerifierServerResponse(BaseModel):
         ```
     """
 
-    reward: float
-    reward_list: List[float]
-    error: Optional[str] = None
-    meta: List[MolecularVerifierServerMetadata] = []
-    next_turn_feedback: Optional[str] = None
+    reward: float = Field(
+        ..., description="Overall reward score combining all evaluated properties."
+    )
+    error: Optional[str] = Field(None, description="Error message if scoring failed.")
+    meta: List[MolecularVerifierServerMetadata] = Field(
+        default_factory=list,
+        description="List of metadata with detailed scoring information.",
+    )
+    next_turn_feedback: Optional[str] = Field(
+        None, description="Optional feedback for multi-turn conversations."
+    )
 
     @field_validator("reward")  # type: ignore
     @classmethod
