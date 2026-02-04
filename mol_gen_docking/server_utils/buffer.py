@@ -101,13 +101,20 @@ class RewardBuffer:
                 - prompts: Optional list of original prompts for tracking
 
         Returns:
-            MolecularVerifierServerResponse: A response containing:
+            MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse:
+                Response type depends on server_mode:
 
-                - reward: Overall averaged reward score
-                - reward_list: Individual rewards for each completion
-                - error: Error message if scoring failed
-                - meta: List of detailed metadata from each verifier
-                The exact response is determined by _process_batch.
+                - In "singleton" mode: MolecularVerifierServerResponse containing:
+                    - reward: Single reward score
+                    - meta: Single metadata object with detailed scoring information
+                    - error: Error message if scoring failed
+                    - next_turn_feedback: Optional feedback for multi-turn conversations
+
+                - In "batch" mode: BatchMolecularVerifierServerResponse containing:
+                    - rewards: List of individual reward scores (one per completion)
+                    - metas: List of metadata objects (one per completion)
+                    - error: Error message if scoring failed
+                    - next_turn_feedback: Optional feedback for multi-turn conversations
 
         Raises:
             Exception: Any exception raised during queueing or during result

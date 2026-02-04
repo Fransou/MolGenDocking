@@ -106,22 +106,23 @@ def create_app() -> FastAPI:
         )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
-        if result.meta is not None and len(result.meta) == 1:
-            if (
-                result.meta[0].all_smi_rewards is not None
-                and result.meta[0].all_smi is not None
-            ):
-                result.next_turn_feedback = (
-                    "The score of the provided molecules are:\n"
-                    + "\n".join(
-                        [
-                            f"{smi}: {score:.4f}"
-                            for smi, score in zip(
-                                result.meta[0].all_smi, result.meta[0].all_smi_rewards
-                            )
-                        ]
+        if server_settings.server_mode == "singleton":
+            if result.meta is not None:
+                if (
+                    len(result.meta.all_smi_rewards) > 0
+                    and len(result.meta.all_smi) > 0
+                ):
+                    result.next_turn_feedback = (
+                        "The score of the provided molecules are:\n"
+                        + "\n".join(
+                            [
+                                f"{smi}: {score:.3f}"
+                                for smi, score in zip(
+                                    result.meta.all_smi, result.meta.all_smi_rewards
+                                )
+                            ]
+                        )
                     )
-                )
         return result
 
     @app.post("/prepare_receptor")  # type: ignore
