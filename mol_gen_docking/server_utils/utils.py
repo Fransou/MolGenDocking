@@ -24,7 +24,7 @@ class MolecularVerifierServerQuery(BaseModel):
             Useful for tracking and debugging. If provided, should have
             same length as query list.
 
-    Notes
+    Notes:
     This model also supports single-item requests not in list form.
     For example:
     ```json
@@ -194,23 +194,20 @@ class MolecularVerifierServerMetadata(BaseModel):
 
 
 class MolecularVerifierServerResponse(BaseModel):
-    """Response from the Molecular Verifier server.
+    """Response from the Molecular Verifier server for a single query.
 
-    Contains the computed reward scores and detailed metadata for each
+    Contains the computed reward score and detailed metadata for a single
     evaluated completion.
 
     Attributes:
         reward: Overall reward score combining all evaluated properties.
             Typically normalized to [0.0, 1.0] range when rescaling is enabled.
 
-        reward_list: List of individual reward scores, one per evaluated
-            completion in the request (for batch processing).
-
         error: Error message if scoring failed. None if successful.
 
-        meta: List of metadata dictionaries with detailed scoring information.
+        meta: Metadata dictionary with detailed scoring information.
             Contains extraction failures, property rewards, and verification
-            results for each completion. One metadata object per query item.
+            results for the completion.
 
         next_turn_feedback: Optional feedback for multi-turn conversations.
             Can be used to guide subsequent model generations.
@@ -219,17 +216,19 @@ class MolecularVerifierServerResponse(BaseModel):
         ```json
         {
           "reward": 0.75,
-          "reward_list": [0.75],
           "error": null,
-          "meta": [
-            {
-              "smiles_extraction_failure": null,
+          "meta": {
+              "smiles_extraction_failure": "",
               "all_smi": ["CC(C)Cc1ccc(cc1)"],
               "all_smi_rewards": [0.75],
               "properties": ["GSK3B", "CalcLogP"],
-              "individual_rewards": [1.0, 0.5]
-            }
-          ],
+              "individual_rewards": [1.0, 0.5],
+              "extracted_answer": 0.0,
+              "extraction_success": false,
+              "valid": 0.0,
+              "correct_product": 0.0,
+              "correct_reactant": null
+            },
           "next_turn_feedback": null
         }
         ```
@@ -239,9 +238,9 @@ class MolecularVerifierServerResponse(BaseModel):
         ..., description="Overall reward score combining all evaluated properties."
     )
     error: Optional[str] = Field(None, description="Error message if scoring failed.")
-    meta: List[MolecularVerifierServerMetadata] = Field(
-        default_factory=list,
-        description="List of metadata with detailed scoring information.",
+    meta: MolecularVerifierServerMetadata = Field(
+        default_factory=MolecularVerifierServerMetadata,
+        description="Metadata dictionary with detailed scoring information.",
     )
     next_turn_feedback: Optional[str] = Field(
         None, description="Optional feedback for multi-turn conversations."
@@ -274,3 +273,87 @@ class MolecularVerifierServerResponse(BaseModel):
         if not isinstance(v, (int, float)):
             raise ValueError(f"reward must be a float, got {type(v).__name__}")
         return float(v)
+
+
+class BatchMolecularVerifierServerResponse(BaseModel):
+    """Response from the Molecular Verifier server.
+
+    Contains the computed reward scores and detailed metadata for each
+    evaluated completion.
+
+    Attributes:
+
+        rewards: List of individual reward scores, one per evaluated
+            completion in the request.
+
+        error: Error message if scoring failed. None if successful.
+
+        metas: List of metadata dictionaries with detailed scoring information.
+            Contains extraction failures, property rewards, and verification
+            results for each completion. One metadata object per query item.
+
+        next_turn_feedback: Optional feedback for multi-turn conversations.
+            Can be used to guide subsequent model generations.
+
+    Example:
+        ```json
+        {
+          "rewards": [0.75],
+          "error": null,
+          "metas": [
+            {
+              "smiles_extraction_failure": null,
+              "all_smi": ["CC(C)Cc1ccc(cc1)"],
+              "all_smi_rewards": [0.75],
+              "properties": ["GSK3B", "CalcLogP"],
+              "individual_rewards": [1.0, 0.5]
+            }
+          ],
+          "next_turn_feedback": null
+        }
+        ```
+    """
+
+    rewards: List[float] = Field(
+        ...,
+        description="List of individual reward scores, one per evaluated completion.",
+    )
+    error: Optional[str] = Field(None, description="Error message if scoring failed.")
+    metas: List[MolecularVerifierServerMetadata] = Field(
+        default_factory=list,
+        description="List of metadata with detailed scoring information.",
+    )
+    next_turn_feedback: Optional[str] = Field(
+        None, description="Optional feedback for multi-turn conversations."
+    )
+
+    @field_validator("rewards")  # type: ignore
+    @classmethod
+    def validate_rewards(cls, v: Any) -> List[float]:
+        """Validate and normalize reward value.
+
+        If any reward is None or NaN, sets it to 0.0.
+        Ensures reward is a valid float.
+
+        Args:
+            v: The reward value to validate
+
+        Returns:
+            The validated reward value (float), or 0.0 if None/NaN
+
+        Raises:
+            ValueError: If reward is not a valid numeric type
+        """
+        assert isinstance(v, list)
+        # Handle None case
+        for i, val in enumerate(v):
+            if val is None:
+                val = 0.0
+            # Handle NaN case
+            if math.isnan(float(val)):
+                val = 0.0
+            # Check if it's a numeric type
+            if not isinstance(val, (int, float)):
+                raise ValueError(f"reward must be a float, got {type(val).__name__}")
+            v[i] = float(val)
+        return v
