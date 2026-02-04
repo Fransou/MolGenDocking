@@ -249,15 +249,15 @@ class TestMultiPromptMultiGenerationServerAsync:
             if completion.startswith("[N]"):
                 continue
             meta_r = response.meta
-            reward = meta_r.all_smi_rewards
+            reward = meta_r.generation_verif_all_smi_rewards
             smiles_v = [
                 smi
                 for smi in smiles_list
                 if Chem.MolFromSmiles(smi) is not None
                 and not has_bridged_bond(Chem.MolFromSmiles(smi))
             ]
-            assert meta_r.all_smi is not None
-            assert set(smiles_v) == set(meta_r.all_smi)
+            assert meta_r.generation_verif_all_smi is not None
+            assert set(smiles_v) == set(meta_r.generation_verif_all_smi)
 
             if len(smiles_v) > 0:
                 # Invalid molecule should have zero reward
@@ -365,7 +365,10 @@ class TestObjectiveBasedRewardsServerAsync:
                 assert reward == 0.0
             else:
                 smiles_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
-                assert meta_r.all_smi is not None and meta_r.all_smi_rewards is not None
-                assert set(smiles_v) == set(meta_r.all_smi)
-                all_smi_rewards = meta_r.all_smi_rewards
+                assert (
+                    meta_r.generation_verif_all_smi is not None
+                    and meta_r.generation_verif_all_smi_rewards is not None
+                )
+                assert set(smiles_v) == set(meta_r.generation_verif_all_smi)
+                all_smi_rewards = meta_r.generation_verif_all_smi_rewards
                 is_reward_valid(all_smi_rewards, smiles_v, [prop])

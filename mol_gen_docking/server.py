@@ -109,8 +109,8 @@ def create_app() -> FastAPI:
         if server_settings.server_mode == "singleton":
             if result.meta is not None:
                 if (
-                    len(result.meta.all_smi_rewards) > 0
-                    and len(result.meta.all_smi) > 0
+                    len(result.meta.generation_verif_all_smi) > 0
+                    and len(result.meta.generation_verif_all_smi_rewards) > 0
                 ):
                     result.next_turn_feedback = (
                         "The score of the provided molecules are:\n"
@@ -118,7 +118,8 @@ def create_app() -> FastAPI:
                             [
                                 f"{smi}: {score:.3f}"
                                 for smi, score in zip(
-                                    result.meta.all_smi, result.meta.all_smi_rewards
+                                    result.meta.generation_verif_all_smi,
+                                    result.meta.generation_verif_all_smi_rewards,
                                 )
                             ]
                         )

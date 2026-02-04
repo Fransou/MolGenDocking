@@ -197,29 +197,30 @@ class GenerationVerifierMetadataModel(BaseModel):
     """Metadata model for generation verifier results.
 
     Attributes:
-        properties: List of property names that were evaluated.
-        individual_rewards: List of individual rewards for each property.
-        all_smi_rewards: List of rewards for all SMILES in the completion.
-        all_smi: List of all SMILES strings in the completion.
+        generation_verif_properties: List of property names that were evaluated.
+        generation_verif_individual_rewards: List of individual rewards for each property.
+        generation_verif_all_smi_rewards: List of rewards for all SMILES in the completion.
+        generation_verif_all_smi: List of all SMILES strings in the completion.
+        generation_verif_smiles_extraction_failure: Error message if there was a failure in extracting SMILES from the completion.
     """
 
-    properties: List[str] = Field(
+    generation_verif_properties: List[str] = Field(
         default_factory=list,
         description="List of property names that were evaluated.",
     )
-    individual_rewards: List[float] = Field(
+    generation_verif_individual_rewards: List[float] = Field(
         default_factory=list,
         description="List of individual rewards for each property.",
     )
-    all_smi_rewards: List[float] = Field(
+    generation_verif_all_smi_rewards: List[float] = Field(
         default_factory=list,
         description="List of rewards for all SMILES in the completion.",
     )
-    all_smi: List[str] = Field(
+    generation_verif_all_smi: List[str] = Field(
         default_factory=list,
         description="List of all SMILES strings in the completion.",
     )
-    smiles_extraction_failure: str = Field(
+    generation_verif_smiles_extraction_failure: str = Field(
         default="",
         description="Error message if there was a failure in extracting SMILES from the completion.",
         frozen=False,

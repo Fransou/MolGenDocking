@@ -132,63 +132,63 @@ class MolecularVerifierServerMetadata(BaseModel):
     depending on which verifier was used.
 
     Attributes:
-        smiles_extraction_failure: Error message if SMILES extraction failed.
+        generation_verif_smiles_extraction_failure: Error message if SMILES extraction failed.
             Empty string if extraction was successful.
-        all_smi: List of all valid SMILES strings extracted from the completion.
-        all_smi_rewards: List of reward values corresponding to each SMILES.
-        individual_rewards: List of individual reward values for each property
+        generation_verif_all_smi: List of all valid SMILES strings extracted from the completion.
+        generation_verif_all_smi_rewards: List of reward values corresponding to each SMILES.
+        generation_verif_individual_rewards: List of individual reward values for each property
             evaluated on the first SMILES.
-        properties: List of property names that were evaluated.
-        extracted_answer: Extracted numerical answer from property prediction tasks.
+        generation_verif_properties: List of property names that were evaluated.
+        property_verif_extracted_answer: Extracted numerical answer from property prediction tasks.
             Default to 0.0 if not applicable.
-        extraction_success: Whether a property prediction value was successfully
+        property_verif_extraction_success: Whether a property prediction value was successfully
             extracted from the completion.
-        valid: Validity score for reaction predictions. Range: [0.0, 1.0].
+        reaction_verif_valid: Validity score for reaction predictions. Range: [0.0, 1.0].
             For synthesis route prediction, represents the proportion of valid
             reaction steps.
-        correct_product: Whether the product matches expected output.
+        reaction_verif_correct_product: Whether the product matches expected output.
             For synthesis tasks with tanimoto similarity, this is the similarity
             score to the target molecule (range [0.0, 1.0]).
-        correct_reactant: Whether all reactants/building blocks are valid or
+        reaction_verif_correct_reactant: Whether all reactants/building blocks are valid or
             from the allowed set in reaction synthesis tasks.
     """
 
     # Generation Verifier Fields
-    smiles_extraction_failure: str = Field(
+    generation_verif_smiles_extraction_failure: str = Field(
         default="", description="Error message if SMILES extraction failed."
     )
-    all_smi_rewards: List[float] = Field(
+    generation_verif_all_smi_rewards: List[float] = Field(
         default_factory=list, description="List of reward values for each SMILES."
     )
-    all_smi: List[str] = Field(
+    generation_verif_all_smi: List[str] = Field(
         default_factory=list, description="List of all valid SMILES strings extracted."
     )
-    individual_rewards: List[float] = Field(
+    generation_verif_individual_rewards: List[float] = Field(
         default_factory=list, description="Individual reward values for each property."
     )
-    properties: List[str] = Field(
+    generation_verif_properties: List[str] = Field(
         default_factory=list, description="List of property names evaluated."
     )
 
     # Molecular Property Verifier Fields
-    extracted_answer: float = Field(
+    property_verif_extracted_answer: float = Field(
         default=0.0,
         description="Extracted numerical answer from property prediction tasks.",
     )
-    extraction_success: bool = Field(
+    property_verif_extraction_success: bool = Field(
         default=False,
         description="Whether property prediction value was successfully extracted.",
     )
 
     # Reaction Verifier Fields
-    valid: float = Field(
+    reaction_verif_valid: float = Field(
         default=0.0, description="Validity score for reaction predictions (0.0-1.0)."
     )
-    correct_product: float = Field(
+    reaction_verif_correct_product: float = Field(
         default=0.0,
         description="Whether product matches expected output or similarity score.",
     )
-    correct_reactant: Optional[bool] = Field(
+    reaction_verif_correct_reactant: Optional[bool] = Field(
         default=None, description="Whether reactants/building blocks are valid."
     )
 

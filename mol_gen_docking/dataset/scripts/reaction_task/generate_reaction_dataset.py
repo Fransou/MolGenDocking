@@ -118,7 +118,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--n_reaction_retry",
         type=int,
-        default=10,
+        default=50,
     )
     parser.add_argument(
         "--n_bb_retry",
