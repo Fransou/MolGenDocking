@@ -7,6 +7,7 @@ This module contains server-based tests for:
 """
 
 import logging
+import time
 from typing import Any, Dict, List
 
 import pytest
@@ -51,8 +52,8 @@ def get_rewards(
             f"{server_url}/get_reward",
             json={"metadata": meta, "query": comp},
         )
-
         responses.append(MolecularVerifierServerResponse(**response.json()))
+        time.sleep(0.1)  # Small delay to avoid overwhelming the server
 
     return responses
 
