@@ -24,6 +24,33 @@ class MolecularVerifierServerQuery(BaseModel):
             Useful for tracking and debugging. If provided, should have
             same length as query list.
 
+    Notes
+    This model also supports single-item requests not in list form.
+    For example:
+    ```json
+    {
+      "query": "Here is a molecules: <answer>CC(C)Cc1ccc(cc1)C(C)C(=O)O</answer>",
+      "prompt": "Generate a molecule that binds to my target protein with high affinity and has more than 3 rotatable bonds.",
+      "metadata": {
+        "properties": ["CalcNumRotatableBonds", "sample_228234_model_0"],
+        "objectives": ["above", "minimize"],
+        "target": [3.0, 0.0]
+      }
+    }
+    ```
+    is also accepted and will be internally converted to:
+    ```json
+    {      "query": ["Here is a molecules: <answer>CC(C)Cc1ccc(cc1)C(C)C(=O)O</answer>"],
+      "prompt": ["Generate a molecule that binds to my target protein with high affinity and has more than 3 rotatable bonds."],
+      "metadata": [
+        {
+          "properties": ["CalcNumRotatableBonds", "sample_228234_model_0"],
+          "objectives": ["above", "minimize"],
+          "target": [3.0, 0.0]
+        }
+      ]
+    }
+    ```
 
     Example:
     ```json
@@ -45,6 +72,27 @@ class MolecularVerifierServerQuery(BaseModel):
     query: List[str]
     prompts: Optional[List[str]] = None
 
+    @field_validator("metadata", "query", "prompts", mode="before")  # type: ignore
+    @classmethod
+    def convert_to_lists(cls, v: Any) -> Any:
+        """Automatically convert fields to lists if they are not already.
+
+        Ensures that metadata, query, and prompts fields are lists.
+        If a field is not a list, it will be wrapped in a list.
+        None values are left as-is for optional fields.
+
+        Args:
+            v: The field value to potentially convert
+
+        Returns:
+            The value as a list, or None if the input is None
+        """
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            return [v]
+        return v
+
 
 class MolecularVerifierServerMetadata(BaseModel):
     """Metadata returned with each scored molecule.
@@ -54,7 +102,6 @@ class MolecularVerifierServerMetadata(BaseModel):
     depending on which verifier was used.
 
     Attributes:
-    **Generation Verifier Fields:**
         smiles_extraction_failure: Error message if SMILES extraction failed.
             Empty string if extraction was successful.
         all_smi: List of all valid SMILES strings extracted from the completion.
@@ -62,14 +109,10 @@ class MolecularVerifierServerMetadata(BaseModel):
         individual_rewards: List of individual reward values for each property
             evaluated on the first SMILES.
         properties: List of property names that were evaluated.
-
-    **Molecular Property Verifier Fields:**
         extracted_answer: Extracted numerical answer from property prediction tasks.
             Default to 0.0 if not applicable.
         extraction_success: Whether a property prediction value was successfully
             extracted from the completion.
-
-    **Reaction Verifier Fields:**
         valid: Validity score for reaction predictions. Range: [0.0, 1.0].
             For synthesis route prediction, represents the proportion of valid
             reaction steps.
