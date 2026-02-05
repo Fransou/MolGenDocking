@@ -71,6 +71,10 @@ class MolecularVerifierServerSettings(BaseSettings):
             - "answer_tags": Extract content within special tags
             - "boxed": Extract content within answer tags and boxed in the '\\boxed{...}' LaTeX command
 
+        debug_logging (bool): Enable detailed debug logging for server operations.
+            Useful for troubleshooting and development.
+            Default: False
+
     Example:
         ```python
         from mol_gen_docking.server_utils.server_setting import MolecularVerifierServerSettings
@@ -99,6 +103,7 @@ class MolecularVerifierServerSettings(BaseSettings):
         - DATA_PATH
         - BUFFER_TIME
         - PARSING_METHODS
+        - DEBUG_LOGGING
     """
 
     server_mode: Literal["singleton", "batch"] = "singleton"
@@ -111,6 +116,7 @@ class MolecularVerifierServerSettings(BaseSettings):
     data_path: str = "data/molgendata"
     buffer_time: int = 20
     parsing_method: Literal["none", "answer_tags", "boxed"] = "answer_tags"
+    debug_logging: bool = False
 
     def __post_init__(self) -> None:
         """Validate all settings after initialization.
