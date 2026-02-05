@@ -43,11 +43,11 @@ class ReactionVerifierInputMetadataModel(BaseModel):
         description="List of valid building blocks for the reaction.",
     )
     smarts: List[str] = Field(
-        list,
+        default_factory=list,
         description="Reference SMARTS strings for the reaction steps.",
     )
     or_smarts: List[str] = Field(
-        list,
+        default_factory=list,
         description="Original Reference SMARTS strings for the reaction steps.",
     )
     n_steps_max: int = Field(

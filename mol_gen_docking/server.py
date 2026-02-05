@@ -15,6 +15,7 @@ from mol_gen_docking.reward import (
 from mol_gen_docking.server_utils.buffer import RewardBuffer
 from mol_gen_docking.server_utils.server_setting import MolecularVerifierServerSettings
 from mol_gen_docking.server_utils.utils import (
+    BatchMolecularVerifierServerResponse,
     MolecularVerifierServerQuery,
     MolecularVerifierServerResponse,
 )
@@ -87,23 +88,30 @@ def create_app() -> FastAPI:
     @app.post("/get_reward")  # type: ignore
     async def get_reward(
         query: MolecularVerifierServerQuery,
-    ) -> MolecularVerifierServerResponse:
+    ) -> MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse:
         if server_settings.server_mode == "singleton":
             # Ensures the query does not contain multiple items
             if len(query.metadata) != 1:
                 return MolecularVerifierServerResponse(
-                    error="Singleton mode only supports single query items."
+                    reward=0.0, error="Singleton mode only supports single query items."
                 )
 
         t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
         if status == "Error":
-            return MolecularVerifierServerResponse(error="Error in preprocessing")
+            if server_settings.server_mode == "singleton":
+                return MolecularVerifierServerResponse(
+                    reward=0.0, error="Error in preprocessing"
+                )
+            elif server_settings.server_mode == "batch":
+                return BatchMolecularVerifierServerResponse(
+                    rewards=[0.0], error="Error in preprocessing"
+                )
 
-        result: MolecularVerifierServerResponse = (
-            await app.state.reward_buffer.add_query(query)
-        )
+        result: (
+            MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse
+        ) = await app.state.reward_buffer.add_query(query)
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
         if server_settings.server_mode == "singleton":
