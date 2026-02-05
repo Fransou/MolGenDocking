@@ -5,7 +5,7 @@ verifiers in the reward system. It defines the common interface that all
 verifiers must implement.
 """
 
-from typing import Any, Dict, List
+from typing import Any, List
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -59,7 +59,7 @@ class BatchVerifiersInputModel(BaseModel):
         description="List of metadata corresponding to each completion.",
     )
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def check_lengths(self) -> "BatchVerifiersInputModel":
         """Validate that completions and metadatas have the same length."""
         if len(self.completions) != len(self.metadatas):
@@ -79,6 +79,6 @@ class VerifierOutputModel(BaseModel):
     """
 
     reward: float = Field(..., description="Reward score assigned by the verifier.")
-    verifier_metadata: Dict[str, Any] = Field(
+    verifier_metadata: Any = Field(
         ..., description="Additional metadata from the verification process."
     )

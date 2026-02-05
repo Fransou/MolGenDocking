@@ -115,10 +115,16 @@ def create_app() -> FastAPI:
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
         if server_settings.server_mode == "singleton":
-            if result.meta is not None:
+            assert isinstance(result, MolecularVerifierServerResponse), (
+                "Expected singleton response"
+            )
+            if (
+                result.meta.generation_verifier_metadata is not None
+            ):  # We only consider multi-turn for generation verifier
                 if (
-                    len(result.meta.generation_verif_all_smi) > 0
-                    and len(result.meta.generation_verif_all_smi_rewards) > 0
+                    len(result.meta.generation_verifier_metadata.all_smi) > 0
+                    and len(result.meta.generation_verifier_metadata.all_smi_rewards)
+                    > 0
                 ):
                     result.next_turn_feedback = (
                         "The score of the provided molecules are:\n"
@@ -126,8 +132,8 @@ def create_app() -> FastAPI:
                             [
                                 f"{smi}: {score:.3f}"
                                 for smi, score in zip(
-                                    result.meta.generation_verif_all_smi,
-                                    result.meta.generation_verif_all_smi_rewards,
+                                    result.meta.generation_verifier_metadata.all_smi,
+                                    result.meta.generation_verifier_metadata.all_smi_rewards,
                                 )
                             ]
                         )

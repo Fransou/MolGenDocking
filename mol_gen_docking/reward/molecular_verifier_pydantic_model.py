@@ -23,10 +23,12 @@ class MolecularVerifierConfigModel(BaseModel):
 
     Attributes:
         parsing_method: Method to parse model completions:
+
             - "none": No parsing, use full completion (not recommended, risks of ambiguity in the answer extraction)
             - "answer_tags": Extract content within <answer>...</answer> tags
             - "boxed": Extract content within answer tags and boxed in the '\boxed{...}' LaTeX command
         reward: Type of reward to compute. Affects all sub-verifiers:
+
             - "property": Computes property-based rewards (docking scores, molecular properties)
             - "valid_smiles": Computes validity rewards (1.0 for valid single SMILES, 0.0 otherwise)
         generation_verifier_config: Configuration for de novo molecular generation tasks.
@@ -114,7 +116,7 @@ class MolecularVerifierConfigModel(BaseModel):
         description="Configuration for reaction verifier, required if reward is 'reaction'.",
     )
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def propagate_fields_to_subconfigs(self) -> "MolecularVerifierConfigModel":
         """Propagate the fields shared to all sub-verifier configurations."""
         if self.generation_verifier_config is not None:
@@ -160,6 +162,50 @@ class MolecularVerifierConfigModel(BaseModel):
                 },
             }
         }
+
+
+class MolecularVerifierOutputMetadataModel(BaseModel):
+    """Metadata model for molecular verifier output.
+
+    This model aggregates metadata from all sub-verifiers (Generation, Molecular Property,
+    and Reaction) into a unified structure. Each field may be populated or None depending
+    on which verifier was active for the given task.
+
+    Attributes:
+        generation_verifier_metadata: Metadata from the generation verifier containing:
+            - properties: List of evaluated property names
+            - individual_rewards: Individual reward for each property
+            - all_smi_rewards: Rewards for all SMILES found in completion
+            - all_smi: List of all extracted SMILES strings
+            - smiles_extraction_failure: Error message if SMILES extraction failed
+
+        mol_prop_verifier_metadata: Metadata from the molecular property verifier containing:
+            - extracted_answer: The numerical answer extracted from the completion
+            - extraction_success: Whether the answer extraction was successful
+
+        reaction_verifier_metadata: Metadata from the reaction verifier containing:
+            - valid: Proportion of valid reaction steps (0.0 to 1.0)
+            - correct_product: Product correctness or similarity to target molecule
+            - correct_reactant: Whether all building blocks used are valid
+
+    See Also:
+        - GenerationVerifierMetadataModel: Metadata for generation tasks
+        - MolPropVerifierMetadataModel: Metadata for property prediction tasks
+        - ReactionVerifierMetadataModel: Metadata for reaction tasks
+    """
+
+    generation_verifier_metadata: Optional[GenerationVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the generation verifier, if applicable.",
+    )
+    mol_prop_verifier_metadata: Optional[MolPropVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the molecular property verifier, if applicable.",
+    )
+    reaction_verifier_metadata: Optional[ReactionVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the reaction verifier, if applicable.",
+    )
 
 
 class BatchMolecularVerifierOutputModel(BaseModel):
@@ -256,11 +302,7 @@ class BatchMolecularVerifierOutputModel(BaseModel):
         ...,
         description="List of computed rewards for the molecular verification.",
     )
-    verifier_metadatas: list[
-        GenerationVerifierMetadataModel
-        | ReactionVerifierMetadataModel
-        | MolPropVerifierMetadataModel
-    ] = Field(
+    verifier_metadatas: list[MolecularVerifierOutputMetadataModel] = Field(
         ...,
         description="List of metadata from each verifier used in the molecular verification.",
     )

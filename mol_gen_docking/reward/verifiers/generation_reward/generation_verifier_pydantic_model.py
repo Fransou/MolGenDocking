@@ -64,7 +64,7 @@ class PyscreenerConfigModel(DockingConfigModel):
         description="Docking software class to use with PyScreener",
     )
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def check_software_class(self) -> "PyscreenerConfigModel":
         assert self.docking_oracle == "pyscreener", (
             "software_class is only valid for pyscreener docking_oracle"
@@ -90,7 +90,7 @@ class DockingGPUConfigModel(DockingConfigModel):
         description="Command mode for AutoDock GPU",
     )
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def check_vina_mode(self) -> "DockingGPUConfigModel":
         assert self.docking_oracle == "autodock_gpu", (
             "vina_mode is only valid for autodock_gpu docking_oracle"
@@ -111,6 +111,7 @@ class GenerationVerifierConfigModel(BaseModel):
                 for validity-based rewards.
         rescale: Whether to rescale the rewards to a normalized range.
         oracle_kwargs: Dictionary of keyword arguments to pass to the docking oracle. Can include:
+
                        - exhaustiveness: Docking exhaustiveness parameter
                        - n_cpu: Number of CPUs for docking
                        - docking_oracle: Type of docking oracle ("pyscreener" or "autodock_gpu")
@@ -168,7 +169,7 @@ class GenerationVerifierConfigModel(BaseModel):
             }
         }
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def check_mappings_path(self) -> "GenerationVerifierConfigModel":
         """Validate that the path_to_mappings exists and contains required files."""
         if self.path_to_mappings is not None:
@@ -196,31 +197,50 @@ class GenerationVerifierConfigModel(BaseModel):
 class GenerationVerifierMetadataModel(BaseModel):
     """Metadata model for generation verifier results.
 
+    Contains detailed information about the generation verification process,
+    including all extracted SMILES, their individual rewards, and any extraction failures.
+
     Attributes:
-        generation_verif_properties: List of property names that were evaluated.
-        generation_verif_individual_rewards: List of individual rewards for each property.
-        generation_verif_all_smi_rewards: List of rewards for all SMILES in the completion.
-        generation_verif_all_smi: List of all SMILES strings in the completion.
-        generation_verif_smiles_extraction_failure: Error message if there was a failure in extracting SMILES from the completion.
+        properties: List of property names that were evaluated (e.g., "docking_score", "QED", "SA").
+            Each property corresponds to a molecular descriptor or docking target that was optimized.
+
+        individual_rewards: List of individual rewards for each property in the properties list.
+            Each value is typically in [0.0, 1.0] range when rescaling is enabled, representing
+            how well the molecule satisfies each property objective.
+
+        all_smi_rewards: List of rewards for all SMILES found in the completion.
+            When multiple SMILES are extracted, each gets its own reward. The final reward
+            is typically the best among these values.
+
+        all_smi: List of all SMILES strings extracted from the completion.
+            May contain multiple SMILES if the model generated several molecules.
+            Empty if SMILES extraction failed.
+
+        smiles_extraction_failure: Error message if SMILES extraction failed.
+            Empty string if extraction was successful. Common values include:
+
+            - "no_smiles": No valid SMILES found in the completion
+            - "multiple_smiles_in_boxed": Multiple SMILES found when only one was expected
+            - "invalid_smiles": SMILES string found but not chemically valid
     """
 
-    generation_verif_properties: List[str] = Field(
+    properties: List[str] = Field(
         default_factory=list,
         description="List of property names that were evaluated.",
     )
-    generation_verif_individual_rewards: List[float] = Field(
+    individual_rewards: List[float] = Field(
         default_factory=list,
         description="List of individual rewards for each property.",
     )
-    generation_verif_all_smi_rewards: List[float] = Field(
+    all_smi_rewards: List[float] = Field(
         default_factory=list,
         description="List of rewards for all SMILES in the completion.",
     )
-    generation_verif_all_smi: List[str] = Field(
+    all_smi: List[str] = Field(
         default_factory=list,
         description="List of all SMILES strings in the completion.",
     )
-    generation_verif_smiles_extraction_failure: str = Field(
+    smiles_extraction_failure: str = Field(
         default="",
         description="Error message if there was a failure in extracting SMILES from the completion.",
         frozen=False,

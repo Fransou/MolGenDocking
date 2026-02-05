@@ -11,4 +11,5 @@ All queries to the Molecular Verifier server and its responses follow specific f
         - MolecularVerifierServerQuery
         - MolecularVerifierServerMetadata
         - MolecularVerifierServerResponse
+        - BatchMolecularVerifierServerResponse
 ---

@@ -3,6 +3,12 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from mol_gen_docking.reward.verifiers import (
+    GenerationVerifierMetadataModel,
+    MolPropVerifierMetadataModel,
+    ReactionVerifierMetadataModel,
+)
+
 
 class MolecularVerifierServerQuery(BaseModel):
     """Input query model for the Molecular Verifier server.
@@ -78,7 +84,7 @@ class MolecularVerifierServerQuery(BaseModel):
         None, description="Original prompts used to generate the completions."
     )
 
-    @field_validator("metadata", "query", "prompts", mode="before")  # type: ignore
+    @field_validator("metadata", "query", "prompts", mode="before")
     @classmethod
     def convert_to_lists(cls, v: Any) -> Any:
         """Automatically convert fields to lists if they are not already.
@@ -99,7 +105,7 @@ class MolecularVerifierServerQuery(BaseModel):
             return [v]
         return v
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def validate_equal_lengths(self) -> "MolecularVerifierServerQuery":
         """Validate that all fields have equal length.
 
@@ -132,69 +138,42 @@ class MolecularVerifierServerMetadata(BaseModel):
     depending on which verifier was used.
 
     Attributes:
-        generation_verif_smiles_extraction_failure: Error message if SMILES extraction failed.
-            Empty string if extraction was successful.
-        generation_verif_all_smi: List of all valid SMILES strings extracted from the completion.
-        generation_verif_all_smi_rewards: List of reward values corresponding to each SMILES.
-        generation_verif_individual_rewards: List of individual reward values for each property
-            evaluated on the first SMILES.
-        generation_verif_properties: List of property names that were evaluated.
-        property_verif_extracted_answer: Extracted numerical answer from property prediction tasks.
-            Default to 0.0 if not applicable.
-        property_verif_extraction_success: Whether a property prediction value was successfully
-            extracted from the completion.
-        reaction_verif_valid: Validity score for reaction predictions. Range: [0.0, 1.0].
-            For synthesis route prediction, represents the proportion of valid
-            reaction steps.
-        reaction_verif_correct_product: Whether the product matches expected output.
-            For synthesis tasks with tanimoto similarity, this is the similarity
-            score to the target molecule (range [0.0, 1.0]).
-        reaction_verif_correct_reactant: Whether all reactants/building blocks are valid or
-            from the allowed set in reaction synthesis tasks.
+        generation_verifier_metadata: Metadata from the generation verifier containing:
+
+            - properties: List of evaluated property names
+            - individual_rewards: Individual reward for each property
+            - all_smi_rewards: Rewards for all SMILES found in completion
+            - all_smi: List of all extracted SMILES strings
+            - smiles_extraction_failure: Error message if SMILES extraction failed
+
+        mol_prop_verifier_metadata: Metadata from the molecular property verifier containing:
+
+            - extracted_answer: The numerical answer extracted from the completion
+            - extraction_success: Whether the answer extraction was successful
+
+        reaction_verifier_metadata: Metadata from the reaction verifier containing:
+
+            - valid: Proportion of valid reaction steps (0.0 to 1.0)
+            - correct_product: Product correctness or similarity to target molecule
+            - correct_reactant: Whether all building blocks used are valid
     """
 
-    # Generation Verifier Fields
-    generation_verif_smiles_extraction_failure: str = Field(
-        default="", description="Error message if SMILES extraction failed."
+    generation_verifier_metadata: Optional[GenerationVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the generation verifier, if applicable.",
     )
-    generation_verif_all_smi_rewards: List[float] = Field(
-        default_factory=list, description="List of reward values for each SMILES."
+    mol_prop_verifier_metadata: Optional[MolPropVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the molecular property verifier, if applicable.",
     )
-    generation_verif_all_smi: List[str] = Field(
-        default_factory=list, description="List of all valid SMILES strings extracted."
-    )
-    generation_verif_individual_rewards: List[float] = Field(
-        default_factory=list, description="Individual reward values for each property."
-    )
-    generation_verif_properties: List[str] = Field(
-        default_factory=list, description="List of property names evaluated."
-    )
-
-    # Molecular Property Verifier Fields
-    property_verif_extracted_answer: float = Field(
-        default=0.0,
-        description="Extracted numerical answer from property prediction tasks.",
-    )
-    property_verif_extraction_success: bool = Field(
-        default=False,
-        description="Whether property prediction value was successfully extracted.",
-    )
-
-    # Reaction Verifier Fields
-    reaction_verif_valid: float = Field(
-        default=0.0, description="Validity score for reaction predictions (0.0-1.0)."
-    )
-    reaction_verif_correct_product: float = Field(
-        default=0.0,
-        description="Whether product matches expected output or similarity score.",
-    )
-    reaction_verif_correct_reactant: Optional[bool] = Field(
-        default=None, description="Whether reactants/building blocks are valid."
+    reaction_verifier_metadata: Optional[ReactionVerifierMetadataModel] = Field(
+        None,
+        description="Metadata from the reaction verifier, if applicable.",
     )
 
 
 class MolecularVerifierServerResponse(BaseModel):
-    """Response from the Molecular Verifier server for a single query.
+    """Response from the Molecular Verifier server when the sever is in single-item mode (default).
 
     Contains the computed reward score and detailed metadata for a single
     evaluated completion.
@@ -218,11 +197,11 @@ class MolecularVerifierServerResponse(BaseModel):
           "reward": 0.75,
           "error": null,
           "meta": {
-              "generation_verif_smiles_extraction_failure": "",
-              "generation_verif_all_smi": ["CC(C)Cc1ccc(cc1)"],
-              "generation_verif_all_smi_rewards": [0.75],
-              "generation_verif_properties": ["GSK3B", "CalcLogP"],
-              "generation_verif_individual_rewards": [1.0, 0.5]
+              "smiles_extraction_failure": "",
+              "all_smi": ["CC(C)Cc1ccc(cc1)"],
+              "all_smi_rewards": [0.75],
+              "properties": ["GSK3B", "CalcLogP"],
+              "individual_rewards": [1.0, 0.5]
             },
           "next_turn_feedback": null
         }
@@ -241,7 +220,7 @@ class MolecularVerifierServerResponse(BaseModel):
         None, description="Optional feedback for multi-turn conversations."
     )
 
-    @field_validator("reward")  # type: ignore
+    @field_validator("reward")
     @classmethod
     def validate_reward(cls, v: Any) -> float:
         """Validate and normalize reward value.
@@ -271,13 +250,12 @@ class MolecularVerifierServerResponse(BaseModel):
 
 
 class BatchMolecularVerifierServerResponse(BaseModel):
-    """Response from the Molecular Verifier server.
+    """Response from the Molecular Verifier server when in batch mode.
 
     Contains the computed reward scores and detailed metadata for each
     evaluated completion.
 
     Attributes:
-
         rewards: List of individual reward scores, one per evaluated
             completion in the request.
 
@@ -296,12 +274,13 @@ class BatchMolecularVerifierServerResponse(BaseModel):
           "rewards": [0.75],
           "error": null,
           "metas": [
-            {
-                "generation_verif_smiles_extraction_failure": "",
-                "generation_verif_all_smi": ["CC(C)Cc1ccc(cc1)"],
-                "generation_verif_all_smi_rewards": [0.75],
-                "generation_verif_properties": ["GSK3B", "CalcLogP"],
-                "generation_verif_individual_rewards": [1.0, 0.5]
+             "generation_verifier_metadata": {
+                    "smiles_extraction_failure": "",
+                    "all_smi": ["CC(C)Cc1ccc(cc1)"],
+                    "all_smi_rewards": [0.75],
+                    "properties": ["GSK3B", "CalcLogP"],
+                    "individual_rewards": [1.0, 0.5]
+                }
             }
           ],
           "next_turn_feedback": null
@@ -322,7 +301,7 @@ class BatchMolecularVerifierServerResponse(BaseModel):
         None, description="Optional feedback for multi-turn conversations."
     )
 
-    @field_validator("rewards")  # type: ignore
+    @field_validator("rewards")
     @classmethod
     def validate_rewards(cls, v: Any) -> List[float]:
         """Validate and normalize reward value.

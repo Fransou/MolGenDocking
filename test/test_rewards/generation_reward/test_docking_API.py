@@ -155,7 +155,7 @@ class TestSinglePropertyDocking:
                 f"Here is a molecule: <answer> {s} </answer> what are its properties?"
                 for s in smiles
             ]
-            rewards: List[float] = scorer(completions, metadatas)[0]
+            rewards: List[float] = scorer(completions, metadatas).rewards
             assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
             rewards_tensor: torch.Tensor = torch.Tensor(rewards)
             assert not rewards_tensor.isnan().any()
@@ -200,7 +200,7 @@ class TestMultiplePropertyDocking:
                 f"Here is a molecule: <answer> {s} </answer> what are its properties?"
                 for s in smiles
             ]
-            rewards: List[float] = scorer(completions, metadatas)[0]
+            rewards: List[float] = scorer(completions, metadatas).rewards
             assert isinstance(rewards, (np.ndarray, list, torch.Tensor))
             rewards_tensor: torch.Tensor = torch.Tensor(rewards)
             assert not rewards_tensor.isnan().any()

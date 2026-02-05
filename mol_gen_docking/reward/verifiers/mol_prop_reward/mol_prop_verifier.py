@@ -161,6 +161,7 @@ class MolPropVerifier(Verifier):
             verifier_config: Configuration containing reward type settings.
         """
         super().__init__(verifier_config)
+        self.verifier_config: MolPropVerifierConfigModel = verifier_config
         self.logger = logging.getLogger("MolPropVerifier")
 
     def _parse_float_with_sup(self, s: str) -> float:
@@ -396,7 +397,7 @@ class MolPropVerifier(Verifier):
             isinstance(meta, MolPropVerifierInputMetadataModel)
             for meta in inputs.metadatas
         )
-        metadatas: List[MolPropVerifierInputMetadataModel] = inputs.metadatas
+        metadatas: List[MolPropVerifierInputMetadataModel] = inputs.metadatas  # type: ignore
 
         verifier_metadatas: List[MolPropVerifierMetadataModel] = []
         for answer, meta in zip(completions, metadatas):
@@ -423,22 +424,22 @@ class MolPropVerifier(Verifier):
                         extracted = None
                     verifier_metadatas.append(
                         MolPropVerifierMetadataModel(
-                            property_verif_extracted_answer=extracted,
-                            property_verif_extraction_success=True,
+                            extracted_answer=extracted,
+                            extraction_success=True,
                         )
                     )
                 except ValueError:
                     verifier_metadatas.append(
                         MolPropVerifierMetadataModel(
-                            property_verif_extracted_answer=-10000.0,
-                            property_verif_extraction_success=False,
+                            extracted_answer=-10000.0,
+                            extraction_success=False,
                         )
                     )
             else:
                 verifier_metadatas.append(
                     MolPropVerifierMetadataModel(
-                        property_verif_extracted_answer=-10000.0,
-                        property_verif_extraction_success=False,
+                        extracted_answer=-10000.0,
+                        extraction_success=False,
                     )
                 )
 
@@ -446,9 +447,7 @@ class MolPropVerifier(Verifier):
             return [
                 MolPropVerifierOutputModel(
                     reward=float(
-                        isinstance(
-                            verifier_meta.property_verif_extracted_answer, (float, int)
-                        )
+                        isinstance(verifier_meta.extracted_answer, (float, int))
                     ),
                     verifier_metadata=verifier_meta,
                 )
@@ -457,7 +456,7 @@ class MolPropVerifier(Verifier):
 
         rewards = []
         for meta, verifier_meta in zip(metadatas, verifier_metadatas):
-            if not verifier_meta.property_verif_extraction_success:
+            if not verifier_meta.extraction_success:
                 rewards.append(0.0)
             else:
                 if meta.objectives[0] == "regression":
@@ -465,13 +464,7 @@ class MolPropVerifier(Verifier):
                     rewards.append(
                         np.clip(
                             1
-                            - (
-                                (
-                                    verifier_meta.property_verif_extracted_answer
-                                    - meta.target[0]
-                                )
-                                / std
-                            )
+                            - ((verifier_meta.extracted_answer - meta.target[0]) / std)
                             ** 2,
                             a_min=0.0,
                             a_max=1.0,
@@ -479,10 +472,7 @@ class MolPropVerifier(Verifier):
                     )
                 elif meta.objectives[0] == "classification":
                     rewards.append(
-                        float(
-                            verifier_meta.property_verif_extracted_answer
-                            == meta.target[0]
-                        )
+                        float(verifier_meta.extracted_answer == meta.target[0])
                     )
                 else:
                     self.logger.error(f"Not a valid objective: {meta.objectives[0]}")

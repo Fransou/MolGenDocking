@@ -39,16 +39,24 @@ class MolPropVerifierConfigModel(BaseModel):
 class MolPropVerifierMetadataModel(BaseModel):
     """Metadata model for molecular property verifier results.
 
+    Contains detailed information about the property prediction verification process,
+    including the extracted answer and whether extraction was successful.
+
     Attributes:
-    property_verif_extracted_answer (float): The extracted answer string from the model completion.
-    property_verif_extraction_success (bool): Indicates whether the answer extraction was successful.
+        extracted_answer: The numerical answer extracted from the model completion.
+            For regression tasks, this is the predicted property value.
+            For classification tasks, this is the predicted class (0 or 1).
+
+        extraction_success: Indicates whether the answer extraction was successful.
+            False if the answer could not be parsed from the completion text,
+            or if the answer format was invalid (e.g., non-numeric for regression).
     """
 
-    property_verif_extracted_answer: float = Field(
+    extracted_answer: float = Field(
         ...,
         description="The extracted answer string from the model completion.",
     )
-    property_verif_extraction_success: bool = Field(
+    extraction_success: bool = Field(
         ...,
         description="Indicates whether the answer extraction was successful.",
     )
@@ -58,7 +66,8 @@ class MolPropVerifierOutputModel(VerifierOutputModel):
     """Output model for molecular property verifier results.
 
     Attributes:
-
+        reward: The computed reward for the molecular property verification.
+        verifier_metadata: Metadata related to the molecular property verification process.
     """
 
     reward: float = Field(

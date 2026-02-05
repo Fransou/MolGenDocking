@@ -72,7 +72,7 @@ class ReactionVerifierConfigModel(BaseModel):
             }
         }
 
-    @model_validator(mode="after")  # type: ignore
+    @model_validator(mode="after")
     def check_reaction_matrix_path(self) -> "ReactionVerifierConfigModel":
         """Validate that the reaction matrix path exists."""
         if not os.path.exists(self.reaction_matrix_path):
@@ -85,21 +85,35 @@ class ReactionVerifierConfigModel(BaseModel):
 class ReactionVerifierMetadataModel(BaseModel):
     """Metadata model for reaction verifier results.
 
+    Contains detailed information about the reaction verification process,
+    including validity, product correctness, and reactant validation.
+
     Attributes:
-        reaction_verif_valid: Proportion of valid reaction steps (0.0 to 1.0).
-        reaction_verif_correct_product: Whether the final product is correct or for full_path: the similarity to the target molecule.
-        reaction_verif_correct_reactant: Whether all building blocks used are valid.
+        valid: Proportion of valid reaction steps (0.0 to 1.0).
+            For single reaction tasks: 1.0 if valid, 0.0 if invalid.
+            For synthesis route tasks (full_path): proportion of reaction steps that are chemically valid.
+
+        correct_product: Whether the product is correct or similarity to the target molecule.
+            For SMARTS prediction tasks: 1.0 if reaction produces the correct product, 0.0 otherwise.
+            For synthesis tasks with tanimoto similarity: Tanimoto similarity score (0.0 to 1.0)
+            between the final product and the target molecule.
+            For exact match tasks: 1.0 if exact match, 0.0 otherwise.
+
+        correct_reactant: Whether all reactants are correct.
+            For building block constrained tasks: True if all reactants are in the allowed building blocks list.
+            For unconstrained tasks: True if all reactants are chemically valid.
+            False if any reactant is invalid or not allowed.
     """
 
-    reaction_verif_valid: float = Field(
+    valid: float = Field(
         default=0.0,
         description="Is the answer valid. If the task is to propose a synthesis route, this is the proportion of valid reaction steps (0.0 to 1.0).",
     )
-    reaction_verif_correct_product: float = Field(
+    correct_product: float = Field(
         default=0.0,
         description="Whether the product is correct. For synthesis tasks, if we use tanimoto similarity, similarity to the target molecule, for SMARTS prediction, do both of the chemical reactions lead to the correct product.",
     )
-    reaction_verif_correct_reactant: bool = Field(
+    correct_reactant: bool = Field(
         default=False,
         description="Whether all reactants are correct.",
     )
