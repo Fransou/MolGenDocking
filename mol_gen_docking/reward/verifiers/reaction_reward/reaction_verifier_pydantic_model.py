@@ -72,7 +72,7 @@ class ReactionVerifierConfigModel(BaseModel):
             }
         }
 
-    @model_validator(mode="after")  #
+    @model_validator(mode="after")
     def check_reaction_matrix_path(self) -> "ReactionVerifierConfigModel":
         """Validate that the reaction matrix path exists."""
         if not os.path.exists(self.reaction_matrix_path):

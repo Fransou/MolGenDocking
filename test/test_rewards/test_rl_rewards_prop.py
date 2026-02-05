@@ -130,6 +130,7 @@ class TestRegression:
         ] * len(completions)
 
         verif_metadata: Any = property_scorer(completions, metadata).verifier_metadatas
+        assert verif_metadata is not None
         extracted_answers = [
             [
                 m.mol_prop_verifier_metadata.extracted_answer
