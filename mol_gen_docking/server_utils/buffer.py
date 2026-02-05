@@ -311,7 +311,9 @@ class RewardBuffer:
                 continue
             rewards_i = grouped_results[i]
             metadata_i = grouped_meta[i]
-
+            response: (
+                MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse
+            )
             if self.server_mode == "singleton":
                 assert len(rewards_i) == 1, (
                     "Expected singleton mode to have one reward per query"

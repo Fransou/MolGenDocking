@@ -66,6 +66,8 @@ class ReactionVerifier(Verifier):
                 and reward type settings.
         """
         super().__init__(verifier_config)
+        self.verifier_config: ReactionVerifierConfigModel = verifier_config
+
         self.rxn_matrix: ReactantReactionMatrix
         with open(verifier_config.reaction_matrix_path, "rb") as f:
             self.rxn_matrix = pickle.load(f)
@@ -558,7 +560,7 @@ class ReactionVerifier(Verifier):
             isinstance(meta, ReactionVerifierInputMetadataModel)
             for meta in inputs.metadatas
         )
-        metadatas: List[ReactionVerifierInputMetadataModel] = inputs.metadatas
+        metadatas: List[ReactionVerifierInputMetadataModel] = inputs.metadatas  # type: ignore
 
         output_models = []
         for answer, meta in zip(completions, metadatas):
@@ -638,9 +640,9 @@ class ReactionVerifier(Verifier):
             output_model = ReactionVerifierOutputModel(
                 reward=reward,
                 verifier_metadata=ReactionVerifierMetadataModel(
-                    reaction_verif_valid=reward_metadata["valid"],
-                    reaction_verif_correct_product=reward_metadata["correct_product"],
-                    reaction_verif_correct_reactant=reward_metadata["correct_reactant"],
+                    valid=reward_metadata["valid"],
+                    correct_product=reward_metadata["correct_product"],
+                    correct_reactant=reward_metadata["correct_reactant"],
                 ),
             )
             output_models.append(output_model)

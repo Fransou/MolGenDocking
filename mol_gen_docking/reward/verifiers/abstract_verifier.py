@@ -6,13 +6,12 @@ verifiers must implement.
 """
 
 import re
-from typing import List
+from typing import Any, List
 
 from pydantic import BaseModel
 
 from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
     BatchVerifiersInputModel,
-    VerifierOutputModel,
 )
 
 
@@ -98,24 +97,28 @@ class Verifier:
         Returns:
             The extracted answer string.
         """
-        if self.verifier_config.parsing_method == "none":
+        if (
+            hasattr(self.verifier_config, "parsing_method")
+            and self.verifier_config.parsing_method == "none"
+        ):
             # We just need to not match any special token (which we will assume to be in the format: <...>) so we
             # replace < and > by spaces
             return self.parse_none(completion)
 
         tags_extraction = self.parse_answer_tags(completion)
+        if hasattr(self.verifier_config, "parsing_method"):
+            if self.verifier_config.parsing_method == "answer_tags":
+                return tags_extraction
+            elif self.verifier_config.parsing_method == "boxed":
+                boxed_extraction = self.parse_boxed(tags_extraction)
+                return boxed_extraction
+            else:
+                raise ValueError(
+                    f"Unknown parsing method: {self.verifier_config.parsing_method}"
+                )
+        return tags_extraction
 
-        if self.verifier_config.parsing_method == "answer_tags":
-            return tags_extraction
-        elif self.verifier_config.parsing_method == "boxed":
-            boxed_extraction = self.parse_boxed(tags_extraction)
-            return boxed_extraction
-        else:
-            raise ValueError(
-                f"Unknown parsing method: {self.verifier_config.parsing_method}"
-            )
-
-    def get_score(self, inputs: BatchVerifiersInputModel) -> List[VerifierOutputModel]:
+    def get_score(self, inputs: BatchVerifiersInputModel) -> List[Any]:
         """Compute scores for a batch of inputs.
 
         Args:

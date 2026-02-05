@@ -65,6 +65,14 @@ The verifier extracts SMILES from completions using:
             - GenerationVerifierOutputModel
             - GenerationVerifierMetadataModel
 
+::: mol_gen_docking.reward.verifiers.generation_reward.generation_verifier_pydantic_model
+    handler: python
+    heading_level: 3
+    options:
+        show_root_toc_entry: false
+        members:
+            - GenerationVerifierConfigModel
+
 ::: mol_gen_docking.reward.verifiers.generation_reward.generation_verifier
     handler: python
     heading_level: 3

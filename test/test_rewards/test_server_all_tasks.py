@@ -247,6 +247,7 @@ class TestReactionVerificationServer:
                     "reactants": [["CC", "O"]],
                     "products": [target_smiles],
                     "smarts": [""],
+                    "or_smarts": [""],
                 }
             ],
         )
@@ -265,6 +266,7 @@ class TestReactionVerificationServer:
                     "reactants": [["CC", "O"]],
                     "products": ["CCO"],
                     "smarts": [""],
+                    "or_smarts": [""],
                 }
             ],
         )
@@ -283,6 +285,7 @@ class TestReactionVerificationServer:
                     "reactants": [["CC", "O"]],
                     "products": ["CCO"],
                     "smarts": [""],
+                    "or_smarts": [""],
                 }
             ],
         )

@@ -94,6 +94,7 @@ class GenerationVerifier(Verifier):
                 reward type, and docking oracle settings.
         """
         super().__init__(verifier_config)
+        self.verifier_config: GenerationVerifierConfigModel = verifier_config
         self.logger = logging.getLogger("GenerationVerifier")
 
         with open(
@@ -415,7 +416,7 @@ class GenerationVerifier(Verifier):
                 GenerationVerifierOutputModel(
                     reward=float(len(smis) == 1),
                     verifier_metadata=GenerationVerifierMetadataModel(
-                        generation_verif_smiles_extraction_failure=fail
+                        smiles_extraction_failure=fail
                     ),
                 )
                 for smis, fail in zip(smiles_per_completion, extraction_failures)
@@ -424,7 +425,7 @@ class GenerationVerifier(Verifier):
             isinstance(meta, GenerationVerifierInputMetadataModel)
             for meta in inputs.metadatas
         )
-        metadatas: List[GenerationVerifierInputMetadataModel] = inputs.metadatas
+        metadatas: List[GenerationVerifierInputMetadataModel] = inputs.metadatas  # type: ignore
 
         objectives = []
         for m in metadatas:
@@ -480,13 +481,11 @@ class GenerationVerifier(Verifier):
             output_model = GenerationVerifierOutputModel(
                 reward=float(reward),
                 verifier_metadata=GenerationVerifierMetadataModel(
-                    generation_verif_properties=properties,
-                    generation_verif_individual_rewards=individual_rewards,
-                    generation_verif_all_smi_rewards=compl_reward,
-                    generation_verif_all_smi=smiles,
-                    generation_verif_smiles_extraction_failure=extraction_failures[
-                        id_completion
-                    ],
+                    properties=properties,
+                    individual_rewards=individual_rewards,
+                    all_smi_rewards=compl_reward,
+                    all_smi=smiles,
+                    smiles_extraction_failure=extraction_failures[id_completion],
                 ),
             )
             output_models.append(output_model)

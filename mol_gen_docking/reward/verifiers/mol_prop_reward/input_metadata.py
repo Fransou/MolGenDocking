@@ -8,8 +8,31 @@ MolPropObjT = Literal["regression", "classification"]
 class MolPropVerifierInputMetadataModel(BaseModel):
     """Input metadata model for molecular property verifier.
 
+    Defines the verification criteria for molecular property prediction tasks,
+    including the type of objective (regression or classification), properties
+    being predicted, target values, and normalization parameters.
+
     Attributes:
-        prompt: The input prompt string used for verification.
+        objectives: List of objective types for each property.
+            Valid values:
+
+            - "regression": Continuous value prediction (e.g., predicting logP, molecular weight)
+            - "classification": Binary classification (0 or 1)
+            Must have the same length as properties and target.
+
+        properties: List of molecular property names being predicted.
+            Optional, used for tracking and logging purposes.
+            Examples: "logP", "MW", "toxicity", "solubility"
+
+        target: List of target values for each property to verify against.
+            For regression: The ground truth continuous value
+            For classification: The ground truth class (0 or 1)
+            Must have the same length as objectives.
+
+        norm_var: Normalization variance for regression objectives.
+            Optional parameter used to compute normalized rewards for regression tasks.
+            The reward is computed as: reward = max(0, 1 - |predicted - target| / norm_var)
+            If None, no normalization is applied and absolute error is used directly.
     """
 
     objectives: List[MolPropObjT] = Field(

@@ -132,7 +132,7 @@ class TestRegression:
         verif_metadata: Any = property_scorer(completions, metadata).verifier_metadatas
         extracted_answers = [
             [
-                m.property_verif_extracted_answer
+                m.mol_prop_verifier_metadata.extracted_answer
                 for m in verif_metadata[i : i + n_repets]
             ]
             for i in range(0, len(verif_metadata), n_repets)

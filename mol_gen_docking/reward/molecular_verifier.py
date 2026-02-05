@@ -15,6 +15,7 @@ from rdkit import RDLogger
 from mol_gen_docking.reward.molecular_verifier_pydantic_model import (
     BatchMolecularVerifierOutputModel,
     MolecularVerifierConfigModel,
+    MolecularVerifierOutputMetadataModel,
 )
 from mol_gen_docking.reward.verifiers import (
     GenerationVerifier,
@@ -23,7 +24,6 @@ from mol_gen_docking.reward.verifiers import (
     MolPropVerifierOutputModel,
     ReactionVerifier,
     ReactionVerifierOutputModel,
-    VerifierOutputModel,
     assign_to_inputs,
 )
 from mol_gen_docking.reward.verifiers.abstract_verifier_pydantic_model import (
@@ -250,7 +250,7 @@ class MolecularVerifier:
                     bool,
                     bool,
                 ],
-                List[VerifierOutputModel],
+                List[Any],
             ],
         ] = {
             "generation": self._get_generation_score,
@@ -275,7 +275,9 @@ class MolecularVerifier:
             metadata_per_obj[assigned].append(meta)
 
         rewards = [0.0 for _ in range(len(metadata))]
-        metadata = [{} for _ in range(len(metadata))]
+        metadata_output = [
+            MolecularVerifierOutputMetadataModel() for _ in range(len(metadata))
+        ]
         for key, fn in obj_to_fn.items():
             if len(completions_per_obj[key]) > 0:
                 outputs_obj = fn(
@@ -288,9 +290,13 @@ class MolecularVerifier:
                 )
                 for i, output in zip(idxs[key], outputs_obj):
                     rewards[i] = output.reward
-                    metadata[i] = output.verifier_metadata
+                    metadata_output[i] = (
+                        MolecularVerifierOutputMetadataModel.model_validate(
+                            {f"{key}_verifier_metadata": output.verifier_metadata}
+                        )
+                    )
         return BatchMolecularVerifierOutputModel(
-            rewards=rewards, verifier_metadatas=metadata
+            rewards=rewards, verifier_metadatas=metadata_output
         )
 
     def __call__(
