@@ -124,12 +124,16 @@ class ReactionVerifierOutputModel(VerifierOutputModel):
 
     Attributes:
         reward: The computed reward for the reaction verification.
+        parsed_answer: The parsed answer extracted from the model completion.
         verifier_metadata: Metadata related to the reaction verification process.
     """
 
     reward: float = Field(
         ...,
         description="The computed reward for the reaction verification.",
+    )
+    parsed_answer: str = Field(
+        ..., description="The parsed answer extracted from the model completion."
     )
     verifier_metadata: ReactionVerifierMetadataModel = Field(
         ...,

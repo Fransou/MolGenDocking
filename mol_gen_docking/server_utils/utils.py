@@ -138,6 +138,7 @@ class MolecularVerifierServerMetadata(BaseModel):
     depending on which verifier was used.
 
     Attributes:
+        parsed_answer: The parsed answer extracted from the model completion.
         generation_verifier_metadata: Metadata from the generation verifier containing:
 
             - properties: List of evaluated property names
@@ -158,6 +159,10 @@ class MolecularVerifierServerMetadata(BaseModel):
             - correct_reactant: Whether all building blocks used are valid
     """
 
+    parsed_answer: str = Field(
+        "",
+        description="The parsed answer extracted from the model completion.",
+    )
     generation_verifier_metadata: Optional[GenerationVerifierMetadataModel] = Field(
         None,
         description="Metadata from the generation verifier, if applicable.",

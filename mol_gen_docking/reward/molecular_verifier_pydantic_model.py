@@ -223,12 +223,15 @@ class BatchMolecularVerifierOutputModel(BaseModel):
             Each reward is a float value typically in the range [0.0, 1.0], though values
             may exceed 1.0 for maximize objectives depending on the input values.
             The reward value depends on the task type and objective:
+
             - Generation tasks: Geometric mean of per-property rewards
             - Property prediction: 0-1 for classification, 0-1 (clipped) for regression
             - Reaction tasks: 0-1 for ground truth, 0-1 for path validation
+        parsed_answer: The parsed answer extracted from the model completion.
         verifier_metadatas: List of metadata objects from each verification process.
             Each element corresponds to the reward at the same index. The metadata type
             depends on which verifier processed the completion:
+
             - GenerationVerifierMetadataModel: For generation tasks (SMILES extraction, properties)
             - MolPropVerifierMetadataModel: For property prediction (extracted values)
             - ReactionVerifierMetadataModel: For reaction tasks (validation results)
@@ -301,6 +304,9 @@ class BatchMolecularVerifierOutputModel(BaseModel):
     rewards: list[float] = Field(
         ...,
         description="List of computed rewards for the molecular verification.",
+    )
+    parsed_answers: list[str] = Field(
+        ..., description="The parsed answer extracted from the model completion."
     )
     verifier_metadatas: list[MolecularVerifierOutputMetadataModel] = Field(
         ...,

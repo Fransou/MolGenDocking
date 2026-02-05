@@ -400,8 +400,10 @@ class MolPropVerifier(Verifier):
         metadatas: List[MolPropVerifierInputMetadataModel] = inputs.metadatas  # type: ignore
 
         verifier_metadatas: List[MolPropVerifierMetadataModel] = []
+        all_matches: List[str] = []
         for answer, meta in zip(completions, metadatas):
             match = self.parse_answer(answer)
+            all_matches.append(match)
             self.logger.info(f"Match: {match}")
             extracted: float | int | None = None
             if match != "":
@@ -449,9 +451,10 @@ class MolPropVerifier(Verifier):
                     reward=float(
                         isinstance(verifier_meta.extracted_answer, (float, int))
                     ),
+                    parsed_answer=m,
                     verifier_metadata=verifier_meta,
                 )
-                for verifier_meta in verifier_metadatas
+                for m, verifier_meta in zip(all_matches, verifier_metadatas)
             ]
 
         rewards = []
@@ -481,7 +484,9 @@ class MolPropVerifier(Verifier):
         self.logger.info(f"Rewards: {rewards}")
         return [
             MolPropVerifierOutputModel(
-                reward=reward, verifier_metadata=verifier_metadata
+                reward=reward, parsed_answer=m, verifier_metadata=verifier_metadata
             )
-            for reward, verifier_metadata in zip(rewards, verifier_metadatas)
+            for reward, m, verifier_metadata in zip(
+                rewards, all_matches, verifier_metadatas
+            )
         ]

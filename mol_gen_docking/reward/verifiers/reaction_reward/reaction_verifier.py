@@ -639,6 +639,7 @@ class ReactionVerifier(Verifier):
             # Create the output model
             output_model = ReactionVerifierOutputModel(
                 reward=reward,
+                parsed_answer=f"{json_answer}",
                 verifier_metadata=ReactionVerifierMetadataModel(
                     valid=reward_metadata["valid"],
                     correct_product=reward_metadata["correct_product"],

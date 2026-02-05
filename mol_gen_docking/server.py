@@ -6,7 +6,6 @@ from typing import Any, AsyncGenerator, Dict
 
 import ray
 from fastapi import FastAPI
-from tdc import Evaluator
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
 from mol_gen_docking.reward import (
@@ -58,7 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.reward_buffer = RewardBuffer(
         app,
         buffer_time=server_settings.buffer_time,
-        max_batch_size=1000000000,
+        max_batch_size=2**16,
         server_mode=server_settings.server_mode,
     )
 
@@ -72,8 +71,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     with open(server_settings.data_path + "/pockets_info.json") as f:
         pockets_info = json.load(f)
     app.state.receptors = list(pockets_info.keys())
-    app.state.diversity_evaluator = Evaluator(name="Diversity")
-    app.state.uniqueness_evaluator = Evaluator(name="Uniqueness")
 
     yield
 
@@ -114,6 +111,10 @@ def create_app() -> FastAPI:
         ) = await app.state.reward_buffer.add_query(query)
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
+        if server_settings.debug_logging:
+            logger.info(f"=== Query: {query}\n=== Result: {result}")
+
+        # Possibly add next turn feedback
         if server_settings.server_mode == "singleton":
             assert isinstance(result, MolecularVerifierServerResponse), (
                 "Expected singleton response"
