@@ -638,9 +638,9 @@ class ReactionVerifier(Verifier):
             output_model = ReactionVerifierOutputModel(
                 reward=reward,
                 verifier_metadata=ReactionVerifierMetadataModel(
-                    valid=reward_metadata["valid"],
-                    correct_product=reward_metadata["correct_product"],
-                    correct_reactant=reward_metadata["correct_reactant"],
+                    reaction_verif_valid=reward_metadata["valid"],
+                    reaction_verif_correct_product=reward_metadata["correct_product"],
+                    reaction_verif_correct_reactant=reward_metadata["correct_reactant"],
                 ),
             )
             output_models.append(output_model)

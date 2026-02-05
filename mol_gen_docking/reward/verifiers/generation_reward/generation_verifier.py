@@ -415,7 +415,7 @@ class GenerationVerifier(Verifier):
                 GenerationVerifierOutputModel(
                     reward=float(len(smis) == 1),
                     verifier_metadata=GenerationVerifierMetadataModel(
-                        smiles_extraction_failure=fail
+                        generation_verif_smiles_extraction_failure=fail
                     ),
                 )
                 for smis, fail in zip(smiles_per_completion, extraction_failures)
@@ -480,11 +480,13 @@ class GenerationVerifier(Verifier):
             output_model = GenerationVerifierOutputModel(
                 reward=float(reward),
                 verifier_metadata=GenerationVerifierMetadataModel(
-                    properties=properties,
-                    individual_rewards=individual_rewards,
-                    all_smi_rewards=compl_reward,
-                    all_smi=smiles,
-                    smiles_extraction_failure=extraction_failures[id_completion],
+                    generation_verif_properties=properties,
+                    generation_verif_individual_rewards=individual_rewards,
+                    generation_verif_all_smi_rewards=compl_reward,
+                    generation_verif_all_smi=smiles,
+                    generation_verif_smiles_extraction_failure=extraction_failures[
+                        id_completion
+                    ],
                 ),
             )
             output_models.append(output_model)

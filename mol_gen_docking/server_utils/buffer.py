@@ -1,11 +1,12 @@
 import asyncio
 import logging
 from collections import deque
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 import ray
 
 from mol_gen_docking.server_utils.utils import (
+    BatchMolecularVerifierServerResponse,
     MolecularVerifierServerMetadata,
     MolecularVerifierServerQuery,
     MolecularVerifierServerResponse,
@@ -18,7 +19,11 @@ logger.setLevel(logging.INFO)
 
 class RewardBuffer:
     def __init__(
-        self, app: Any, buffer_time: float = 1.0, max_batch_size: int = 1024
+        self,
+        app: Any,
+        buffer_time: float = 1.0,
+        max_batch_size: int = 1024,
+        server_mode: Literal["singleton", "batch"] = "singleton",
     ) -> None:
         """Asynchronous buffer for batching and processing reward scoring requests.
 
@@ -55,6 +60,12 @@ class RewardBuffer:
                 Should be tuned based on GPU memory and target latency.
                 Default: 1024
 
+            server_mode (Literal["singleton", "batch"]): Server operation mode.
+
+                - "singleton": Each query contains a single completion to score.
+                - "batch": Each query can contain multiple completions to score.
+                Default: "singleton"
+
 
         Note:
             This class is thread-safe for asyncio but not for multi-threaded access.
@@ -62,6 +73,7 @@ class RewardBuffer:
         """
         self.app = app
         self.buffer_time = buffer_time
+        self.server_mode = server_mode
         self.max_batch_size = max_batch_size
         self.queue: deque[Tuple[MolecularVerifierServerQuery, asyncio.Future]] = deque()
         self.lock = asyncio.Lock()
@@ -69,7 +81,7 @@ class RewardBuffer:
 
     async def add_query(
         self, query: MolecularVerifierServerQuery
-    ) -> MolecularVerifierServerResponse:
+    ) -> MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse:
         """Add a query to the buffer and wait for its result asynchronously.
 
         This method is non-blocking: it immediately queues the request and returns
@@ -89,13 +101,20 @@ class RewardBuffer:
                 - prompts: Optional list of original prompts for tracking
 
         Returns:
-            MolecularVerifierServerResponse: A response containing:
+            MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse:
+                Response type depends on server_mode:
 
-                - reward: Overall averaged reward score
-                - reward_list: Individual rewards for each completion
-                - error: Error message if scoring failed
-                - meta: List of detailed metadata from each verifier
-                The exact response is determined by _process_batch.
+                - In "singleton" mode: MolecularVerifierServerResponse containing:
+                    - reward: Single reward score
+                    - meta: Single metadata object with detailed scoring information
+                    - error: Error message if scoring failed
+                    - next_turn_feedback: Optional feedback for multi-turn conversations
+
+                - In "batch" mode: BatchMolecularVerifierServerResponse containing:
+                    - rewards: List of individual reward scores (one per completion)
+                    - metas: List of metadata objects (one per completion)
+                    - error: Error message if scoring failed
+                    - next_turn_feedback: Optional feedback for multi-turn conversations
 
         Raises:
             Exception: Any exception raised during queueing or during result
@@ -196,7 +215,7 @@ class RewardBuffer:
 
     async def _process_batch(
         self, queries: List[MolecularVerifierServerQuery]
-    ) -> List[MolecularVerifierServerResponse]:
+    ) -> List[MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse]:
         """Process a batch of queries by merging, scoring, and grouping results.
 
         This is the core batch processing pipeline. It combines multiple queries
@@ -282,7 +301,9 @@ class RewardBuffer:
             grouped_meta[idx].append(m)
 
         # --- Step 4. Compute per-query metrics ---
-        responses = []
+        responses: List[
+            MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse
+        ] = []
         for i, q in enumerate(queries):
             if isinstance(q, MolecularVerifierServerResponse):
                 # prefilled error
@@ -290,12 +311,25 @@ class RewardBuffer:
                 continue
             rewards_i = grouped_results[i]
             metadata_i = grouped_meta[i]
-            response = MolecularVerifierServerResponse(
-                reward=0.0 if len(rewards_i) == 0 else sum(rewards_i) / len(rewards_i),
-                reward_list=rewards_i,
-                meta=[MolecularVerifierServerMetadata(**m) for m in metadata_i],
-                error=None,
-            )
+
+            if self.server_mode == "singleton":
+                assert len(rewards_i) == 1, (
+                    "Expected singleton mode to have one reward per query"
+                )
+                response = MolecularVerifierServerResponse(
+                    reward=rewards_i[0],
+                    meta=metadata_i[0],
+                    error=None,
+                )
+            elif self.server_mode == "batch":
+                response = BatchMolecularVerifierServerResponse(
+                    rewards=rewards_i,
+                    metas=[
+                        MolecularVerifierServerMetadata.model_validate(m)
+                        for m in metadata_i
+                    ],
+                    error=None,
+                )
             responses.append(response)
 
         return responses

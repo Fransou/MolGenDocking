@@ -40,13 +40,15 @@ class MolPropVerifierMetadataModel(BaseModel):
     """Metadata model for molecular property verifier results.
 
     Attributes:
+    property_verif_extracted_answer (float): The extracted answer string from the model completion.
+    property_verif_extraction_success (bool): Indicates whether the answer extraction was successful.
     """
 
-    extracted_answer: float = Field(
+    property_verif_extracted_answer: float = Field(
         ...,
         description="The extracted answer string from the model completion.",
     )
-    extraction_success: bool = Field(
+    property_verif_extraction_success: bool = Field(
         ...,
         description="Indicates whether the answer extraction was successful.",
     )

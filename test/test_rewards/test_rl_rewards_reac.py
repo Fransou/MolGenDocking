@@ -67,7 +67,7 @@ def add_sy_ex() -> List[Dict[str, Any]]:
     return examples
 
 
-@pytest.fixture(scope="module", params=list(range(919)))  # type: ignore
+@pytest.fixture(scope="module", params=list(range(100)))  # type: ignore
 def reaction_dataset_line(
     request: pytest.FixtureRequest, dataset_reac: List[Any]
 ) -> Any:

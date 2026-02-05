@@ -55,7 +55,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Initializing socket")
     app.state.reward_buffer = RewardBuffer(
-        app, buffer_time=server_settings.buffer_time, max_batch_size=1000000000
+        app,
+        buffer_time=server_settings.buffer_time,
+        max_batch_size=1000000000,
+        server_mode=server_settings.server_mode,
     )
 
     app.state.reward_model = get_or_create_reward_actor()
@@ -85,6 +88,13 @@ def create_app() -> FastAPI:
     async def get_reward(
         query: MolecularVerifierServerQuery,
     ) -> MolecularVerifierServerResponse:
+        if server_settings.server_mode == "singleton":
+            # Ensures the query does not contain multiple items
+            if len(query.metadata) != 1:
+                return MolecularVerifierServerResponse(
+                    error="Singleton mode only supports single query items."
+                )
+
         t0 = time.time()
         prepare_res = await prepare_receptor(query)
         status = prepare_res.get("status", "")
@@ -96,22 +106,24 @@ def create_app() -> FastAPI:
         )
         t1 = time.time()
         logger.info(f"Processed batch in {t1 - t0:.2f} seconds")
-        if result.meta is not None and len(result.meta) == 1:
-            if (
-                result.meta[0].all_smi_rewards is not None
-                and result.meta[0].all_smi is not None
-            ):
-                result.next_turn_feedback = (
-                    "The score of the provided molecules are:\n"
-                    + "\n".join(
-                        [
-                            f"{smi}: {score:.4f}"
-                            for smi, score in zip(
-                                result.meta[0].all_smi, result.meta[0].all_smi_rewards
-                            )
-                        ]
+        if server_settings.server_mode == "singleton":
+            if result.meta is not None:
+                if (
+                    len(result.meta.generation_verif_all_smi) > 0
+                    and len(result.meta.generation_verif_all_smi_rewards) > 0
+                ):
+                    result.next_turn_feedback = (
+                        "The score of the provided molecules are:\n"
+                        + "\n".join(
+                            [
+                                f"{smi}: {score:.3f}"
+                                for smi, score in zip(
+                                    result.meta.generation_verif_all_smi,
+                                    result.meta.generation_verif_all_smi_rewards,
+                                )
+                            ]
+                        )
                     )
-                )
         return result
 
     @app.post("/prepare_receptor")  # type: ignore

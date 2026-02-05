@@ -43,11 +43,11 @@ class ReactionVerifierInputMetadataModel(BaseModel):
         description="List of valid building blocks for the reaction.",
     )
     smarts: List[str] = Field(
-        ...,
+        list,
         description="Reference SMARTS strings for the reaction steps.",
     )
     or_smarts: List[str] = Field(
-        ...,
+        list,
         description="Original Reference SMARTS strings for the reaction steps.",
     )
     n_steps_max: int = Field(
@@ -56,6 +56,6 @@ class ReactionVerifierInputMetadataModel(BaseModel):
         description="Maximum number of reaction steps allowed in the synthesis route.",
     )
     idx_chosen: int = Field(
-        ...,
+        0,
         description="Index of the chosen reaction.",
     )

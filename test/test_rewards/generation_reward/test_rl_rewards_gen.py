@@ -323,7 +323,7 @@ class TestMultiPromptMultiGeneration:
         ):
             if completion.startswith("[N]"):
                 continue
-            reward = meta.all_smi_rewards
+            reward = meta.generation_verif_all_smi_rewards
             smiles_v = [
                 smi
                 for smi in smiles_list
@@ -423,7 +423,7 @@ class TestObjectiveBasedRewards:
                 assert reward == 0.0
             else:
                 smis_v = [smi for smi, valid in zip(smiles, smi_valid) if valid]
-                all_smi_rewards = meta_r.all_smi_rewards
+                all_smi_rewards = meta_r.generation_verif_all_smi_rewards
                 is_reward_valid(all_smi_rewards, smis_v, [prop])
 
 
