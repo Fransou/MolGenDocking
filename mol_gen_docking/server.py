@@ -106,7 +106,7 @@ def create_app() -> FastAPI:
                 )
             elif server_settings.server_mode == "batch":
                 return BatchMolecularVerifierServerResponse(
-                    reward=0.0, error="Error in preprocessing"
+                    rewards=[0.0], error="Error in preprocessing"
                 )
 
         result: (
