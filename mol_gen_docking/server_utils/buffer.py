@@ -1,10 +1,13 @@
 import asyncio
 import logging
 from collections import deque
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, List, Literal, Tuple
 
 import ray
 
+from mol_gen_docking.reward.molecular_verifier_pydantic_model import (
+    MolecularVerifierOutputMetadataModel,
+)
 from mol_gen_docking.server_utils.utils import (
     BatchMolecularVerifierServerResponse,
     MolecularVerifierServerMetadata,
@@ -291,14 +294,19 @@ class RewardBuffer:
 
         out = ray.get(rewards_job)
         rewards = out.rewards
-        metadatas = [m.model_dump() for m in out.verifier_metadatas]
+        parsed_answers = out.parsed_answers
+        metadatas = out.verifier_metadatas
         # --- Step 3. Group results by original query ---
         grouped_results: List[List[float]] = [[] for _ in range(len(queries))]
-        grouped_meta: List[List[Dict[str, Any]]] = [[] for _ in range(len(queries))]
+        grouped_meta: List[List[MolecularVerifierOutputMetadataModel]] = [
+            [] for _ in range(len(queries))
+        ]
+        grouped_parsed_answers: List[List[str]] = [[] for _ in range(len(queries))]
 
-        for r, m, idx in zip(rewards, metadatas, query_indices):
+        for r, m, p, idx in zip(rewards, metadatas, parsed_answers, query_indices):
             grouped_results[idx].append(r)
             grouped_meta[idx].append(m)
+            grouped_parsed_answers[idx].append(p)
 
         # --- Step 4. Compute per-query metrics ---
         responses: List[
@@ -311,6 +319,15 @@ class RewardBuffer:
                 continue
             rewards_i = grouped_results[i]
             metadata_i = grouped_meta[i]
+            parsed_answers_i = grouped_parsed_answers[i]
+            # Transform metadata to pydantic models
+            server_metadata_i: List[MolecularVerifierServerMetadata] = [
+                MolecularVerifierServerMetadata.model_validate(m.model_dump())
+                for m in metadata_i
+            ]
+            for serv_m, p_answer in zip(server_metadata_i, parsed_answers_i):
+                serv_m.parsed_answer = p_answer
+
             response: (
                 MolecularVerifierServerResponse | BatchMolecularVerifierServerResponse
             )
@@ -320,16 +337,13 @@ class RewardBuffer:
                 )
                 response = MolecularVerifierServerResponse(
                     reward=rewards_i[0],
-                    meta=MolecularVerifierServerMetadata.model_validate(metadata_i[0]),
+                    meta=server_metadata_i[0],
                     error=None,
                 )
             elif self.server_mode == "batch":
                 response = BatchMolecularVerifierServerResponse(
                     rewards=rewards_i,
-                    metas=[
-                        MolecularVerifierServerMetadata.model_validate(m)
-                        for m in metadata_i
-                    ],
+                    metas=server_metadata_i,
                     error=None,
                 )
             responses.append(response)

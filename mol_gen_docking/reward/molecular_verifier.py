@@ -278,6 +278,7 @@ class MolecularVerifier:
         metadata_output = [
             MolecularVerifierOutputMetadataModel() for _ in range(len(metadata))
         ]
+        parsed_answers: List[str] = ["" for _ in range(len(metadata))]
         for key, fn in obj_to_fn.items():
             if len(completions_per_obj[key]) > 0:
                 outputs_obj = fn(
@@ -295,8 +296,11 @@ class MolecularVerifier:
                             {f"{key}_verifier_metadata": output.verifier_metadata}
                         )
                     )
+                    parsed_answers[i] = output.parsed_answer
         return BatchMolecularVerifierOutputModel(
-            rewards=rewards, verifier_metadatas=metadata_output
+            rewards=rewards,
+            parsed_answers=parsed_answers,
+            verifier_metadatas=metadata_output,
         )
 
     def __call__(

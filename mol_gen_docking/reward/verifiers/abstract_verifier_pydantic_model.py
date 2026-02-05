@@ -75,10 +75,14 @@ class VerifierOutputModel(BaseModel):
 
     Attributes:
         reward: The computed reward score (typically 0.0 to 1.0).
+        parsed_answer: The parsed answer extracted from the model completion.
         verifier_metadata: Additional metadata from the verification process.
     """
 
     reward: float = Field(..., description="Reward score assigned by the verifier.")
+    parsed_answer: str = Field(
+        ..., description="The parsed answer extracted from the model completion."
+    )
     verifier_metadata: Any = Field(
         ..., description="Additional metadata from the verification process."
     )

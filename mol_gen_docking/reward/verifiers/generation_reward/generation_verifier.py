@@ -415,6 +415,7 @@ class GenerationVerifier(Verifier):
             return [
                 GenerationVerifierOutputModel(
                     reward=float(len(smis) == 1),
+                    parsed_answer=self.parse_answer("; ".join(smis)),
                     verifier_metadata=GenerationVerifierMetadataModel(
                         smiles_extraction_failure=fail
                     ),
@@ -480,6 +481,7 @@ class GenerationVerifier(Verifier):
             # Create the output model
             output_model = GenerationVerifierOutputModel(
                 reward=float(reward),
+                parsed_answer=self.parse_answer("; ".join(smiles)),
                 verifier_metadata=GenerationVerifierMetadataModel(
                     properties=properties,
                     individual_rewards=individual_rewards,
