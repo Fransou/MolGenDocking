@@ -318,7 +318,7 @@ class RewardBuffer:
                 )
                 response = MolecularVerifierServerResponse(
                     reward=rewards_i[0],
-                    meta=metadata_i[0],
+                    meta=MolecularVerifierServerMetadata.model_validate(metadata_i[0]),
                     error=None,
                 )
             elif self.server_mode == "batch":

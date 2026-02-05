@@ -218,16 +218,11 @@ class MolecularVerifierServerResponse(BaseModel):
           "reward": 0.75,
           "error": null,
           "meta": {
-              "smiles_extraction_failure": "",
-              "all_smi": ["CC(C)Cc1ccc(cc1)"],
-              "all_smi_rewards": [0.75],
-              "properties": ["GSK3B", "CalcLogP"],
-              "individual_rewards": [1.0, 0.5],
-              "extracted_answer": 0.0,
-              "extraction_success": false,
-              "valid": 0.0,
-              "correct_product": 0.0,
-              "correct_reactant": null
+              "generation_verif_smiles_extraction_failure": "",
+              "generation_verif_all_smi": ["CC(C)Cc1ccc(cc1)"],
+              "generation_verif_all_smi_rewards": [0.75],
+              "generation_verif_properties": ["GSK3B", "CalcLogP"],
+              "generation_verif_individual_rewards": [1.0, 0.5]
             },
           "next_turn_feedback": null
         }
@@ -302,11 +297,11 @@ class BatchMolecularVerifierServerResponse(BaseModel):
           "error": null,
           "metas": [
             {
-              "smiles_extraction_failure": null,
-              "all_smi": ["CC(C)Cc1ccc(cc1)"],
-              "all_smi_rewards": [0.75],
-              "properties": ["GSK3B", "CalcLogP"],
-              "individual_rewards": [1.0, 0.5]
+                "generation_verif_smiles_extraction_failure": "",
+                "generation_verif_all_smi": ["CC(C)Cc1ccc(cc1)"],
+                "generation_verif_all_smi_rewards": [0.75],
+                "generation_verif_properties": ["GSK3B", "CalcLogP"],
+                "generation_verif_individual_rewards": [1.0, 0.5]
             }
           ],
           "next_turn_feedback": null

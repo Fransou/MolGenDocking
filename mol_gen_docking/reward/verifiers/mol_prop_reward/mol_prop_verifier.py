@@ -437,7 +437,7 @@ class MolPropVerifier(Verifier):
             else:
                 verifier_metadatas.append(
                     MolPropVerifierMetadataModel(
-                        extracted_answer=-10000.0,
+                        property_verif_extracted_answer=-10000.0,
                         property_verif_extraction_success=False,
                     )
                 )
