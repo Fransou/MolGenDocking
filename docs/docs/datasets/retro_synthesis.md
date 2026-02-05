@@ -100,7 +100,9 @@ Rather than using hard constraints alone, we compute log-probabilities for produ
 
 ## Task Types
 
-We created nine distinct objective templates to train models on complementary synthesis reasoning tasks:
+We created ten distinct objective templates to train models on complementary synthesis reasoning tasks:
+
+### Single-Step Tasks
 
 <div class="grid cards" markdown>
 
@@ -108,41 +110,45 @@ We created nine distinct objective templates to train models on complementary sy
 
     ---
 
-    Predict the final product of a multi-step synthesis given all reaction SMARTS.
+    Predict the final product of a multi-step synthesis given the last reaction's SMARTS representation and reactants.
 
-    **Training samples:** ~2,500
+    ---
+    **Training samples:** **~6.5k**
 
 -   :material-help-circle:{ .lg .middle } __Reactant Prediction__
 
     ---
 
-    Identify a missing reactant for a single synthesis step.
+    Identify a missing reactant for a single synthesis step (always first step).
 
-    **Training samples:** ~12,500
+    ---
+    **Training samples:** **~3k**
 
 -   :material-format-list-bulleted:{ .lg .middle } __All Reactants Prediction__
 
     ---
-
-    Given a reaction SMARTS and target product, predict all required reactants.
-
-    **Training samples:** ~2,500
-
--   :material-package-variant:{ .lg .middle } __Building Block Constrained__
+    Given a reaction SMARTS and target product, predict all required reactants (always first step).
 
     ---
+    **Training samples:**
 
-    All reactants task with molecules restricted to a provided set of building blocks.
-
-    **Training samples:** ~2,500
+    - **~1k** with no additional information
+    - **~1.5k** with a set of building blocks provided
 
 -   :material-code-braces:{ .lg .middle } __SMARTS Identification__
 
     ---
 
-    Predict the SMARTS representation for a reaction step.
+    Predict the SMARTS representation for a reaction step, given the reactants and product (any step of a synthesis).
 
-    **Training samples:** ~5,000
+    ---
+    **Training samples:** **~1.5k**
+
+</div>
+
+### Multi-Step / Path Tasks
+
+<div class="grid cards" markdown>
 
 -   :material-sitemap:{ .lg .middle } __Full Synthesis Path__
 
@@ -150,31 +156,26 @@ We created nine distinct objective templates to train models on complementary sy
 
     Generate a complete multi-step synthesis pathway to a target molecule.
 
-    **Training samples:** ~10,000
+    ---
+    **Training samples:**
 
--   :material-sitemap-outline:{ .lg .middle } __Path with Building Block Reference__
+    - **~6.5k** with not additional information
+    - **~6.5k** with a set of SMARTS templates provided
+    - **~6.5k** with the 4, 8 or 16 most similar building blocks to the target molecule provided
+    - **~3k** with both SMARTS templates and most similar building blocks provided
+
+
+-   :material-sitemap-outline:{ .lg .middle } __Full Path With Interm. Products__
 
     ---
 
-    Synthesis design constrained to a provided set of building blocks.
-
-    **Training samples:** ~10,000
-
--   :material-file-code:{ .lg .middle } __Path with SMARTS Reference__
+    Generate a complete multi-step synthesis pathway to a target molecule, given possible intermediate products to help guide the model.
 
     ---
+    **Training samples:**
 
-    Synthesis design using only reactions from a curated set of templates.
-
-    **Training samples:** ~2,500
-
--   :material-check-all:{ .lg .middle } __Path with Both References__
-
-    ---
-
-    Full pathway design under both building block and reaction constraints.
-
-    **Training samples:** ~2,500
+    - **~6.5k** with not additional information
+    - **~6.5k** with a building blocks available (including the ones used in the synthesis)
 
 </div>
 
@@ -232,7 +233,7 @@ Following established methodology, we evaluate on **real-world synthesis predict
 For each molecule, we either:
 
 1. Directly prompt the model to predict the synthesis route
-2. Using an heuristic to identify the building blocks to use (by using their similarity to the target molecule and their ability to be used in different reactions).
+2. Prompt the model to predict the synthesis route given a set of building blocks (4, 8, or 16 most similar to the target).
 
 ### Evaluation Metrics
 

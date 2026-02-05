@@ -84,6 +84,8 @@ class ReactionVerifier(Verifier):
             "full_path_bb_ref",
             "full_path_smarts_ref",
             "full_path_smarts_bb_ref",
+            "full_path_intermediates_gt_reactants",
+            "full_path_intermediates",  # We treat this task as a normal path validation
         ]
         self.logger = logging.getLogger("ReactionVerifier")
 
@@ -480,10 +482,10 @@ class ReactionVerifier(Verifier):
         else:
             reactions = ReactionContainer([Reaction(sma) for sma in smarts])
 
-        if building_blocks == []:
-            building_blocks_csi = self.reactants_csi
-        else:
-            building_blocks_csi = [Molecule(smi).csmiles for smi in building_blocks]
+        building_blocks_csi = (
+            self.reactants_csi
+        )  # For the moment, the building blocks passed in the metadata
+        # are only used to  help the model but not proper constraints.
 
         n_valid = 0
         fail_reason = ""
@@ -610,28 +612,27 @@ class ReactionVerifier(Verifier):
                 assert len(meta.target) > 0, (
                     "Target must be provided for run validation tasks"
                 )
+                # If smarts constraint, add it
+                if "smarts" in objective:
+                    assert len(meta.smarts) > 0, (
+                        "SMARTS must be provided for smarts reference path validation"
+                    )
+                    smarts = meta.smarts
+                else:
+                    smarts = []
                 reward, raw_metadata = self.reward_run_path(
                     json_answer,
                     meta.target[0],
                     meta.building_blocks if meta.building_blocks else [],
-                    meta.smarts if meta.smarts else [],
+                    smarts=smarts,
                     n_steps_max=meta.n_steps_max,
                     reward_type=self.verifier_config.reaction_reward_type,
                 )
                 reward_metadata = raw_metadata
-            elif objective == "analog_gen":
-                assert len(meta.target) > 0, (
-                    "Target must be provided for analog generation task"
+            else:
+                raise ValueError(
+                    "Unknown objective {} type for reaction verifier".format(objective)
                 )
-                reward, raw_metadata = self.reward_run_path(
-                    json_answer,
-                    meta.target[0],
-                    meta.building_blocks if meta.building_blocks else [],
-                    meta.smarts if meta.smarts else [],
-                    n_steps_max=meta.n_steps_max,
-                    reward_type="tanimoto",
-                )
-                reward_metadata = raw_metadata
 
             if self.verifier_config.reward == "valid_smiles":
                 reward = float(reward > 0.0)

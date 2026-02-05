@@ -15,7 +15,6 @@ from mol_gen_docking.data.pydantic_dataset import (
     write_jsonl,
 )
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
-from mol_gen_docking.data.reactions.utils import PROMPT_TEMPLATES
 from mol_gen_docking.dataset.scripts.reaction_task.utils import ReactionTaskSampler
 
 SYSTEM_PROMPT = (
@@ -47,18 +46,16 @@ def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
             training_masks_strategy="none",
             custom_training_masks=None,
             meta={
-                "properties": data_dict["properties"][i],
                 "objectives": data_dict["objectives"][i],
+                "properties": data_dict["properties"][i],
                 "target": data_dict["target"][i],
-                "prompt_id": data_dict["prompt_id"][i],
-                "full_reaction": data_dict["full_reaction"][i],
-                "or_smarts": data_dict["or_smarts"][i],
-                "smarts": np.unique(data_dict["smarts"][i]).tolist(),
                 "reactants": data_dict["reactants"][i],
+                "intermediate_products": data_dict["intermediate_products"][i],
                 "products": data_dict["products"][i],
                 "building_blocks": np.unique(data_dict["building_blocks"][i]).tolist(),
+                "smarts": np.unique(data_dict["smarts"][i]).tolist(),
+                "or_smarts": data_dict["or_smarts"][i],
                 "idx_chosen": data_dict["idx_chosen"][i],
-                "n_building_blocks": len(data_dict["building_blocks"][i]),
             },
         )
         sample_list.append(
@@ -92,11 +89,6 @@ def get_args() -> argparse.Namespace:
         default=0,
     )
     parser.add_argument(
-        "--n_smarts_max",
-        type=int,
-        default=10,
-    )
-    parser.add_argument(
         "--data_json",
         type=str,
         default="mol_gen_docking/data/utils/enamine_1k.json",
@@ -123,9 +115,7 @@ def update_data_dict(
     label: List[str],
     bb: List[str],
 ) -> None:
-    prompt_text = np.random.choice(PROMPT_TEMPLATES[prop]).format(
-        product=smi, building_blocks=bb, n_reaction=5
-    )
+    prompt_text = ""
     data_dict["prompt"].append(
         [
             {
@@ -140,13 +130,12 @@ def update_data_dict(
     data_dict["prompt_id"].append(
         f"{args.data_json.split('/')[-1].replace('.json', '')}:{args.n_bb_max}:{i}"
     )
-    data_dict["full_reaction"].append("")
+    data_dict["intermediate_products"].append([])
     data_dict["smarts"].append([])
     data_dict["or_smarts"].append([])
     data_dict["reactants"].append([])
     data_dict["products"].append([])
     data_dict["building_blocks"].append(bb)
-    data_dict["original_building_blocks"].append([])
     data_dict["idx_chosen"].append(0)
 
 
@@ -157,13 +146,12 @@ def main(args: argparse.Namespace) -> None:
         "objectives": [],
         "target": [],
         "prompt_id": [],
-        "full_reaction": [],
+        "intermediate_products": [],
         "smarts": [],
         "reactants": [],
         "or_smarts": [],
         "products": [],
         "building_blocks": [],
-        "original_building_blocks": [],
         "idx_chosen": [],
     }
     rxn_matrix = get_matrix(args)

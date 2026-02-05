@@ -74,65 +74,65 @@ def data_dict_to_pydantic(
     return sample_list
 
 
-POLARIS_DATASET_PROP_NAME = {
-    # "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (SARS-CoV-2 Mpro)": "pIC50 against SARS-CoV-2 main protease",
-    "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (MERS-CoV Mpro)": "pIC50 against MERS-CoV main protease",
-    # "leash-bio/belka-v1|molecule_smiles|binds_HSA": "binding to HSA",
-    # "leash-bio/belka-v1|molecule_smiles|binds_sEH": "binding to sEH",
-    # "leash-bio/belka-v1|molecule_smiles|binds_BRD4": "binding to BRD4",
-    "polaris/az-logd-74-v1|MOL_smiles|LOGD_74": "octan-1-ol/water (pH7.4) distribution coefficent",
-    "polaris/az-ppb-clearance-v1|MOL_smiles|log_unbound_PPB": "log percent of compound unbound to whole human plasma",
-    "novartis/novartis-cyp3a4-v1|MOL_smiles|log_kobs": "log-inactivation rate constant of CYP enzymes",
-    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_EGFR": "an inhibator of the EGFR kinase",
-    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_KIT": "an inhibator of the KIT kinase",
-    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_RET": "an inhibator of the RET kinase",
-    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_LOK": "an inhibator of the LOK kinase",
-    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_SLK": "an inhibator of the SLK kinase",
-    "biogen/adme-fang-solu-reg-v1": "log-solubility",
-    "biogen/adme-fang-rppb-reg-v1": "log-rat plasma protein binding rate",
-    "biogen/adme-fang-hppb-reg-v1": "log-human plasma protein binding rate",
-    "biogen/adme-fang-perm-reg-v1": "log-MDR1 MDCK efflux ratio",
-    "biogen/adme-fang-hclint-reg-v1": "log-human liver microsomal stability",
-    "biogen/adme-fang-rclint-reg-v1": "log-rat liver microsomal stability",
-    "tdcommons/pgp-broccatelli": "an inhibitor of the P-glycoprotein",
-    "tdcommons/vdss-lombardo": "volume of distribution at steady state",
-    "tdcommons/bbb-martins": "able to penetrate the blood-brain barrier",
-    "tdcommons/caco2-wang": "rate of compounds passing through the Caco-2 cells",
-    "tdcommons/dili": "inducing liver injuries",
-    "tdcommons/herg": "a blocker of hERG",
-    "tdcommons/ames": "mutagenic",
-    "tdcommons/half-life-obach": "duration for the concentration of the molecule in the body to be reduced by half",
-    "tdcommons/lipophilicity-astrazeneca": "lipophilicity",
-    "tdcommons/clearance-hepatocyte-az": "drug clearance (hepatocyte)",
-    "tdcommons/clearance-microsome-az": "drug clearance (microsome)",
-    "tdcommons/ld50-zhu": "acute toxicity LD50",
-    # "tdcommons/cyp3a4-veith": "inhibiting CYP3A4",
-    # "tdcommons/cyp2d6-veith": "inhibiting CYP2D6",
-    # "tdcommons/cyp2c9-veith": "inhibiting CYP2C9",
-    "tdcommons/cyp2c9-substrate-carbonmangels": "a substrate of CYP2C9",
-    "tdcommons/cyp2d6-substrate-carbonmangels": "a substrate of CYP2D6",
-    "tdcommons/cyp3a4-substrate-carbonmangels": "a substrate of CYP3A4",
-    "tdcommons/solubility-aqsoldb": "solubility",
-    # "molecularml/moleculeace-chembl2034-ki": "pKi against the Nuclear hormone receptor subfamily 3 group C member 1",
-    # "molecularml/moleculeace-chembl1871-ki": "pKi against the Nuclear hormone receptor subfamily 3 group C member 4",
-    # "molecularml/moleculeace-chembl239-ec50": "pEC50 against the Nuclear hormone receptor subfamily 1 group C member 1",
-    # "molecularml/moleculeace-chembl3979-ec50": "pEC50 against the Nuclear hormone receptor subfamily 1 group C member 2",
-    # "molecularml/moleculeace-chembl235-ec50": "pEC50 against the Nuclear hormone receptor subfamily 1 group C member 3",
-    # "molecularml/moleculeace-chembl2047-ec50": "pEC50 against the Nuclear hormone receptor subfamily 1 group H member 4",
-    # "molecularml/moleculeace-chembl2147-ki": "pKi against the CAMK protein kinase PIM family",
-    # "molecularml/moleculeace-chembl4792-ki": "pKi against the Orexin receptor family",
-    # "molecularml/moleculeace-chembl236-ki": "pKi against the Opioid receptor family",
-    # "molecularml/moleculeace-chembl234-ki": "pKi against the Dopamine receptor family",
-    # "molecularml/moleculeace-chembl1862-ki": "pKi against the Tyrosine protein kinase Abl family",
-    # "molecularml/moleculeace-chembl2835-ki": "pKi against the Tyrosine protein kinase JakA family",
-    # "molecularml/moleculeace-chembl238-ki": "pKi against the SLC06 neurotransmitter transporter family",
-    # "molecularml/moleculeace-chembl204-ki": "pKi against the Serine protease S1A subfamily",
-    # "molecularml/moleculeace-chembl214-ki": "pKi against the Serotonin receptor",
-    # "molecularml/moleculeace-chembl264-ki": "pKi against the Histamine receptor",
-    # "molecularml/moleculeace-chembl4203-ki": "pKi against the CMGC protein kinase CLK family",
-    # "molecularml/moleculeace-chembl262-ki": "pKi against the protein kinase GSK family",
-    # "molecularml/moleculeace-chembl4616-ec50": "pEC50 against the GRP-related receptor ",
-}
+POLARIS_DATASETS = [
+    # "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (SARS-CoV-2 Mpro)",
+    "asap-discovery/antiviral-potency-2025-unblinded|CXSMILES|pIC50 (MERS-CoV Mpro)",
+    # "leash-bio/belka-v1|molecule_smiles|binds_HSA",
+    # "leash-bio/belka-v1|molecule_smiles|binds_sEH",
+    # "leash-bio/belka-v1|molecule_smiles|binds_BRD4",
+    "polaris/az-logd-74-v1|MOL_smiles|LOGD_74",
+    "polaris/az-ppb-clearance-v1|MOL_smiles|log_unbound_PPB",
+    "novartis/novartis-cyp3a4-v1|MOL_smiles|log_kobs",
+    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_EGFR",
+    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_KIT",
+    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_RET",
+    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_LOK",
+    "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_SLK",
+    "biogen/adme-fang-solu-reg-v1",
+    "biogen/adme-fang-rppb-reg-v1",
+    "biogen/adme-fang-hppb-reg-v1",
+    "biogen/adme-fang-perm-reg-v1",
+    "biogen/adme-fang-hclint-reg-v1",
+    "biogen/adme-fang-rclint-reg-v1",
+    "tdcommons/pgp-broccatelli",
+    "tdcommons/vdss-lombardo",
+    "tdcommons/bbb-martins",
+    "tdcommons/caco2-wang",
+    "tdcommons/dili",
+    "tdcommons/herg",
+    "tdcommons/ames",
+    "tdcommons/half-life-obach",
+    "tdcommons/lipophilicity-astrazeneca",
+    "tdcommons/clearance-hepatocyte-az",
+    "tdcommons/clearance-microsome-az",
+    "tdcommons/ld50-zhu",
+    # "tdcommons/cyp3a4-veith",
+    # "tdcommons/cyp2d6-veith",
+    # "tdcommons/cyp2c9-veith",
+    "tdcommons/cyp2c9-substrate-carbonmangels",
+    "tdcommons/cyp2d6-substrate-carbonmangels",
+    "tdcommons/cyp3a4-substrate-carbonmangels",
+    "tdcommons/solubility-aqsoldb",
+    # "molecularml/moleculeace-chembl2034-ki",
+    # "molecularml/moleculeace-chembl1871-ki",
+    # "molecularml/moleculeace-chembl239-ec50",
+    # "molecularml/moleculeace-chembl3979-ec50",
+    # "molecularml/moleculeace-chembl235-ec50",
+    # "molecularml/moleculeace-chembl2047-ec50",
+    # "molecularml/moleculeace-chembl2147-ki",
+    # "molecularml/moleculeace-chembl4792-ki",
+    # "molecularml/moleculeace-chembl236-ki",
+    # "molecularml/moleculeace-chembl234-ki",
+    # "molecularml/moleculeace-chembl1862-ki",
+    # "molecularml/moleculeace-chembl2835-ki",
+    # "molecularml/moleculeace-chembl238-ki",
+    # "molecularml/moleculeace-chembl204-ki",
+    # "molecularml/moleculeace-chembl214-ki",
+    # "molecularml/moleculeace-chembl264-ki",
+    # "molecularml/moleculeace-chembl4203-ki",
+    # "molecularml/moleculeace-chembl262-ki",
+    # "molecularml/moleculeace-chembl4616-ec50",
+]
 
 DATASETS_CLS = [
     "polaris/drewry2017-pkis2-subset-v2|MOL_smiles|CLS_EGFR",
@@ -145,10 +145,6 @@ DATASETS_CLS = [
     "leash-bio/belka-v1|molecule_smiles|binds_BRD4",
 ]
 
-PROMPT_TEMPLATES = {
-    "regression": ["Give me the {property} of the following molecule: {mol}."],
-    "classification": ["Tell me if {mol} is {property}."],
-}
 
 DOWNSCALE = {
     "leash-bio/belka-v1|molecule_smiles|binds_HSA": 1e-5,
@@ -212,11 +208,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-d", "--data_path", type=str, required=True)
     parser.add_argument(
-        "-p",
-        "--property_dataset",
-        nargs="+",
-        type=str,
-        default=POLARIS_DATASET_PROP_NAME.keys(),
+        "-p", "--property_dataset", nargs="+", type=str, default=POLARIS_DATASETS
     )
 
     args = parser.parse_args()
@@ -281,18 +273,15 @@ if __name__ == "__main__":
             ):
                 if smiles is None:
                     continue
-                prop_name = POLARIS_DATASET_PROP_NAME[property_dataset_k]
                 y = float(y)
                 if REGRESSION_TRANSFORMER.get(property_dataset, None) == "log":
                     y = np.log(y)
-                    prop_name = "log-" + prop_name
                 elif property_dataset in REGRESSION_TRANSFORMER:
                     raise NotImplementedError(
                         f"{REGRESSION_TRANSFORMER[property_dataset]} not covered"
                     )
 
-                template = np.random.choice(PROMPT_TEMPLATES[obj])
-                prompt_text = template.format(mol=smiles, property=prop_name)
+                prompt_text = ""
                 prompt = [
                     {
                         "role": "system",
@@ -300,7 +289,7 @@ if __name__ == "__main__":
                     },
                     {
                         "role": "user",
-                        "content": prompt_text,
+                        "content": "",
                     },
                 ]
                 data_dict["prompt"].append(prompt)

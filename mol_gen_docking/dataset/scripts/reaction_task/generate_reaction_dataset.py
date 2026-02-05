@@ -15,7 +15,7 @@ from mol_gen_docking.data.pydantic_dataset import (
 )
 from mol_gen_docking.data.reactions.projection_dataset import TextualProjectionDataset
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
-from mol_gen_docking.data.reactions.utils import PROMPT_TEMPLATES
+from mol_gen_docking.data.reactions.utils import PROMPT_TASKS
 from mol_gen_docking.dataset.scripts.reaction_task.utils import ReactionTaskSampler
 
 SYSTEM_PROMPT = (
@@ -47,18 +47,16 @@ def data_dict_to_pydantic(data_dict: dict, key: str = "prompt") -> List[Sample]:
             training_masks_strategy="none",
             custom_training_masks=None,
             meta={
-                "properties": data_dict["properties"][i],
                 "objectives": data_dict["objectives"][i],
+                "properties": data_dict["properties"][i],
                 "target": data_dict["target"][i],
-                "prompt_id": data_dict["prompt_id"][i],
-                "full_reaction": data_dict["full_reaction"][i],
-                "or_smarts": data_dict["or_smarts"][i],
-                "smarts": np.unique(data_dict["smarts"][i]).tolist(),
                 "reactants": data_dict["reactants"][i],
+                "intermediate_products": data_dict["intermediate_products"][i],
                 "products": data_dict["products"][i],
                 "building_blocks": np.unique(data_dict["building_blocks"][i]).tolist(),
+                "smarts": np.unique(data_dict["smarts"][i]).tolist(),
+                "or_smarts": data_dict["or_smarts"][i],
                 "idx_chosen": data_dict["idx_chosen"][i],
-                "n_building_blocks": len(data_dict["building_blocks"][i]),
             },
         )
         sample_list.append(
@@ -99,14 +97,26 @@ def get_args() -> argparse.Namespace:
         "--proba-obj",
         nargs="+",
         type=float,
-        default=[0.05, 0.05, 0.1, 0.1, 0.1, 0.15, 0.15, 0.15, 0.15],
+        default=[
+            2,
+            0.3,
+            0.3,
+            0.5,
+            0.5,
+            2,
+            2,
+            2,
+            1,
+            2,
+            2,
+        ],  # final_product, reactant, all_reactants, all_reactants_bb_ref, smarts, full_path, full_path_bb_ref, full_path_smarts_ref, full_path_smarts_bb_ref, full_path_intermediates, full_path_intermediates_gt_reactants
     )
 
     ### Prior information args
     parser.add_argument(
         "--n_bb_max",
         type=int,
-        default=128,
+        default=16,
     )
     parser.add_argument(
         "--n_smarts_max",
@@ -125,6 +135,17 @@ def get_args() -> argparse.Namespace:
         type=int,
         default=100,
     )
+    parser.add_argument(
+        "--iter-ray",
+        action="store_true",
+        help="Use ray for reaction sampling.",
+    )
+    parser.add_argument(
+        "--save_every",
+        type=int,
+        default=100,
+        help="Save the dataset every N samples.",
+    )
 
     args = parser.parse_args()
     if args.out_path == "":
@@ -134,7 +155,7 @@ def get_args() -> argparse.Namespace:
             f"train_{args.n_reaction_retry}_{args.n_bb_retry}.jsonl",
         )
     os.makedirs(os.path.dirname(args.out_path), exist_ok=True)
-    assert len(args.proba_obj) == len(PROMPT_TEMPLATES)
+    assert len(args.proba_obj) == len(PROMPT_TASKS)
     args.proba_obj = [p / sum(args.proba_obj) for p in args.proba_obj]
     return args
 
@@ -161,16 +182,7 @@ def update_data_dict(
         reaction_str = reaction_str.replace(f"{lab}", "?")
 
     # 4 - Create_prompt
-    prompt_text = np.random.choice(PROMPT_TEMPLATES[prop]).format(
-        reaction=reaction_str,
-        smarts="\n".join(smarts),
-        product=products[-1],
-        building_blocks=building_blocks,
-        n_reaction=len(reactants),
-    )
-    if len(reactants) == 1:
-        prompt_text = prompt_text.replace("multi-step synthesis", "synthesis step")
-
+    prompt_text = ""
     data_dict["prompt"].append(
         [
             {
@@ -179,36 +191,35 @@ def update_data_dict(
             },
         ]
     )
+    intermediate_products = products[:-1]
+    np.random.shuffle(intermediate_products)
+
     data_dict["properties"].append([prop])
     data_dict["objectives"].append([prop])
     data_dict["target"].append(label)
     data_dict["prompt_id"].append(f"synth:prop::{i}")
-    data_dict["full_reaction"].append("\n".join(reaction_str_list))
     data_dict["smarts"].append(smarts)
     data_dict["or_smarts"].append(or_smarts)
     data_dict["reactants"].append(reactants)
+    data_dict["intermediate_products"].append(intermediate_products)
     data_dict["products"].append(products)
     data_dict["building_blocks"].append(building_blocks)
-    data_dict["original_building_blocks"].append(
-        original_building_blocks
-    )  # Not used here
     data_dict["idx_chosen"].append(idx_chosen)
 
 
 def main(args: argparse.Namespace) -> None:
     data_dict: Dict[str, Any] = {
         "prompt": [],
-        "properties": [],
-        "objectives": [],
-        "target": [],
         "prompt_id": [],
-        "full_reaction": [],
-        "smarts": [],
+        "objectives": [],
+        "properties": [],
+        "target": [],
         "reactants": [],
-        "or_smarts": [],
         "products": [],
         "building_blocks": [],
-        "original_building_blocks": [],
+        "smarts": [],
+        "or_smarts": [],
+        "intermediate_products": [],
         "idx_chosen": [],
     }
     proj_dataset = get_proj_dataset(args)
@@ -216,8 +227,10 @@ def main(args: argparse.Namespace) -> None:
     task_sampler = ReactionTaskSampler(args, proj_dataset._reaction_matrix)
     i = 0
 
+    iterator = proj_dataset.iter_ray() if args.iter_ray else proj_dataset
+
     for reactants, products, or_smarts, pass_filters in tqdm(
-        proj_dataset, "Post-processing prompts", total=len(proj_dataset)
+        iterator, "Post-processing prompts", total=len(proj_dataset)
     ):
         if len(reactants) == 0 or len(products) == 0 or len(or_smarts) == 0:
             continue
@@ -225,7 +238,10 @@ def main(args: argparse.Namespace) -> None:
         prop, idx_chosen, label, bb, smarts, or_bb = task_sampler.sample(
             reactants=reactants, products=products, or_smarts=or_smarts
         )
-
+        if prop in task_sampler.choose_idx_reaction:
+            reactants = [reactants[idx_chosen]]
+            products = [products[idx_chosen]]
+            or_smarts = [or_smarts[idx_chosen]]
         update_data_dict(
             data_dict,
             args,
@@ -241,6 +257,13 @@ def main(args: argparse.Namespace) -> None:
             smarts=smarts,
         )
         i += 1
+        if i % args.save_every == 0:
+            dataset = data_dict_to_pydantic(data_dict)
+            out_path = args.out_path
+            write_jsonl(
+                Path(os.path.join(out_path)),
+                dataset,
+            )
 
     dataset = data_dict_to_pydantic(data_dict)
     out_path = args.out_path

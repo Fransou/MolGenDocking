@@ -12,7 +12,8 @@ ReactionObjT = Literal[
     "full_path_bb_ref",
     "full_path_smarts_ref",
     "full_path_smarts_bb_ref",
-    "analog_gen",
+    "full_path_intermediates",
+    "full_path_intermediates_gt_reactants",
 ]
 
 
@@ -81,6 +82,10 @@ class ReactionVerifierInputMetadataModel(BaseModel):
     reactants: List[List[str]] = Field(
         default_factory=list,
         description="List of reactants in a reaction.",
+    )
+    intermediate_products: List[str] = Field(
+        default_factory=list,
+        description="The intermediate product molecules of the reaction steps.",
     )
     products: List[str] = Field(
         default_factory=list,

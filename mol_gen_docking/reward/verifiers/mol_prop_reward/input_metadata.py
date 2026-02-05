@@ -15,7 +15,6 @@ class MolPropVerifierInputMetadataModel(BaseModel):
     Attributes:
         objectives: List of objective types for each property.
             Valid values:
-
             - "regression": Continuous value prediction (e.g., predicting logP, molecular weight)
             - "classification": Binary classification (0 or 1)
             Must have the same length as properties and target.
