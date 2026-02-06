@@ -11,14 +11,17 @@
 #SBATCH --array=0-9
 
 export WORKING_DIR=$HOME/MolGenDocking
+DASHBOARD_PORT=$((8000 + SLURM_ARRAY_TASK_ID))
 
 source $HOME/.bashrc
 source $HOME/OpenRLHF/bin/activate
 
 cd $WORKING_DIR
 
-ray start --head
-ssh -N -f -R 8265:localhost:8265 fransou@rorqual
+ray start --head --dashboard-port=$DASHBOARD_PORT
+
+ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} fransou@rorqual
+
 
 python mol_gen_docking/dataset/scripts/reaction_task/generate_reaction_dataset.py \
   -d data \
