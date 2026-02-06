@@ -173,6 +173,7 @@ def create_init_stack(
     return stack
 
 
+@ray.remote(num_cpus=1)
 def find_products_reactants(
     stack: Stack,
     matrix: ReactantReactionMatrix,
@@ -273,16 +274,23 @@ def expand_stack(
     probs: list[float] = []
 
     # Get all possible products at this stage for n_retry reactions
-    for rxn_index in rxn_indexes:
-        reactants, prods, prob, success = find_products_reactants(
-            stack,
-            matrix,
-            rxn_index=rxn_index,
-            last_product=last_product,
-            matches=matches,
-            max_num_atoms=max_num_atoms,
-            n_attempts_per_reaction=n_attempts_per_reaction,
-        )
+    react_prods_prob_success = ray.get(
+        [
+            find_products_reactants.remote(  # type: ignore
+                stack,
+                matrix,
+                last_product=last_product,
+                matches=matches,
+                rxn_index=rxn_index,
+                max_num_atoms=max_num_atoms,
+                n_attempts_per_reaction=n_attempts_per_reaction,
+            )
+            for rxn_index in rxn_indexes
+        ]
+    )
+    for rxn_index, (reactants, prods, prob, success) in zip(
+        rxn_indexes, react_prods_prob_success
+    ):
         if success:
             rxn_index_to_rp[rxn_index] = (reactants, prods)
             for i, p in enumerate(prob):

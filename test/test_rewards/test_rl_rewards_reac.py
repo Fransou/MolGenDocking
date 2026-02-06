@@ -165,7 +165,8 @@ class TestReaction:
         answers.append("{npkdf;lds} jij}")
         completions = ["<answer>\n {} \n</answer>".format(v) for v in answers]
 
-        rewards = property_scorer(completions, [metadata] * len(answers)).rewards
+        result = property_scorer(completions, [metadata] * len(answers))
+        rewards = result.rewards
         assert rewards[0] == 1
         assert all(r == 0 for r in rewards[1:])
 

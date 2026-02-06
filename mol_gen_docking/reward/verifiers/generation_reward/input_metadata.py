@@ -19,7 +19,6 @@ class GenerationVerifierInputMetadataModel(BaseModel):
         objectives: List of objectives for each property.
             Must have the same length as properties and target.
             Valid values:
-
             - "maximize": Reward increases with property value
             - "minimize": Reward increases as property value decreases
             - "above": Reward is 1.0 if property >= target, 0.0 otherwise

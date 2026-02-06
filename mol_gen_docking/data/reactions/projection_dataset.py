@@ -27,6 +27,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         n_retry: int = 1,
         n_attempts_per_reaction: int = 1,
         virtual_length: int = 65536,
+        ray_batch_size: int = 32,
     ) -> None:
         super().__init__()
         self._reaction_matrix = reaction_matrix
@@ -37,6 +38,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         self._virtual_length = virtual_length
         self._n_retry = n_retry
         self._n_attempts_per_reaction = n_attempts_per_reaction
+        self._ray_batch_size = ray_batch_size
 
     def __len__(self) -> int:
         return self._virtual_length
@@ -49,27 +51,33 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         reaction_matrix_ref = ray.put(self._reaction_matrix)
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
         pbar = remote_tqdm.remote(total=self._virtual_length)
-        all_stacks = ray.get(
-            [
-                create_stack_ray.remote(
-                    reaction_matrix_ref,
-                    max_num_reactions=self._max_num_reactions,
-                    max_num_atoms=self._max_num_atoms,
-                    init_stack_weighted_ratio=self._init_stack_weighted_ratio,
-                    n_retry=self._n_retry,
-                    n_attempts_per_reaction=self._n_attempts_per_reaction,
-                    pbar=pbar,
-                )
-                for _ in range(self._virtual_length)
-            ]
-        )
-        pbar.close.remote()  # type: ignore
+        running_tasks: list[ray.ObjectRef] = []
 
-        for stack in all_stacks:
+        for i in range(self._virtual_length):
+            if len(running_tasks) >= self._ray_batch_size:
+                done_ids, running_tasks = ray.wait(running_tasks)
+                stacks = ray.get(done_ids)
+                for stack in stacks:
+                    out = self.post_process_stack(stack)
+                    if out is not None:
+                        yield out
+            task = create_stack_ray.remote(
+                reaction_matrix_ref,
+                max_num_reactions=self._max_num_reactions,
+                max_num_atoms=self._max_num_atoms,
+                init_stack_weighted_ratio=self._init_stack_weighted_ratio,
+                n_retry=self._n_retry,
+                n_attempts_per_reaction=self._n_attempts_per_reaction,
+                pbar=pbar,
+            )
+            running_tasks.append(task)
+
+        last_tasks = ray.get(running_tasks)
+        pbar.close.remote()  # type: ignore
+        for stack in last_tasks:
             out = self.post_process_stack(stack)
-            if out is None:
-                continue
-            yield out
+            if out is not None:
+                yield out
 
     def __iter__(
         self,
@@ -80,6 +88,8 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
                 max_num_reactions=self._max_num_reactions,
                 max_num_atoms=self._max_num_atoms,
                 init_stack_weighted_ratio=self._init_stack_weighted_ratio,
+                n_retry=self._n_retry,
+                n_attempts_per_reaction=self._n_attempts_per_reaction,
             )
             out = self.post_process_stack(stack)
             if out is None:
