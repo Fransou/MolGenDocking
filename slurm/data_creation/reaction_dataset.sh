@@ -20,7 +20,7 @@ cd $WORKING_DIR
 
 ray start --head --dashboard-port=$DASHBOARD_PORT
 
-ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} fransou@rorqual
+ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} fransou@rorqual4
 
 
 python mol_gen_docking/dataset/scripts/reaction_task/generate_reaction_dataset.py \
