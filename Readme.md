@@ -78,7 +78,7 @@ response = requests.post(
 
 ## License
 
-[MIT License](LICENSE)
+[Apache 2.0 License](LICENSE)
 
 ## Support
 
