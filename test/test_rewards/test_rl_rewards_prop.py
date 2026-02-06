@@ -243,9 +243,12 @@ class TestMixedGeneration:
         )
         rewards = property_scorer_mixed(completions, metadata, debug=True).rewards
         assert rewards[::2] == [1.0, 1.0, 0.0, 0.0, 0.0]
-        assert rewards[1::2] == np.array(
-            [rescale_property_values("CalcNumRotatableBonds", i) for i in range(5)]
-        ).clip(0, 1)
+        assert (
+            rewards[1::2]
+            == np.array(
+                [rescale_property_values("CalcNumRotatableBonds", i) for i in range(5)]
+            ).clip(0, 1)
+        ).all()
 
     def test_with_generation_no_gen_conf(
         self, property_scorer: MolecularVerifier
