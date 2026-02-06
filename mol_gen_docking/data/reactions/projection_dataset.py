@@ -27,7 +27,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         n_retry: int = 1,
         n_attempts_per_reaction: int = 1,
         virtual_length: int = 65536,
-        ray_batch_size: int = 32,
+        ray_batch_size: int = 128,
     ) -> None:
         super().__init__()
         self._reaction_matrix = reaction_matrix
