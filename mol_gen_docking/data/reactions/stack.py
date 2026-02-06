@@ -372,7 +372,7 @@ def create_stack(
     return stack
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=0.3)
 def create_stack_ray(
     matrix: Any,
     max_num_reactions: int = 5,
