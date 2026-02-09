@@ -16,7 +16,7 @@ CONFIG=$2
 
 DATA_PATH=$SLURM_TMPDIR/$DATASET
 WORKING_DIR=$HOME/MolGenDocking
-DASHBOARD_PORT=$((8000 + SLURM_ARRAY_TASK_ID))
+export DASHBOARD_PORT=$((8000 + SLURM_ARRAY_TASK_ID))
 
 source $HOME/.bashrc
 source $HOME/OpenRLHF/bin/activate
@@ -28,13 +28,12 @@ cd $WORKING_DIR
 
 cp data/properties.csv $SLURM_TMPDIR
 ray start --head --node-ip-address 0.0.0.0 --dashboard-port=$DASHBOARD_PORT
-ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} $SLURM_JOB_USER@rorqual4
+# ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} $SLURM_JOB_USER@rorqual4
 
 
 #export DEBUG_MODE=1
 ray job submit \
    --address="http://127.0.0.1:$DASHBOARD_PORT" \
-    --job-name="batch_inference_$SLURM_JOB_ID_$SLURM_ARRAY_TASK_ID" \
    --runtime-env-json='{"setup_commands": ["wandb offline"]}' \
    -- python3 -m openrlhf.cli.batch_inference \
    --config $CONFIG \
