@@ -58,7 +58,7 @@ If you use MolGenDocking in your research, please cite:
 
 ## License
 
-[Your License Here]
+Apache License 2.0. See [LICENSE](https://github.com/Fransou/MolGenDocking/LICENSE.md) for details.
 
 ## Support
 
