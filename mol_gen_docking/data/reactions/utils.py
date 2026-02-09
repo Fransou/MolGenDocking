@@ -1,6 +1,6 @@
 from typing import Callable
 
-import numpy as np
+import torch
 from rdkit import Chem
 from rdkit.Chem import QED, rdMolDescriptors
 
@@ -43,11 +43,14 @@ def logbeta(
     a: float, b: float, min_x: float = 0.0, max_x: float = 1.0
 ) -> Callable[[float], float]:
     def logbeta_fn(x: float) -> float:
-        x_norm = (x - min_x) / (max_x - min_x)
-        x_norm = np.clip(x_norm, 1e-6, 1 - 1e-6)
-        return np.log(x_norm) * (a - 1) + np.log(1 - x_norm) * (b - 1)  # type: ignore
+        x_norm = torch.tensor((x - min_x) / (max_x - min_x))
+        x_norm = torch.clip(x_norm, min=1e-6, max=1 - 1e-6)
+        return torch.log(x_norm) * (a - 1) + torch.log(1 - x_norm) * (b - 1)  # type: ignore
 
-    return logbeta_fn
+    # Compute the normalizing constant
+    x = torch.linspace(min_x, max_x, 15)
+    log_cst = torch.logsumexp(logbeta_fn(x), 0)
+    return lambda x: float(logbeta_fn(x) - log_cst)
 
 
 PROP_TARGET_DISTRIB_FN: dict[str, Callable[[float], float]] = {

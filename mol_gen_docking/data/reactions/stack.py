@@ -3,6 +3,7 @@ from typing import Any, TypeAlias
 
 import numpy as np
 import ray
+import torch
 from rdkit import Chem, RDLogger
 
 from mol_gen_docking.data.reactions.mol import Molecule
@@ -33,14 +34,16 @@ def pass_filters_p(smiles: str) -> tuple[bool, float]:
         ]
     )
     if filter_pass:
-        logprob = [
+        logprob_l = [
             PROP_TARGET_DISTRIB_FN[k](descriptors[k])
             for k in PROP_TARGET_DISTRIB_FN.keys()
         ]
-        prob = float(np.exp(sum(logprob)))
+        logprob = float(sum(logprob_l))
     else:
-        prob = 0
-    return filter_pass, prob
+        logprob = (
+            -12
+        )  # Arbitrary low logprob for molecules that do not pass the filters
+    return filter_pass, logprob
 
 
 class Stack:
@@ -48,7 +51,8 @@ class Stack:
         super().__init__()
         self._mols: list[Molecule] = []
         self._rxns: list[Reaction | None] = []
-        self.last_prod_prob: float = 0.0
+        # last logprob to -inf as init
+        self.last_prod_logprob: float = -float("inf")
 
     @property
     def mols(self) -> tuple[Molecule, ...]:
@@ -77,26 +81,24 @@ class Stack:
         fp = [pass_filters_p(p.smiles) for p in prods]
 
         prods_pass_filters = [f for f, _ in fp]
-        probs = [lp for _, lp in fp]
+        logprobs = [lp for _, lp in fp]
 
         if any(prods_pass_filters):
             prods = [p for p, filt in zip(prods, prods_pass_filters) if filt]
-            probs = [lp for lp, filt in zip(probs, prods_pass_filters) if filt]
+            logprobs = [lp for lp, filt in zip(logprobs, prods_pass_filters) if filt]
         prods_len = [p.num_atoms for p in prods]
         if any([n <= max_num_atoms for n in prods_len]):
             prods = [p for p, n in zip(prods, prods_len) if n <= max_num_atoms]
-            probs = [lp for lp, n in zip(probs, prods_len) if n <= max_num_atoms]
-        proba = np.array(probs)
-        if proba.sum() == 0:
-            proba = proba + 1.0
-            proba = proba / proba.sum()
-        else:
-            proba = proba / (proba.sum())
-        idx: int = np.random.choice(list(range(len(prods))), p=proba.tolist())
+            logprobs = [lp for lp, n in zip(logprobs, prods_len) if n <= max_num_atoms]
 
+        proba_array = torch.softmax(
+            torch.tensor(logprobs, dtype=torch.float32), dim=0
+        ).numpy()
+        proba_array = proba_array / proba_array.sum()
+        idx: int = np.random.choice(list(range(len(prods))), p=proba_array)
         prod = prods[idx]
-        prob = probs[idx]
-        return prod, any(prods_pass_filters), prob
+        logprob = logprobs[idx]
+        return prod, any(prods_pass_filters), logprob
 
     def add_reactants(self, mol: Molecule) -> None:
         self._mols.append(mol)
@@ -107,12 +109,16 @@ class Stack:
         self._rxns.append(rxn)
 
     def add_new_step(
-        self, reactants: list[Molecule], rxn: Reaction, prod: Molecule, prod_prob: float
+        self,
+        reactants: list[Molecule],
+        rxn: Reaction,
+        prod: Molecule,
+        prod_logprob: float,
     ) -> None:
         for r in reactants:
             self.add_reactants(r)
         self.add_products(prod, rxn)
-        self.last_prod_prob = prod_prob
+        self.last_prod_logprob = prod_logprob
 
 
 def select_random_reaction(
@@ -129,7 +135,7 @@ def create_init_stack(
     stack = Stack()
     rxn_index = select_random_reaction(matrix.seed_reaction_indices, matrix)[0]
     rxn_index_to_rp: dict[int, tuple[list[list[Molecule]], list[Molecule]]] = {}
-    probs: list[float] = []
+    logprobs: list[float] = []
     rxn_col = matrix.matrix[:, rxn_index]
     rxn = matrix.reactions[rxn_index]
     reactants_avail: list[np.ndarray[int]]
@@ -155,20 +161,20 @@ def create_init_stack(
     ]
     for reactants_idx in zip(*all_reactants):
         reactants = [matrix.reactants[idx] for idx in reactants_idx]
-        prod, success, prob = stack.push_rxn(reactants, rxn)
+        prod, success, logprob = stack.push_rxn(reactants, rxn)
         if success:
             if rxn_index not in rxn_index_to_rp:
                 rxn_index_to_rp[rxn_index] = ([], [])
             rxn_index_to_rp[rxn_index][0].append(reactants)
             rxn_index_to_rp[rxn_index][1].append(prod)
-            probs.append(prob)
+            logprobs.append(logprob)
 
     success = choose_reaction_from_candidates(
-        rxn_index_to_rp, probs, stack, matrix, init_step=True
+        rxn_index_to_rp, logprobs, stack, matrix, init_step=True
     )
     if not success:
         # If no reaction could be applied that passes we return the last tried stack
-        stack.add_new_step(reactants, rxn, prod, prob)
+        stack.add_new_step(reactants, rxn, prod, logprob)
 
     return stack
 
@@ -185,7 +191,7 @@ def find_products_reactants(
 ) -> tuple[list[list[Molecule]], list[Molecule], list[float], bool]:
     found_reactants: list[list[Molecule]] = []
     found_products: list[Molecule] = []
-    probs: list[float] = []
+    logprobs: list[float] = []
     # Position of the last product in the reaction
     reactant_flag = 1 << matches[rxn_index][0]
     rxn_col = matrix.matrix[:, rxn_index]
@@ -239,7 +245,7 @@ def find_products_reactants(
             reactants = [last_product] + [
                 matrix.reactants[idx] for idx in reactants_idx
             ]
-        prod, rxn_success, prob = stack.push_rxn(
+        prod, rxn_success, logprob = stack.push_rxn(
             reactants,
             matrix.reactions[rxn_index],
             max_num_atoms=max_num_atoms,
@@ -247,12 +253,12 @@ def find_products_reactants(
         if rxn_success:
             found_reactants.append(reactants)
             found_products.append(prod)
-            probs.append(prob)
+            logprobs.append(logprob)
     if found_reactants == []:
         rxn_success = False
     assert len(found_reactants) == len(found_products)
-    assert len(found_reactants) == len(probs)
-    return found_reactants, found_products, probs, rxn_success
+    assert len(found_reactants) == len(logprobs)
+    return found_reactants, found_products, logprobs, rxn_success
 
 
 def expand_stack(
@@ -271,7 +277,7 @@ def expand_stack(
     )
     rxn_index_to_rp: dict[int, tuple[list[list[Molecule]], list[Molecule]]] = {}
 
-    probs: list[float] = []
+    logprobs: list[float] = []
 
     # Get all possible products at this stage for n_retry reactions
     react_prods_prob_success = ray.get(
@@ -288,33 +294,34 @@ def expand_stack(
             for rxn_index in rxn_indexes
         ]
     )
-    for rxn_index, (reactants, prods, prob, success) in zip(
+    for rxn_index, (reactants, prods, logprob, success) in zip(
         rxn_indexes, react_prods_prob_success
     ):
         if success:
             rxn_index_to_rp[rxn_index] = (reactants, prods)
-            for i, p in enumerate(prob):
-                probs.append(p)
+            for i, p in enumerate(logprob):
+                logprobs.append(p)
                 assert i < len(rxn_index_to_rp[rxn_index][0])
 
-    changed = choose_reaction_from_candidates(rxn_index_to_rp, probs, stack, matrix)
+    changed = choose_reaction_from_candidates(rxn_index_to_rp, logprobs, stack, matrix)
 
     return stack, changed
 
 
 def choose_reaction_from_candidates(
     rxn_index_to_rp: dict[int, tuple[list[list[Molecule]], list[Molecule]]],
-    probs: list[float],
+    logprobs: list[float],
     stack: Stack,
     matrix: ReactantReactionMatrix,
     init_step: bool = False,
 ) -> bool:
     # Add token corresponding to last prod but with 50% chance
-    probs.append(stack.last_prod_prob / 2)
-    probs_array = np.array(probs)
-    if len(rxn_index_to_rp) == 0 or probs_array.sum() == 0:
+    logprobs.append(stack.last_prod_logprob - np.log(2))
+    logprobs_tensor = torch.tensor(logprobs)
+    if len(rxn_index_to_rp) == 0 or logprobs_tensor.sum() == 0:
         return False
 
+    probs_array = torch.softmax(logprobs_tensor, dim=0).numpy()
     probs_array = probs_array / probs_array.sum()
 
     rxn_idx_flatten: list[int] = []
@@ -325,10 +332,12 @@ def choose_reaction_from_candidates(
             idx_flatten.append(i)
 
     idx_chosen = np.random.choice(list(range(len(rxn_idx_flatten) + 1)), p=probs_array)
-    if idx_chosen == probs_array.shape[0] - 1:  # We stop the reaction here
+    if (
+        idx_chosen == probs_array.shape[0] - 1
+    ):  # We stop the reaction here, the last product was selected
         return False
 
-    prob = probs[idx_chosen]
+    logprob = logprobs[idx_chosen]
     rxn_index = rxn_idx_flatten[idx_chosen]
     rp_idx = idx_flatten[idx_chosen]
 
@@ -342,9 +351,9 @@ def choose_reaction_from_candidates(
     # Add rxn, reactants and products to the stack
     rxn = matrix.reactions[rxn_index]
     if not init_step:
-        stack.add_new_step(final_reactant[1:], rxn, final_prod, prob)
+        stack.add_new_step(final_reactant[1:], rxn, final_prod, logprob)
     else:
-        stack.add_new_step(final_reactant, rxn, final_prod, prob)
+        stack.add_new_step(final_reactant, rxn, final_prod, logprob)
     return True
 
 
