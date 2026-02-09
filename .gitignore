@@ -188,7 +188,6 @@ SFT*
 /data/*.zip
 /data/*.tab
 
-/mol_gen_docking/dataset/generate_prompts.ipynb
 /notebooks/others/*.csv
 
 /MolGenOutput

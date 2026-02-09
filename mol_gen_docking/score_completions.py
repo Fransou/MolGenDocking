@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import jsonlines
+import yaml
 from tqdm import tqdm
 
 from mol_gen_docking.data.meeko_process import ReceptorProcess
@@ -36,7 +37,22 @@ def get_args() -> argparse.Namespace:
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--iter",
+        type=int,
+        default=None,
+        help="Iteration number if used during inference.",
+    )
     args = parser.parse_args()
+
+    if args.input_file.endswith(".yaml"):
+        # Config file from inference, override input_file with output_path in the config
+        with open(args.input_file) as f:
+            config = yaml.safe_load(f)
+        args.input_file = config["output_path"]
+        args.input_file = args.input_file.format(
+            iter=args.iter if args.iter is not None else "final"
+        )
     return args
 
 
