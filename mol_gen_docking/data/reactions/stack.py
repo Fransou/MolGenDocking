@@ -95,6 +95,9 @@ class Stack:
             torch.tensor(logprobs, dtype=torch.float32), dim=0
         ).numpy()
         proba_array = proba_array / proba_array.sum()
+        # We only take one possible product for now, while this reduces the amount of products we explore,
+        # in practice we observe that prods is almost always of length 1. Hence, to simplify the code we
+        # only take one product, but this could be changed in the future to explore more products per reaction.
         idx: int = np.random.choice(list(range(len(prods))), p=proba_array)
         prod = prods[idx]
         logprob = logprobs[idx]
