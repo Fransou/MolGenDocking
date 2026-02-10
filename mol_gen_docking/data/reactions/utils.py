@@ -41,9 +41,12 @@ PROP_RANGE = {
 
 def logbeta(
     a: float, b: float, min_x: float = 0.0, max_x: float = 1.0
-) -> Callable[[float], float]:
+) -> Callable[[float | torch.Tensor], float | torch.Tensor]:
     def logbeta_fn(x: float) -> float:
-        x_norm = torch.tensor((x - min_x) / (max_x - min_x))
+        if not isinstance(x, torch.Tensor):
+            x_norm = torch.tensor((x - min_x) / (max_x - min_x))
+        else:
+            x_norm = (x - min_x) / (max_x - min_x)
         x_norm = torch.clip(x_norm, min=1e-6, max=1 - 1e-6)
         return torch.log(x_norm) * (a - 1) + torch.log(1 - x_norm) * (b - 1)  # type: ignore
 
