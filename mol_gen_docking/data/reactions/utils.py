@@ -51,17 +51,17 @@ def logbeta(
         return torch.log(x_norm) * (a - 1) + torch.log(1 - x_norm) * (b - 1)  # type: ignore
 
     # Compute the normalizing constant
-    x = torch.linspace(min_x, max_x, 15)
-    log_cst = torch.logsumexp(logbeta_fn(x), 0)
+    x = torch.linspace(min_x, max_x, 100)
+    log_cst = torch.logsumexp(logbeta_fn(x), 0) - torch.log(torch.tensor(100.0))
     return lambda x: float(logbeta_fn(x) - log_cst)
 
 
 PROP_TARGET_DISTRIB_FN: dict[str, Callable[[float], float]] = {
-    "qed": logbeta(8, 2.5, 0, 1),
+    "qed": logbeta(4.0, 1.0, 0.0, 1.0),
     "CalcExactMolWt": logbeta(14, 11, 0, 600),
     "CalcTPSA": logbeta(4, 6, 0, 160),
-    "CalcNumHBA": logbeta(5.5, 8, -1, 11),
+    "CalcNumHBA": logbeta(3.2, 6, -1, 11),
     # "CalcNumHBD": beta(4.5,11,-1,7),
-    "CalcNumRotatableBonds": logbeta(5, 5, -1, 11),
-    "CalcNumAromaticRings": logbeta(5, 9, -1, 7),
+    "CalcNumRotatableBonds": logbeta(4, 5.5, -1, 11),
+    "CalcNumAromaticRings": logbeta(4.5, 9, -1, 7),
 }
