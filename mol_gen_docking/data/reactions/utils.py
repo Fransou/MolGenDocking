@@ -57,8 +57,8 @@ def logbeta(
 
 
 PROP_TARGET_DISTRIB_FN: dict[str, Callable[[float], float]] = {
-    "qed": logbeta(4.0, 1.0, 0.0, 1.0),
-    "CalcExactMolWt": logbeta(14, 11, 0, 600),
+    "qed": logbeta(5.0, 1.2, 0.0, 1.0),
+    "CalcExactMolWt": logbeta(11, 11, 0, 600),
     "CalcTPSA": logbeta(4, 6, 0, 160),
     "CalcNumHBA": logbeta(3.2, 6, -1, 11),
     # "CalcNumHBD": beta(4.5,11,-1,7),

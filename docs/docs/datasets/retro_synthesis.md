@@ -16,18 +16,18 @@ The training dataset includes four main task types:
 
 | Task Type | Proportion | Description |
 |-----------|------------|-------------|
-| Retro-synthesis Planning | 60% | Predict complete multi-step synthesis pathways |
-| Reactant Prediction | 25% | Identify missing reactants for a reaction step |
-| SMARTS Prediction | 10% | Predict the reaction template (SMARTS notation) |
-| Product Prediction | 5% | Predict the final product of a multi-step synthesis |
+| Retro-synthesis Planning | 62%        | Predict complete multi-step synthesis pathways |
+| Reactant Prediction | 18%        | Identify missing reactants for a reaction step |
+| SMARTS Prediction | 8%         | Predict the reaction template (SMARTS notation) |
+| Product Prediction | 12%        | Predict the final product of a multi-step synthesis |
 
 ### Synthesis Complexity
 
 The dataset contains reactions of varying complexity:
 
-- **Single-step reactions**: 20,000 (40%)
-- **Two-step reactions**: 18,000 (36%)
-- **Multi-step reactions (3-5 steps)**: 12,000 (24%)
+- **Single-step reactions**: 10,500 (21%)
+- **Two-step reactions**: 15,200 (30%)
+- **Multi-step reactions (3-5 steps)**: 24,300 (49%)
 
 ---
 
@@ -62,6 +62,7 @@ We generate synthetic pathways through an iterative stochastic process:
     ---
 
     For each valid product, compute a probability score based on a target distribution over molecular properties (QED, molecular weight, TPSA, H-bond donors/acceptors, rotatable bonds, aromatic rings). Products are selected proportionally to these scores.
+    Note: Before sampling products, we select a number of steps that will not be affected by this selection, before applying them. This ensures we sample pathway following a "scaffolding"-like approach, where the first elements of the pathway can be large and heavy, and a re further broken down into smaller and more drug-like molecules.
 
 -   :material-arrow-expand-right:{ .lg .middle } __3. Chain Extension__
 
@@ -113,7 +114,7 @@ We created ten distinct objective templates to train models on complementary syn
     Predict the final product of a multi-step synthesis given the last reaction's SMARTS representation and reactants.
 
     ---
-    **Training samples:** **~6.5k**
+    **Training samples:** **~6.1k**
 
 -   :material-help-circle:{ .lg .middle } __Reactant Prediction__
 
@@ -122,7 +123,7 @@ We created ten distinct objective templates to train models on complementary syn
     Identify a missing reactant for a single synthesis step (always first step).
 
     ---
-    **Training samples:** **~3k**
+    **Training samples:** **~2.4k**
 
 -   :material-format-list-bulleted:{ .lg .middle } __All Reactants Prediction__
 
@@ -132,8 +133,8 @@ We created ten distinct objective templates to train models on complementary syn
     ---
     **Training samples:**
 
-    - **~1k** with no additional information
-    - **~1.5k** with a set of building blocks provided
+    - **~2.3k** with no additional information
+    - **~4.0k** with a set of building blocks provided
 
 -   :material-code-braces:{ .lg .middle } __SMARTS Identification__
 
@@ -142,7 +143,7 @@ We created ten distinct objective templates to train models on complementary syn
     Predict the SMARTS representation for a reaction step, given the reactants and product (any step of a synthesis).
 
     ---
-    **Training samples:** **~1.5k**
+    **Training samples:** **~3.6k**
 
 </div>
 
@@ -159,9 +160,9 @@ We created ten distinct objective templates to train models on complementary syn
     ---
     **Training samples:**
 
-    - **~6.5k** with not additional information
-    - **~6.5k** with a set of SMARTS templates provided
-    - **~6.5k** with the 4, 8 or 16 most similar building blocks to the target molecule provided
+    - **~5.9k** with not additional information
+    - **~6.1k** with a set of SMARTS templates provided
+    - **~6.1k** with the 4, 8 or 16 most similar building blocks to the target molecule provided
     - **~3k** with both SMARTS templates and most similar building blocks provided
 
 
@@ -174,8 +175,8 @@ We created ten distinct objective templates to train models on complementary syn
     ---
     **Training samples:**
 
-    - **~6.5k** with not additional information
-    - **~6.5k** with a building blocks available (including the ones used in the synthesis)
+    - **~5k** with not additional information
+    - **~5k** with a building blocks available (including the ones used in the synthesis)
 
 </div>
 
