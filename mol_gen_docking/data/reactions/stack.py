@@ -53,9 +53,6 @@ class Stack:
         super().__init__()
         self._mols: List[Molecule] = []
         self._rxns: List[Reaction | None] = []
-        # last logprob to -inf as init
-        self.last_prod_mw: float = 0.0
-        self.prods_mw: List[float] = []
 
     @property
     def mols(self) -> tuple[Molecule, ...]:
@@ -134,8 +131,6 @@ class Stack:
         for r in reactants:
             self.add_reactants(r)
         self.add_products(prod, rxn)
-        self.last_prod_mw = Chem.rdMolDescriptors.CalcExactMolWt(prod._rdmol)
-        self.prods_mw.append(self.last_prod_mw)
 
 
 def select_random_reaction(
@@ -167,11 +162,16 @@ class StackSampler:
         self.n_retry = n_retry
         self.stack = Stack()
         self.i_step = 0
-        self.n_filter_ratio = 32
 
-        self.create_init_stack()
+    def init_stack(self) -> List[int]:
+        """
+        Initialize the sampling by finding the first reaction to
+        perform, and adds to the stack a random building block
+        matching the reaction.
 
-    def create_init_stack(self) -> None:
+        Returns:
+            List containing the reaction indice to perform at the first step.
+        """
         rxn_index = select_random_reaction(
             self.matrix.seed_reaction_indices, self.matrix
         )[0]
@@ -191,57 +191,11 @@ class StackSampler:
                 np.bitwise_and(rxn_col, 0b010).nonzero()[0],
                 np.bitwise_and(rxn_col, 0b100).nonzero()[0],
             ]
-        n_to_sample = min(
-            self.n_attempts_per_reaction,
-            *[len(reactants) for reactants in reactants_avail],
-        )
-        all_reactants: List[List[Molecule]] = [
-            np.random.choice(r, n_to_sample, replace=False).tolist()
-            for r in reactants_avail
-        ]
-
-        rxn_index_to_rp: dict[
-            int,
-            Tuple[
-                List[
-                    List[Molecule]
-                ],  # Reactants (list of lists to account for multiple reactant combinations)
-                List[Molecule],
-            ],  # Products
-            List[float],  # Logprobs of the products
-            List[Dict[str, float]],  # Properties of the products
-        ] = {}
-        for reactants_idx in zip(*all_reactants):
-            reactants = [self.matrix.reactants[idx] for idx in reactants_idx]
-            prods, successes, logprob_list, _ = self.stack.push_rxn(reactants, rxn)
-            # Add all valid products from this reactant combination
-            for prod, success, logprob in zip(prods, successes, logprob_list):
-                if rxn_index not in rxn_index_to_rp:
-                    rxn_index_to_rp[rxn_index] = ([], [], [], [])
-                rxn_index_to_rp[rxn_index][0].append(reactants)
-                rxn_index_to_rp[rxn_index][1].append(prod)
-                rxn_index_to_rp[rxn_index][2].append(logprob)
-                rxn_index_to_rp[rxn_index][3].append(
-                    {}
-                )  # No properties for the initial step
-
-        success = self.choose_reaction_from_candidates(rxn_index_to_rp, no_filters=True)
-        if not success:
-            # If no reaction could be applied that passes we return the last tried stack
-            # Use last attempted product if available
-            if len(prods) > 0:
-                self.stack.add_new_step(
-                    reactants,
-                    rxn,
-                    prods[-1],
-                )
-            else:
-                # Fallback: create empty molecule
-                self.stack.add_new_step(
-                    reactants,
-                    rxn,
-                    Molecule(""),
-                )
+        all_possible_reactants = np.unique(sum(reactants_avail, start=[]))
+        chosen_reactant_idx = np.random.choice(all_possible_reactants, 1)[0]
+        chosen_reactant = self.matrix.reactants[chosen_reactant_idx]
+        self.stack.add_reactants(chosen_reactant)
+        return [rxn_index]
 
     def sample_reactants_products(
         self,
@@ -272,7 +226,8 @@ class StackSampler:
                 )
                 for rxn_index in rxn_indexes
             ]
-
+        # If we are using filters, we can parallelize the sampling of reactants/products
+        # for each reaction index as it is the bottleneck step
         remote_fn = ray.remote(find_products_reactants).options(num_cpus=1)
         return ray.get(
             [
@@ -290,11 +245,21 @@ class StackSampler:
             ]
         )
 
-    def expand_stack(self, no_filters: bool) -> bool:
+    def expand_stack(
+        self, no_filters: bool, rxn_indexes_constraint: List[int] | None = None
+    ) -> bool:
         last_product: Molecule = self.stack.mols[-1]
         matches = self.matrix.reactions.match_reactions(last_product)
         if len(matches) == 0:
             return False
+        if rxn_indexes_constraint is not None:
+            matches = {
+                rxn_idx: matches[rxn_idx]
+                for rxn_idx in rxn_indexes_constraint
+                if rxn_idx in matches
+            }
+            if len(matches) == 0:
+                return False
         rxn_indexes = select_random_reaction(
             list(matches.keys()),
             self.matrix,
@@ -433,13 +398,19 @@ class StackSampler:
             [i + 1 for i in range(self.max_num_reactions)],
             p=prob_n_step,
         )
-        if n_steps <= 3:
+        first_rxn_idxs = self.init_stack()
+
+        if n_steps == 1:
             n_steps_no_filters = 0
         else:
             n_steps_no_filters = np.random.randint(0, (n_steps + 1) // 2)
-        for _ in range(1, n_steps):
+
+        for _ in range(0, n_steps):
+            changed = self.expand_stack(
+                no_filters=self.i_step <= n_steps_no_filters,
+                rxn_indexes_constraint=first_rxn_idxs if self.i_step == 0 else None,
+            )
             self.i_step += 1
-            changed = self.expand_stack(no_filters=self.i_step <= n_steps_no_filters)
             if not changed:
                 return None
             assert len(self.stack.mols) > 0

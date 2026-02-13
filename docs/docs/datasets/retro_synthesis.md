@@ -25,9 +25,9 @@ The training dataset includes four main task types:
 
 The dataset contains reactions of varying complexity:
 
-- **Single-step reactions**: 10,500 (21%)
-- **Two-step reactions**: 15,200 (30%)
-- **Multi-step reactions (3-5 steps)**: 24,300 (49%)
+- **Single-step reactions**: ~21% of dataset
+- **Two-step reactions**: ~30% of dataset
+- **Multi-step reactions (3-5 steps)**: ~49% of dataset
 
 ---
 
@@ -54,15 +54,24 @@ We generate synthetic pathways through an iterative stochastic process:
 -   :material-play-circle:{ .lg .middle } __1. Initialization__
 
     ---
+    Select a number of steps to sample for the synthesis pathway (1 to 5), and a random number of initialization steps.
 
     Select a random seed reaction and identify available reactants via the compatibility matrix. Sample up to 10 valid reactant combinations and apply the reaction using RDKit. Filter products based on physicochemical properties and atom count.
+
+
+-   :material-play-circle:{ .lg .middle } __1. Initialization__
+
+    ---
+
+    Select a random seed reaction and identify available reactants via the compatibility matrix. Sample up to 10 valid reactant combinations and apply the reaction using RDKit. Filter products based on physicochemical properties and atom count.
+
 
 -   :material-chart-bell-curve:{ .lg .middle } __2. Probabilistic Product Selection__
 
     ---
 
     For each valid product, compute a probability score based on a target distribution over molecular properties (QED, molecular weight, TPSA, H-bond donors/acceptors, rotatable bonds, aromatic rings). Products are selected proportionally to these scores.
-    Note: Before sampling products, we select a number of steps that will not be affected by this selection, before applying them. This ensures we sample pathway following a "scaffolding"-like approach, where the first elements of the pathway can be large and heavy, and a re further broken down into smaller and more drug-like molecules.
+
 
 -   :material-arrow-expand-right:{ .lg .middle } __3. Chain Extension__
 
@@ -101,7 +110,7 @@ Rather than using hard constraints alone, we compute log-probabilities for produ
 
 ## Task Types
 
-We created ten distinct objective templates to train models on complementary synthesis reasoning tasks:
+We created eleven distinct objective templates to train models on complementary synthesis reasoning tasks. These tasks are designed to showcase different levels of complexity hopefully leading the model to effectively acquire the necessary skills to generate a full synthesis pathway.
 
 ### Single-Step Tasks
 
@@ -111,19 +120,19 @@ We created ten distinct objective templates to train models on complementary syn
 
     ---
 
-    Predict the final product of a multi-step synthesis given the last reaction's SMARTS representation and reactants.
+    Predict the final product of a multi-step synthesis given the reaction sequence, and the last step's SMARTS template.
 
     ---
-    **Training samples:** **~6.1k**
+    **Training samples:** ~6.1k
 
 -   :material-help-circle:{ .lg .middle } __Reactant Prediction__
 
     ---
 
-    Identify a missing reactant for a single synthesis step (always first step).
+    Identify a missing reactant for a single synthesis step given the product and another reactant.
 
     ---
-    **Training samples:** **~2.4k**
+    **Training samples:** ~2.4k
 
 -   :material-format-list-bulleted:{ .lg .middle } __All Reactants Prediction__
 
@@ -133,17 +142,17 @@ We created ten distinct objective templates to train models on complementary syn
     ---
     **Training samples:**
 
-    - **~2.3k** with no additional information
-    - **~4.0k** with a set of building blocks provided
+    - ~2.3 with no additional information
+    - ~4.0k with a set of building blocks provided
 
 -   :material-code-braces:{ .lg .middle } __SMARTS Identification__
 
     ---
 
-    Predict the SMARTS representation for a reaction step, given the reactants and product (any step of a synthesis).
+    Predict the SMARTS representation for a reaction step, given reactants and product.
 
     ---
-    **Training samples:** **~3.6k**
+    **Training samples:** ~3.6k
 
 </div>
 
