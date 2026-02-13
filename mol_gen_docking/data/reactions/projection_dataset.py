@@ -96,6 +96,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             else:
                 products.append(mol)
                 reactants.append([mol])
+        print([[r.smiles for r in reactant] for reactant in reactants])
         reactants = reactants[:-1]
         try:
             reactants_smiles = [
@@ -104,7 +105,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             ]
             product_smiles = [p.smiles for p in products]
         except ValueError as e:
-            print(e)
+            print(f"Error in post_process_stack: {e}")
             return None
         filter_logps = [pass_filters_p(p.smiles) for p in products]
         filters = [f for f, _, _ in filter_logps]

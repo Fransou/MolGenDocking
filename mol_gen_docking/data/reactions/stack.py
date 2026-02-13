@@ -23,6 +23,25 @@ _TokenType: TypeAlias = tuple[_NumReactants, _MolOrRxnIndex]
 
 
 def pass_filters_p(smiles: str) -> Tuple[bool, float, Dict[str, float]]:
+    """
+    Check if a molecule passes physicochemical property filters and compute its log-probability.
+
+    This function validates molecules against predefined property ranges and computes a
+    log-probability score based on target distributions over molecular properties (QED,
+    molecular weight, TPSA, H-bond donors/acceptors, rotatable bonds, aromatic rings).
+
+    Args:
+        smiles (str): SMILES string representation of the molecule to validate.
+
+    Returns:
+        Tuple[bool, float, Dict[str, float]]: A tuple containing:
+            - bool: Whether the molecule passes all filters
+            - float: Log-probability of the molecule. Returns -inf if invalid SMILES,
+                     computed log-probability if passes filters, or -12 if fails filters.
+            - Dict[str, float]: Dictionary of computed molecular descriptors
+                (QED, molecular weight, TPSA, H-bond acceptors/donors, rotatable bonds, aromatic rings)
+    """
+
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return False, -float("inf"), {}
@@ -50,16 +69,34 @@ class Stack:
     def __init__(
         self,
     ) -> None:
+        """
+        Initialize an empty synthesis route stack.
+
+        Creates a new Stack object with empty lists for molecules and reactions.
+        This stack is used to track the molecules and reactions in a synthesis route.
+        """
         super().__init__()
         self._mols: List[Molecule] = []
         self._rxns: List[Reaction | None] = []
 
     @property
     def mols(self) -> tuple[Molecule, ...]:
+        """
+        Get the tuple of molecules in the synthesis route.
+
+        Returns:
+            tuple[Molecule, ...]: Immutable tuple of Molecule objects
+        """
         return tuple(self._mols)
 
     @property
     def rxns(self) -> tuple[Reaction | None, ...]:
+        """
+        Get the tuple of reactions in the synthesis route.
+
+        Returns:
+            tuple[Reaction | None, ...]: Immutable tuple of Reaction objects or None for initial reactants
+        """
         return tuple(self._rxns)
 
     def push_rxn(
@@ -70,6 +107,25 @@ class Stack:
     ) -> tuple[
         List[Molecule], List[bool], List[float], List[Dict[str, float]]
     ]:  # Returns all valid products with their filter status, logprobs, and properties
+        """
+        Apply a reaction to reactants and filter the resulting products.
+
+        Generates all possible products from the given reactants and reaction, then filters
+        them based on physicochemical properties and atom count constraints.
+
+        Args:
+            reactants (List[Molecule] | tuple[Molecule]): Reactant molecules for the reaction
+            rxn (Reaction): Reaction to apply to the reactants
+            max_num_atoms (int): Maximum number of atoms allowed in products. Defaults to 80.
+
+        Returns:
+            tuple: A tuple containing:
+                - List[Molecule]: Valid products that pass all filters
+                - List[bool]: Whether each product passes the filter (all True in returned list)
+                - List[float]: Log-probabilities of each valid product
+                - List[Dict[str, float]]: Molecular descriptors for each valid product
+        """
+
         if len(reactants) < rxn.num_reactants:
             return [], [], [], []
 
@@ -115,10 +171,23 @@ class Stack:
         return prods, prods_pass_filters, logprobs, properties
 
     def add_reactants(self, mol: Molecule) -> None:
+        """
+        Add a reactant molecule to the synthesis route.
+
+        Args:
+            mol (Molecule): Reactant molecule to add to the stack
+        """
         self._mols.append(mol)
         self._rxns.append(None)
 
     def add_products(self, mol: Molecule, rxn: Reaction) -> None:
+        """
+        Add a product molecule and its producing reaction to the synthesis route.
+
+        Args:
+            mol (Molecule): Product molecule to add
+            rxn (Reaction): Reaction that produced this molecule
+        """
         self._mols.append(mol)
         self._rxns.append(rxn)
 
@@ -128,6 +197,16 @@ class Stack:
         rxn: Reaction,
         prod: Molecule,
     ) -> None:
+        """
+        Add a complete synthesis step (reactants, reaction, and product) to the stack.
+
+        This method adds all reactants and the product of a reaction in a single step.
+
+        Args:
+            reactants (List[Molecule]): List of reactant molecules for this step
+            rxn (Reaction): Reaction that combines these reactants to form the product
+            prod (Molecule): Product molecule resulting from the reaction
+        """
         for r in reactants:
             self.add_reactants(r)
         self.add_products(prod, rxn)
@@ -136,6 +215,18 @@ class Stack:
 def select_random_reaction(
     indices: List[int], matrix: ReactantReactionMatrix, k: int = 2
 ) -> List[int]:
+    """
+    Randomly select k reaction indices from a list of available indices.
+
+    Args:
+        indices (List[int]): Available reaction indices to choose from
+        matrix (ReactantReactionMatrix): Reaction matrix (not used in current implementation)
+        k (int): Number of reactions to select. Defaults to 2.
+
+    Returns:
+        List[int]: List of k randomly selected reaction indices
+    """
+
     return np.random.choice(indices, size=k, replace=False).tolist()  # type: ignore
 
 
@@ -155,6 +246,18 @@ class StackSampler:
         n_retry: int = 10,
         decreas_only_rand: float = 0.5,
     ) -> None:
+        """
+        Initialize the StackSampler.
+
+        Args:
+            matrix (ReactantReactionMatrix): The reaction matrix to use for sampling
+            max_num_reactions (int): Maximum number of reactions in the stack
+            max_num_atoms (int): Maximum number of atoms in a molecule
+            init_stack_weighted_ratio (float): Initial weighting ratio for stack sampling
+            n_attempts_per_reaction (int): Number of attempts to sample products per reaction
+            n_retry (int): Number of retries for sampling
+            decreas_only_rand (float): Decrease only random factor
+        """
         self.matrix = matrix
         self.max_num_reactions = max_num_reactions
         self.max_num_atoms = max_num_atoms
@@ -191,7 +294,7 @@ class StackSampler:
                 np.bitwise_and(rxn_col, 0b010).nonzero()[0],
                 np.bitwise_and(rxn_col, 0b100).nonzero()[0],
             ]
-        all_possible_reactants = np.unique(sum(reactants_avail, start=[]))
+        all_possible_reactants = np.unique(np.concatenate(reactants_avail))
         chosen_reactant_idx = np.random.choice(all_possible_reactants, 1)[0]
         chosen_reactant = self.matrix.reactants[chosen_reactant_idx]
         self.stack.add_reactants(chosen_reactant)
@@ -212,6 +315,27 @@ class StackSampler:
             List[Dict[str, float]],
         ]
     ]:
+        """
+        Sample reactants and products for given reaction indices.
+
+        Finds compatible reactants and generates products for each specified reaction.
+        Can optionally parallelize the computation using Ray for better performance.
+
+        Args:
+            last_product (Molecule): The last molecule in the synthesis route
+            matches (Dict[int, Tuple[int, ...]]): Dictionary mapping reaction indices to match tuples
+            rxn_indexes (List[int]): List of reaction indices to sample
+            no_filters (bool): If True, disables parallel execution and filters. Defaults to False.
+
+        Returns:
+            List of tuples, each containing:
+                - List[List[Molecule]]: Possible reactant combinations for this reaction
+                - List[Molecule]: Resulting products
+                - List[float]: Log-probabilities of the products
+                - bool: Whether the reaction was successful
+                - List[Dict[str, float]]: Molecular properties for each product
+        """
+
         if no_filters:
             return [
                 find_products_reactants(
@@ -248,6 +372,19 @@ class StackSampler:
     def expand_stack(
         self, no_filters: bool, rxn_indexes_constraint: List[int] | None = None
     ) -> bool:
+        """
+        Expand the synthesis stack by applying a reaction to the last product.
+
+        Finds matching reactions for the current product molecule, samples reactants,
+        and selects one reaction-product pair to add to the stack.
+
+        Args:
+            no_filters (bool): If True, skip molecular property filters
+            rxn_indexes_constraint (List[int] | None): If provided, only consider these reaction indices
+
+        Returns:
+            bool: True if the stack was successfully expanded, False otherwise
+        """
         last_product: Molecule = self.stack.mols[-1]
         matches = self.matrix.reactions.match_reactions(last_product)
         if len(matches) == 0:
@@ -312,6 +449,23 @@ class StackSampler:
         no_filters: bool,
         init_step: bool = False,
     ) -> Tuple[List[float], List[int], List[int]]:
+        """
+        Compute probabilities for candidate reactions and products.
+
+        Flattens the candidate dictionary, applies filtering and temperature scaling,
+        and returns normalized probability distributions.
+
+        Args:
+            rxn_index_to_rp (dict): Mapping from reaction indices to (reactants, products, logprobs, properties)
+            no_filters (bool): If True, use uniform probabilities instead of filtering
+            init_step (bool): If True, apply lower temperature for more deterministic selection
+
+        Returns:
+            Tuple containing:
+                - List[float]: Probability distribution over candidates
+                - List[int]: Flattened list of reaction indices
+                - List[int]: Flattened list of product indices
+        """
         # Step 1: Flatten all candidates
         rxn_idx_flatten: List[int] = []
         idx_flatten: List[int] = []
@@ -364,6 +518,19 @@ class StackSampler:
         ],
         no_filters: bool = False,
     ) -> bool:
+        """
+        Select and apply a reaction from candidate options.
+
+        Computes probabilities for each candidate, samples one according to these probabilities,
+        and adds the corresponding reaction step to the stack.
+
+        Args:
+            rxn_index_to_rp (dict): Mapping from reaction indices to (reactants, products, logprobs, properties)
+            no_filters (bool): If True, use uniform sampling instead of probability-weighted selection
+
+        Returns:
+            bool: True if a reaction was successfully selected and added, False otherwise
+        """
         init_step = self.i_step == 0
 
         probs_array, rxn_idx_flatten, idx_flatten = self.get_probs_from_candidates(
@@ -391,6 +558,17 @@ class StackSampler:
         return True
 
     def sample_stack(self) -> Stack | None:
+        """
+        Sample a complete synthesis route stack.
+
+        Generates a synthesis pathway by iteratively applying reactions, starting from
+        an initial building block and proceeding for a random number of steps.
+        Each step expands the stack by applying a selected reaction to the last product.
+
+        Returns:
+            Stack | None: A Stack object containing the complete synthesis route, or None if
+                         sampling failed (e.g., due to property constraints or reaction failures)
+        """
         # Pre define a number of reaction steps
         prob_n_step = np.array([i + 1 for i in range(self.max_num_reactions)])
         prob_n_step = prob_n_step / prob_n_step.sum()
@@ -425,6 +603,19 @@ class StackSampler:
 
 
 def sample_from_cart_product(n: int, *lists: List[Any]) -> List[Tuple[Any, ...]]:
+    """
+    Sample n tuples from the Cartesian product of multiple lists.
+
+    Randomly samples n unique tuples from the Cartesian product of the provided lists.
+    If n is larger than the total product size, returns all possible tuples.
+
+    Args:
+        n (int): Number of tuples to sample
+        *lists (List[Any]): Variable number of lists to form the Cartesian product from
+
+    Returns:
+        List[Tuple[Any, ...]]: List of up to n sampled tuples from the Cartesian product
+    """
     cart_product_size = np.prod([len(lis) for lis in lists])
     n = min(n, cart_product_size)
     if n == 0:
@@ -453,6 +644,33 @@ def find_products_reactants(
 ) -> Tuple[
     List[List[Molecule]], List[Molecule], List[float], bool, List[Dict[str, float]]
 ]:
+    """
+    Find all compatible reactants and their resulting products for a given reaction.
+
+    Given a reaction index and the last product molecule, finds available reactants
+    that can participate in the reaction and generates the resulting products.
+    Uses bitwise operations to efficiently identify compatible reactants based on
+    the reaction matrix encoding.
+
+    Args:
+        stack (Stack): The current synthesis stack
+        matrix (ReactantReactionMatrix): Reaction matrix containing reactants and reactions
+        last_product (Molecule): The last molecule in the synthesis route
+        matches (Dict[int, Tuple[int, ...]]): Dictionary mapping reaction indices to match information
+        rxn_index (int): Index of the reaction to apply
+        max_num_atoms (int): Maximum number of atoms allowed in products. Defaults to 80.
+        n_attempts_per_reaction (int): Number of reactant combinations to attempt. Defaults to 100.
+        use_filters (bool): Whether to apply molecular property filters. Defaults to True.
+
+    Returns:
+        Tuple containing:
+            - List[List[Molecule]]: List of reactant combinations that produced valid products
+            - List[Molecule]: Resulting product molecules
+            - List[float]: Log-probabilities of each product
+            - bool: Whether the reaction was successful (at least one valid product found)
+            - List[Dict[str, float]]: Molecular descriptors for each product
+    """
+
     found_reactants: List[
         List[Molecule]
     ] = []  # List of lists of reactants (possibly repeating)
@@ -553,6 +771,24 @@ def create_stack_ray(
     n_retry: int = 10,
     pbar: Any = None,
 ) -> Stack | None:
+    """
+    Remote Ray task to create a synthesis stack in parallel.
+
+    Creates a StackSampler instance and samples a complete synthesis route.
+    Designed to be executed as a remote Ray task for parallel processing.
+
+    Args:
+        matrix (Any): The reaction matrix to use for sampling
+        max_num_reactions (int): Maximum number of reactions in the stack. Defaults to 5.
+        max_num_atoms (int): Maximum number of atoms in a molecule. Defaults to 80.
+        init_stack_weighted_ratio (float): Initial weighting ratio for stack sampling. Defaults to 0.0.
+        n_attempts_per_reaction (int): Number of attempts to sample products per reaction. Defaults to 100.
+        n_retry (int): Number of retries for sampling. Defaults to 10.
+        pbar (Any): Optional progress bar object to update. Defaults to None.
+
+    Returns:
+        Stack | None: A sampled synthesis route stack, or None if sampling failed
+    """
     stack_sampler = StackSampler(
         matrix,
         max_num_reactions=max_num_reactions,
