@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -142,6 +143,7 @@ class TestReaction:
             for pred_sol in [target] + [
                 properties_csv.smiles.sample(1).tolist() for i in range(1, 3)
             ]:
+                np.random.shuffle(pred_sol)
                 answers.append(json.dumps({"answer": pred_sol[0]}))
         elif metadata["objectives"][0] in [
             "all_reactants",

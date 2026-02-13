@@ -136,11 +136,6 @@ def get_args() -> argparse.Namespace:
         default=100,
     )
     parser.add_argument(
-        "--iter-ray",
-        action="store_true",
-        help="Use ray for reaction sampling.",
-    )
-    parser.add_argument(
         "--save_every",
         type=int,
         default=100,
@@ -227,7 +222,7 @@ def main(args: argparse.Namespace) -> None:
     task_sampler = ReactionTaskSampler(args, proj_dataset._reaction_matrix)
     i = 0
 
-    iterator = proj_dataset.iter_ray() if args.iter_ray else proj_dataset
+    iterator = proj_dataset.iter_ray()
 
     for reactants, products, or_smarts, pass_filters in tqdm(
         iterator, "Post-processing prompts", total=len(proj_dataset)
@@ -235,13 +230,11 @@ def main(args: argparse.Namespace) -> None:
         if len(reactants) == 0 or len(products) == 0 or len(or_smarts) == 0:
             continue
 
-        prop, idx_chosen, label, bb, smarts, or_bb = task_sampler.sample(
-            reactants=reactants, products=products, or_smarts=or_smarts
+        prop, idx_chosen, label, bb, smarts, or_bb, reactants, products = (
+            task_sampler.sample(
+                reactants=reactants, products=products, or_smarts=or_smarts
+            )
         )
-        if prop in task_sampler.choose_idx_reaction:
-            reactants = [reactants[idx_chosen]]
-            products = [products[idx_chosen]]
-            or_smarts = [or_smarts[idx_chosen]]
         update_data_dict(
             data_dict,
             args,

@@ -17,7 +17,7 @@ class ReactionTaskSampler:
         self.args = args
         self.reaction_matrix = reaction_matrix
         self.all_reactants = reaction_matrix.reactants
-        self.all_reactantas_csmi = [r.csmiles for r in self.all_reactants]
+        self.all_reactants_csmi = [r.csmiles for r in self.all_reactants]
         self.all_reactions = reaction_matrix.reactions
 
         self.choose_idx_reaction = [
@@ -45,25 +45,43 @@ class ReactionTaskSampler:
         else:
             prop = np.random.choice(PROMPT_TASKS, p=self.args.proba_obj)
 
-        idx_chosen: int = 0  # If objective is SMARTS we select a random step, if it is reactants we select the first step
-        if prop in self.choose_idx_reaction:
-            if prop == "smarts":
-                idx_chosen = int(np.random.choice(list(range(len(reactants)))))
-            reactants = [reactants[idx_chosen]]
-            products = [products[idx_chosen]]
-            or_smarts = [or_smarts[idx_chosen]]
-        if prop in ["all_reactants_bb_ref", "all_reactants", "reactant"]:
-            assert len(reactants) == len(products)
-            assert len(reactants) == 1
+        idx_chosen: int = 0
         label: List[str] = ["n/a"]
-        if prop == "final_product" or prop.startswith("full_path"):
+        if prop in self.choose_idx_reaction:
+            idx_chosen = int(np.random.choice(list(range(len(reactants)))))
+            if prop == "smarts":
+                # If objective is SMARTS we select a random step and we only
+                # keep the corresponding reaction template and reactants/products
+                reactants = [reactants[idx_chosen]]
+                products = [products[idx_chosen]]
+                or_smarts = [or_smarts[idx_chosen]]
+                label = [or_smarts[0]]
+            else:
+                # We keep all steps up until the idx_chosen step, and we remove
+                # the labels from the reaction, replacing them with ???
+                if idx_chosen == 0:
+                    last_product = None
+                else:
+                    last_product = products[idx_chosen - 1]
+                poss_label = [r for r in reactants[idx_chosen] if r != last_product]
+                #  If there is no possible label, we set idx_chosen to 0
+                if len(poss_label) == 0:
+                    idx_chosen = 0
+                    last_product = None
+                    poss_label = [r for r in reactants[idx_chosen] if r != last_product]
+
+                reactants = reactants[: idx_chosen + 1]
+                products = products[: idx_chosen + 1]
+                or_smarts = or_smarts[: idx_chosen + 1]
+                if prop in ["all_reactants", "all_reactants_bb_ref"]:
+                    label = poss_label
+                else:
+                    label = [np.random.choice(poss_label)]
+                reactants[idx_chosen] = [
+                    "???" if r in label else r for r in reactants[idx_chosen]
+                ]
+        elif prop == "final_product" or prop.startswith("full_path"):
             label = [products[-1]]
-        elif prop == "reactant":
-            label = [np.random.choice(reactants[0])]
-        elif prop == "smarts":
-            label = [or_smarts[0]]
-        elif prop in ["all_reactants", "all_reactants_bb_ref"]:
-            label = reactants[0]
         else:
             raise NotImplementedError(f"Unknown property {prop}")
         return prop, idx_chosen, label, reactants, products, or_smarts
@@ -71,20 +89,21 @@ class ReactionTaskSampler:
     def get_building_blocks_ref(
         self, prop: str, reactants: List[List[str]], target_smi: str
     ) -> Tuple[List[str], List[str]]:
-        original_building_blocks = []
-        for l_reactants in reactants:
-            for smi in l_reactants:
-                mol = Molecule(smi)
-                if mol.csmiles in self.all_reactantas_csmi:
-                    original_building_blocks.append(smi)
-        assert len(original_building_blocks) > 0 or reactants == [] or prop == "smarts"
         if prop not in [
             "all_reactants_bb_ref",
             "full_path_bb_ref",
             "full_path_smarts_bb_ref",
             "full_path_intermediates_gt_reactants",
         ]:
-            return [], original_building_blocks
+            return [], []
+        original_building_blocks = []
+        for l_reactants in reactants:
+            for smi in l_reactants:
+                mol = Molecule(smi)
+                if mol.csmiles in self.all_reactants_csmi:
+                    original_building_blocks.append(smi)
+        assert len(original_building_blocks) > 0 or reactants == [] or prop == "smarts"
+
         if prop == "full_path_reordering":
             np.random.shuffle(original_building_blocks)
             return original_building_blocks, original_building_blocks
@@ -101,7 +120,7 @@ class ReactionTaskSampler:
             bb = (
                 original_building_blocks
                 + np.random.choice(
-                    self.all_reactantas_csmi, size=n_bb_max, replace=False
+                    self.all_reactants_csmi, size=n_bb_max, replace=False
                 ).tolist()
             )
             bb = bb[:n_bb_max]
@@ -120,7 +139,7 @@ class ReactionTaskSampler:
                 set(
                     original_building_blocks
                     + np.random.choice(
-                        self.all_reactantas_csmi, size=n_bb_max, replace=False
+                        self.all_reactants_csmi, size=n_bb_max, replace=False
                     ).tolist()
                 )
             )
@@ -195,13 +214,21 @@ class ReactionTaskSampler:
         reactants: List[List[str]],
         products: List[str],
         or_smarts: List[str],
-    ) -> Tuple[str, int, List[str], List[str], List[str], List[str]]:
+    ) -> Tuple[
+        str, int, List[str], List[str], List[str], List[str], List[List[str]], List[str]
+    ]:
         prop, idx_chosen, label, reactants, products, or_smarts = (
             self.get_training_obj_and_label(reactants, products, or_smarts)
         )
-        bb, or_bb = self.get_building_blocks_ref(prop, reactants, products[-1])
+        if prop == "all_reactants_bb_ref":
+            # If the objective is to find all reactants with building block reference,
+            # We only provide building block reference for the chosen step.
+            # This information is only present in the label as we replaced the other reactants with ???
+            bb, or_bb = self.get_building_blocks_ref(prop, [label], products[-1])
+        else:
+            bb, or_bb = self.get_building_blocks_ref(prop, reactants, products[-1])
         smarts = self.get_smarts(or_smarts, prop)
-        return prop, idx_chosen, label, bb, smarts, or_bb
+        return prop, idx_chosen, label, bb, smarts, or_bb, reactants, products
 
     def sample_eval(
         self,
@@ -214,13 +241,14 @@ class ReactionTaskSampler:
 
 ### JINJA TEMPLATES
 
-product_reactant_jinja = """You are provided a molecular reaction template in the SMARTS format. Given an incomplete reaction following this template, find the missing element (reactant or product) of this incomplete reaction.
+product_reactant_jinja = """You are given an incomplete synthetic route, with a missing reactant or product (replaced by ???). Find the missing element of the synthetic route.
+You are provided the molecular reaction template of the last step in the SMARTS format.
 
 Reaction SMARTS:
     {{ smarts[idx_chosen] }}
 Incomplete Reaction:
     {% for r, p in zip(reactants, products) -%}
-        {{ (" + ".join(r)).replace(target[0], "???") }} >> {{ p.replace(target[0], "???") }}
+        {{ " + ".join(r) }} >> {{ p.replace(target[0], "???") }}
     {% endfor %}
 Provide your answer in the json format, in the "answer" field:
 {% raw %}{
@@ -228,19 +256,23 @@ Provide your answer in the json format, in the "answer" field:
 }{% endraw %}"""
 
 
-all_reactants_jinja = """You are provided a molecular reaction in the SMARTS format. Given the product of a reaction, find possible reactants leading to the product.
+all_reactants_jinja = """You are given an incomplete synthetic route, with some reactants replaced by ???. Find the missing elements of this synthetic route in order to complete it.
+You are provided the molecular reaction template of the last step in the SMARTS format.
 
 Reaction SMARTS:
-    {{ smarts[0] }}
-Product:
-    {{ ", ".join(products) }}
-
+    {{ smarts[idx_chosen] }}
+Incomplete Reaction:
+    {% for r, p in zip(reactants, products) -%}
+        {{ " + ".join(r) }} >> {{ p.replace(target[0], "???") }}
+    {% endfor %}
 Provide your answer in the json format, in the "answer" field:
 {% raw %}{
-    "answer": ["reactant1", "reactant2", ...]
+    "answer": ["missing element 1", "missing element 2", ...]
 }{% endraw %}"""
 
-all_reactants_bbref_jinja = """You are given a molecular reaction in the SMARTS format. Given the product of the reaction, find possible reactants leading to the product.
+all_reactants_bbref_jinja = """You are given an incomplete synthetic route, with some reactants replaced by ???. Find the missing elements of this synthetic route in order to complete it.
+You are provided the molecular reaction template of the last step in the SMARTS format.
+
 Choose your reactants among the following building blocks:
 {% for bb in building_blocks -%}
 - {{ bb }}
@@ -248,12 +280,13 @@ Choose your reactants among the following building blocks:
 
 Reaction SMARTS:
     {{ smarts[idx_chosen] }}
-Product:
-    {{ products[idx_chosen] }}
-
+Incomplete Reaction:
+    {% for r, p in zip(reactants, products) -%}
+        {{ " + ".join(r) }} >> {{ p.replace(target[0], "???") }}
+    {% endfor %}
 Provide your answer in the json format, in the "answer" field:
 {% raw %}{
-    "answer": ["reactant1", "reactant2", ...]
+    "answer": ["missing element 1", "missing element 2", ...]
 }{% endraw %}"""
 
 smarts_jinja = """You are given a molecular reaction with reactants and products in the SMILES format. Given this list of reactants and products, find which reaction it corresponds to and provide its SMARTS representation.
