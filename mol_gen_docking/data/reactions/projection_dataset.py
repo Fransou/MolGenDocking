@@ -96,7 +96,6 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             else:
                 products.append(mol)
                 reactants.append([mol])
-        print([[r.smiles for r in reactant] for reactant in reactants])
         reactants = reactants[:-1]
         try:
             reactants_smiles = [

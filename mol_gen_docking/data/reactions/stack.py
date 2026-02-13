@@ -244,7 +244,6 @@ class StackSampler:
         init_stack_weighted_ratio: float = 0.0,
         n_attempts_per_reaction: int = 10,
         n_retry: int = 10,
-        decreas_only_rand: float = 0.5,
     ) -> None:
         """
         Initialize the StackSampler.
@@ -256,7 +255,6 @@ class StackSampler:
             init_stack_weighted_ratio (float): Initial weighting ratio for stack sampling
             n_attempts_per_reaction (int): Number of attempts to sample products per reaction
             n_retry (int): Number of retries for sampling
-            decreas_only_rand (float): Decrease only random factor
         """
         self.matrix = matrix
         self.max_num_reactions = max_num_reactions
@@ -433,6 +431,7 @@ class StackSampler:
                     prod_properties,
                 )
         changed = self.choose_reaction_from_candidates(rxn_index_to_rp, no_filters)
+
         return changed
 
     def get_probs_from_candidates(
@@ -447,7 +446,6 @@ class StackSampler:
             ],
         ],
         no_filters: bool,
-        init_step: bool = False,
     ) -> Tuple[List[float], List[int], List[int]]:
         """
         Compute probabilities for candidate reactions and products.
@@ -458,7 +456,6 @@ class StackSampler:
         Args:
             rxn_index_to_rp (dict): Mapping from reaction indices to (reactants, products, logprobs, properties)
             no_filters (bool): If True, use uniform probabilities instead of filtering
-            init_step (bool): If True, apply lower temperature for more deterministic selection
 
         Returns:
             Tuple containing:
@@ -466,6 +463,8 @@ class StackSampler:
                 - List[int]: Flattened list of reaction indices
                 - List[int]: Flattened list of product indices
         """
+        if len(rxn_index_to_rp) == 0:
+            return np.array([]), [], []
         # Step 1: Flatten all candidates
         rxn_idx_flatten: List[int] = []
         idx_flatten: List[int] = []
@@ -484,7 +483,7 @@ class StackSampler:
             return probs_array, rxn_idx_flatten, idx_flatten
 
         # Step 2: Only keep top-10 candidates to avoid too much noise from low-probability candidates
-        if len(logprobs) > 10 and not init_step:
+        if len(logprobs) > 10:
             logprobs_array = np.array(logprobs)
             top_indices = np.argsort(logprobs_array)[-10:]
             logprobs = [logprobs[i] for i in top_indices]
@@ -492,15 +491,11 @@ class StackSampler:
             idx_flatten = [idx_flatten[i] for i in top_indices]
 
         assert len(logprobs) == len(rxn_idx_flatten)
-        logprobs_tensor = torch.tensor(logprobs)
+        logprobs_tensor = torch.tensor(logprobs).float()
         if len(rxn_index_to_rp) == 0 or logprobs_tensor.sum() == 0:
             return np.array([]), [], []
 
-        if not init_step:
-            temperature = 1.0
-        else:
-            temperature = 0.1  # We want to be more greedy for the first step to ensure exploration
-        probs_array = torch.softmax(temperature * logprobs_tensor, dim=0).numpy()
+        probs_array = torch.softmax(logprobs_tensor, dim=0).numpy()
         probs_array = probs_array / probs_array.sum()
 
         return probs_array, rxn_idx_flatten, idx_flatten
@@ -531,10 +526,9 @@ class StackSampler:
         Returns:
             bool: True if a reaction was successfully selected and added, False otherwise
         """
-        init_step = self.i_step == 0
 
         probs_array, rxn_idx_flatten, idx_flatten = self.get_probs_from_candidates(
-            rxn_index_to_rp, no_filters, init_step=init_step
+            rxn_index_to_rp, no_filters
         )
         if len(probs_array) == 0:
             return False
@@ -551,10 +545,7 @@ class StackSampler:
         final_prod: Molecule = products[rp_idx]
         # Add rxn, reactants and products to the stack
         rxn = self.matrix.reactions[rxn_index]
-        if not init_step:
-            self.stack.add_new_step(final_reactant[1:], rxn, final_prod)
-        else:
-            self.stack.add_new_step(final_reactant, rxn, final_prod)
+        self.stack.add_new_step(final_reactant[1:], rxn, final_prod)
         return True
 
     def sample_stack(self) -> Stack | None:
