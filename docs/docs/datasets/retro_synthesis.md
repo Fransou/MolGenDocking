@@ -16,18 +16,18 @@ The training dataset includes four main task types:
 
 | Task Type | Proportion | Description |
 |-----------|------------|-------------|
-| Retro-synthesis Planning | 62%        | Predict complete multi-step synthesis pathways |
-| Reactant Prediction | 18%        | Identify missing reactants for a reaction step |
-| SMARTS Prediction | 8%         | Predict the reaction template (SMARTS notation) |
+| Retro-synthesis Planning | 59%        | Predict complete multi-step synthesis pathways |
+| Reactant Prediction | 20%        | Identify missing reactants for a reaction step |
+| SMARTS Prediction | 9%         | Predict the reaction template (SMARTS notation) |
 | Product Prediction | 12%        | Predict the final product of a multi-step synthesis |
 
 ### Synthesis Complexity
 
 The dataset contains reactions of varying complexity:
 
-- **Single-step reactions**: ~21% of dataset
-- **Two-step reactions**: ~30% of dataset
-- **Multi-step reactions (3-5 steps)**: ~49% of dataset
+- **Single-step reactions**: ~24% of dataset
+- **Two-step reactions**: ~34% of dataset
+- **Multi-step reactions (3-5 steps)**: ~42% of dataset
 
 ---
 
@@ -123,7 +123,7 @@ We created eleven distinct objective templates to train models on complementary 
     Predict the final product of a multi-step synthesis given the reaction sequence, and the last step's SMARTS template.
 
     ---
-    **Training samples:** ~6.1k
+    **Training samples:** ~6k
 
 -   :material-help-circle:{ .lg .middle } __Reactant Prediction__
 
@@ -132,7 +132,7 @@ We created eleven distinct objective templates to train models on complementary 
     Identify a missing reactant for a single synthesis step given the product and another reactant.
 
     ---
-    **Training samples:** ~2.4k
+    **Training samples:** ~2.7k
 
 -   :material-format-list-bulleted:{ .lg .middle } __All Reactants Prediction__
 
@@ -142,8 +142,8 @@ We created eleven distinct objective templates to train models on complementary 
     ---
     **Training samples:**
 
-    - ~2.3 with no additional information
-    - ~4.0k with a set of building blocks provided
+    - ~2.6k with no additional information
+    - ~4.5k with a set of building blocks provided
 
 -   :material-code-braces:{ .lg .middle } __SMARTS Identification__
 
@@ -169,10 +169,10 @@ We created eleven distinct objective templates to train models on complementary 
     ---
     **Training samples:**
 
-    - **~5.9k** with not additional information
-    - **~6.1k** with a set of SMARTS templates provided
-    - **~6.1k** with the 4, 8 or 16 most similar building blocks to the target molecule provided
-    - **~3k** with both SMARTS templates and most similar building blocks provided
+    - ~5.7k with not additional information
+    - ~5.8k with a set of SMARTS templates provided
+    - ~5.8k with the 4, 8 or 16 most similar building blocks to the target molecule provided
+    - ~2.9k with both SMARTS templates and most similar building blocks provided
 
 
 -   :material-sitemap-outline:{ .lg .middle } __Full Path With Interm. Products__
@@ -184,8 +184,8 @@ We created eleven distinct objective templates to train models on complementary 
     ---
     **Training samples:**
 
-    - **~5k** with not additional information
-    - **~5k** with a building blocks available (including the ones used in the synthesis)
+    - ~4.7k with not additional information
+    - ~4.7k with a building blocks available (including the ones used in the synthesis)
 
 </div>
 
