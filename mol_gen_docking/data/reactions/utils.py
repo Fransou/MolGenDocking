@@ -1,6 +1,6 @@
 from typing import Callable
 
-import numpy as np
+import torch
 from rdkit import Chem
 from rdkit.Chem import QED, rdMolDescriptors
 
@@ -41,21 +41,27 @@ PROP_RANGE = {
 
 def logbeta(
     a: float, b: float, min_x: float = 0.0, max_x: float = 1.0
-) -> Callable[[float], float]:
-    def logbeta_fn(x: float) -> float:
-        x_norm = (x - min_x) / (max_x - min_x)
-        x_norm = np.clip(x_norm, 1e-6, 1 - 1e-6)
-        return np.log(x_norm) * (a - 1) + np.log(1 - x_norm) * (b - 1)  # type: ignore
+) -> Callable[[float | torch.Tensor], float]:
+    def logbeta_fn(x: float | torch.Tensor) -> float | torch.Tensor:
+        if not isinstance(x, torch.Tensor):
+            x_norm = torch.tensor((x - min_x) / (max_x - min_x))
+        else:
+            x_norm = (x - min_x) / (max_x - min_x)
+        x_norm = torch.clip(x_norm, min=1e-6, max=1 - 1e-6)
+        return torch.log(x_norm) * (a - 1) + torch.log(1 - x_norm) * (b - 1)
 
-    return logbeta_fn
+    # Compute the normalizing constant
+    x = torch.linspace(min_x, max_x, 100)
+    log_cst = torch.logsumexp(logbeta_fn(x), 0) - torch.log(torch.tensor(100.0))
+    return lambda x: float(logbeta_fn(x) - log_cst)
 
 
 PROP_TARGET_DISTRIB_FN: dict[str, Callable[[float], float]] = {
-    "qed": logbeta(8, 2.5, 0, 1),
-    "CalcExactMolWt": logbeta(14, 11, 0, 600),
+    "qed": logbeta(5.0, 1.2, 0.0, 1.0),
+    "CalcExactMolWt": logbeta(11, 11, 0, 600),
     "CalcTPSA": logbeta(4, 6, 0, 160),
-    "CalcNumHBA": logbeta(5.5, 8, -1, 11),
+    "CalcNumHBA": logbeta(3.2, 6, -1, 11),
     # "CalcNumHBD": beta(4.5,11,-1,7),
-    "CalcNumRotatableBonds": logbeta(5, 5, -1, 11),
-    "CalcNumAromaticRings": logbeta(5, 9, -1, 7),
+    "CalcNumRotatableBonds": logbeta(4, 5.5, -1, 11),
+    "CalcNumAromaticRings": logbeta(4.5, 9, -1, 7),
 }

@@ -107,43 +107,41 @@ class ReactionVerifier(Verifier):
         if smi_y == smi_y_true:
             return 1.0
 
-        else:
-            # Check if the reaction still works
-            rxn = Reaction(smarts)
-            if objective == "final_product":
-                if len(mol_y) != 1:
-                    return 0.0
-                react_mols = [Molecule(smi) for smi in reactants]
-                possible_products = []
-                for r_ in itertools.permutations(react_mols):
-                    possible_products.extend(rxn(list(r_)))
-                # Change to csmiles to avoid unexpected behavior with python in
-                possible_products_csi = {m.csmiles for m in possible_products}
-                if mol_y[0].csmiles in possible_products_csi:  # Can be only one product
-                    return 1.0
-                else:
-                    return 0.0
-            elif objective == "reactant":
-                react_mols = [Molecule(smi) for smi in reactants]
-                react_mols = [m for m in react_mols if not m == mol_label[0]]
-                react_mols += mol_y
-            elif objective in ["all_reactants", "all_reactants_bb_ref"]:
-                react_mols = mol_y
-            # Check that the number of reactants matches
-            if len(react_mols) != rxn.num_reactants:
+        # Check if the reaction still works
+        rxn = Reaction(smarts)
+        if objective == "final_product":
+            if len(mol_y) != 1:
                 return 0.0
-            # Check if all reactants are in the building blocks
-            if any(m.csmiles not in self.reactants_csi for m in react_mols):
-                return 0.0
+            react_mols = [Molecule(smi) for smi in reactants]
             possible_products = []
             for r_ in itertools.permutations(react_mols):
                 possible_products.extend(rxn(list(r_)))
             # Change to csmiles to avoid unexpected behavior with python in
             possible_products_csi = {m.csmiles for m in possible_products}
-            prod_mol = Molecule(product)
-            if prod_mol.csmiles in possible_products_csi:
+            if mol_y[0].csmiles in possible_products_csi:  # Can be only one product
                 return 1.0
+            else:
+                return 0.0
+        elif objective in ["reactant", "all_reactants", "all_reactants_bb_ref"]:
+            # Start from all explicitly specified reactants, excludeing placeholders
+            # representing the label
+            react_mols = [Molecule(smi) for smi in reactants if not smi == "???"]
+            react_mols += mol_y
+        # Check that the number of reactants matches
+        if len(react_mols) != rxn.num_reactants:
             return 0.0
+        # Check if all reactants are in the building blocks
+        if any(m.csmiles not in self.reactants_csi for m in react_mols):
+            return 0.0
+        possible_products = []
+        for r_ in itertools.permutations(react_mols):
+            possible_products.extend(rxn(list(r_)))
+        # Change to csmiles to avoid unexpected behavior with python in
+        possible_products_csi = {m.csmiles for m in possible_products}
+        prod_mol = Molecule(product)
+        if prod_mol.csmiles in possible_products_csi:
+            return 1.0
+        return 0.0
 
     def ground_truth_reward_mol(
         self,

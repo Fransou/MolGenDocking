@@ -14,11 +14,11 @@ data:
 
 plot:
   fingerprints:
-    - "ecfp4-2048"
-    - "ecfp6-2048"
-    - "maccs"
-    - "rdkit"
-    - "Avalon"
+#    - "ecfp4-2048"
+#    - "ecfp6-2048"
+#    - "maccs"
+#    - "rdkit"
+#    - "Avalon"
     - "Gobbi2d"
   legend_fingerprint: "Avalon"  # Only this fingerprint gets a legend
   cols_vals:

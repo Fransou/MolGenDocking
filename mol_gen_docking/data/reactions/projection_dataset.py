@@ -10,7 +10,6 @@ from mol_gen_docking.data.reactions.reaction import Reaction
 from mol_gen_docking.data.reactions.reaction_matrix import ReactantReactionMatrix
 from mol_gen_docking.data.reactions.stack import (
     Stack,
-    create_stack,
     create_stack_ray,
     pass_filters_p,
 )
@@ -27,7 +26,7 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         n_retry: int = 1,
         n_attempts_per_reaction: int = 1,
         virtual_length: int = 65536,
-        ray_batch_size: int = 128,
+        ray_batch_size: int = 64,
     ) -> None:
         super().__init__()
         self._reaction_matrix = reaction_matrix
@@ -52,12 +51,13 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         remote_tqdm = ray.remote(tqdm_ray.tqdm)
         pbar = remote_tqdm.remote(total=self._virtual_length)
         running_tasks: list[ray.ObjectRef] = []
-
         for i in range(self._virtual_length):
             if len(running_tasks) >= self._ray_batch_size:
                 done_ids, running_tasks = ray.wait(running_tasks)
                 stacks = ray.get(done_ids)
                 for stack in stacks:
+                    if stack is None:
+                        continue
                     out = self.post_process_stack(stack)
                     if out is not None:
                         yield out
@@ -75,26 +75,11 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
         last_tasks = ray.get(running_tasks)
         pbar.close.remote()  # type: ignore
         for stack in last_tasks:
+            if stack is None:
+                continue
             out = self.post_process_stack(stack)
             if out is not None:
                 yield out
-
-    def __iter__(
-        self,
-    ) -> Iterator[tuple[list[list[str]], list[str], list[str], list[bool]]]:
-        for _ in range(self._virtual_length):
-            stack = create_stack(
-                self._reaction_matrix,
-                max_num_reactions=self._max_num_reactions,
-                max_num_atoms=self._max_num_atoms,
-                init_stack_weighted_ratio=self._init_stack_weighted_ratio,
-                n_retry=self._n_retry,
-                n_attempts_per_reaction=self._n_attempts_per_reaction,
-            )
-            out = self.post_process_stack(stack)
-            if out is None:
-                continue
-            yield out
 
     def post_process_stack(
         self, stack: Stack
@@ -119,10 +104,10 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             ]
             product_smiles = [p.smiles for p in products]
         except ValueError as e:
-            print(e)
+            print(f"Error in post_process_stack: {e}")
             return None
         filter_logps = [pass_filters_p(p.smiles) for p in products]
-        filters = [f for f, _ in filter_logps]
+        filters = [f for f, _, _ in filter_logps]
 
         return reactants_smiles, product_smiles, rxn_smarts, filters
 
@@ -136,3 +121,8 @@ class TextualProjectionDataset(IterableDataset[ReactantReactionMatrix]):
             if prod in prods:
                 return [r.smiles for r in reactants_order]
         raise ValueError(f"{product} not in {reactants}")
+
+    def __iter__(
+        self,
+    ) -> Iterator[tuple[list[list[str]], list[str], list[str], list[bool]]]:
+        return self.iter_ray()
