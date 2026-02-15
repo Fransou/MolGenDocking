@@ -585,8 +585,8 @@ class StackSampler:
             assert len(self.stack.mols) > 0
         if (
             self.stack.mols[-1].num_atoms > self.max_num_atoms
-            and not self.i_step <= n_steps_no_filters
-        ):
+            and self.i_step > n_steps_no_filters
+        ):  # Check num atoms only after the no-filter steps
             return None
         if not pass_filters_p(self.stack.mols[-1].smiles)[0]:
             return None

@@ -123,6 +123,8 @@ class ReactionVerifier(Verifier):
             else:
                 return 0.0
         elif objective in ["reactant", "all_reactants", "all_reactants_bb_ref"]:
+            # Start from all explicitly specified reactants, excludeing placeholders
+            # representing the label
             react_mols = [Molecule(smi) for smi in reactants if not smi == "???"]
             react_mols += mol_y
         # Check that the number of reactants matches
