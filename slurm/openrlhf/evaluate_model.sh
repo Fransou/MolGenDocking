@@ -4,7 +4,7 @@
 #SBATCH --time=00:00:00
 #SBATCH --gpus=h100:4
 #SBATCH --mem=248G
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=8
 #SBATCH --tasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --output=logs/%x-%j.out
@@ -16,7 +16,7 @@ CONFIG=$2
 
 DATA_PATH=$SLURM_TMPDIR/$DATASET
 WORKING_DIR=$HOME/MolGenDocking
-export DASHBOARD_PORT=$((8000 + SLURM_ARRAY_TASK_ID))
+export DASHBOARD_PORT=$((8001 + SLURM_ARRAY_TASK_ID))
 
 source $HOME/.bashrc
 source $HOME/OpenRLHF/bin/activate
@@ -28,7 +28,7 @@ cd $WORKING_DIR
 
 cp data/properties.csv $SLURM_TMPDIR
 ray start --head --node-ip-address 0.0.0.0 --dashboard-port=$DASHBOARD_PORT
-# ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} $SLURM_JOB_USER@rorqual4
+ssh -N -f -R ${DASHBOARD_PORT}:localhost:${DASHBOARD_PORT} $SLURM_JOB_USER@rorqual4
 
 
 #export DEBUG_MODE=1
@@ -44,11 +44,13 @@ export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
 if [ "$DATASET" == "molgendata" ]; then
     python -m mol_gen_docking.score_completions \
+      --iter $SLURM_ARRAY_TASK_ID \
       --input_file $CONFIG \
       --batch_size 1024 \
       --mol-generation
 else
     python -m mol_gen_docking.score_completions \
+      --iter $SLURM_ARRAY_TASK_ID \
       --input_file $CONFIG \
       --batch_size 1024
 fi
