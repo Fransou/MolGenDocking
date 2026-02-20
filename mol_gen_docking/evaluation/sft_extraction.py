@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -72,15 +73,13 @@ class SFTExtractionConfig(BaseModel):
     )
     reward_info_template: Dict[str, str] = Field(
         default_factory=lambda x: dict(
-            system="{content}\nPropose an answer whose reward is: {reward:.2f}"
+            user="{content}\n(Propose an answer whose reward is: {reward:.2f})"
         ),
         description="Template used to add the reward information to the prompt (specified by the key). \
             The template should include placeholders for the content and reward values.",
     )
     source_info_template: Dict[str, str] = Field(
-        default_factory=lambda x: dict(
-            system="{content}\nThe source of this conversation is: {source}"
-        ),
+        default_factory=lambda x: dict(user="{content}\n(Source model: {source})"),
         description="Template used to add the source information to the prompt (specified by the key). \
             The template should include placeholders for the content and source values. \
             This pattern is always applied after the reward_info_template if both are specified.",
@@ -388,7 +387,7 @@ class SFTExtractor:
             assistant_content = completion.output
             assistant_content = assistant_content.split("</answer>")[0] + "</answer>"
             assistant_message = Message(role="assistant", content=assistant_content)
-            prompt_message = conversation.messages.copy()
+            prompt_message = deepcopy(conversation.messages)
             prompt_message.append(assistant_message)
             new_conversation = Conversation(
                 messages=prompt_message,
@@ -507,10 +506,10 @@ class SFTExtractor:
             # Add the system prompt template to the prompt conversations if specified in the config
             if self.config.system_prompt_path is not None:
                 with open(self.config.system_prompt_path) as f:
-                    system_prompt = json.load(f)
+                    system_prompt = json.load(f).copy()
                 for conv in prompt.conversations:
                     if conv.messages[0].role == "system":
-                        conv.messages[0].content = system_prompt
+                        conv.messages[0].content = system_prompt["content"]
                     else:
                         conv.messages.insert(
                             0, Message(role="system", content=system_prompt["content"])
