@@ -30,7 +30,7 @@ def get_target_id(prompt_id, data_path="data"):
             for obj in reader:
                 if obj["conversations"][0]["meta"]["n_props"] == 1 and obj["conversations"][0]["meta"]["n_docking_props"] == 1:
                     targets_id[id] = (obj["identifier"], obj["conversations"][0]["meta"]["properties"][0])
-
+                    id += 1
 
         # Save targets_id
         with open(f"targets_id.json", "w") as f:
