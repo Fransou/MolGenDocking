@@ -12,7 +12,7 @@
 #SBATCH --array=0-0
 
 
-export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_HOME/lib64
 
 source $HOME/OpenRLHF/bin/activate
 module load cuda/12.6
