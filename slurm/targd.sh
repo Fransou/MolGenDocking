@@ -20,7 +20,7 @@ module load cuda/12.6
 
 cd $HOME/MolGenDocking
 
-for i in $(seq $SLURM_ARRAY_TASK_ID $(($SLURM_ARRAY_TASK_ID+5))); do
+for i in $(seq $SLURM_ARRAY_TASK_ID $(($SLURM_ARRAY_TASK_ID+4))); do
   python slurm/create_pdb_pocket.py \
    $i \
    $SLURM_TMPDIR/pocket.pdb \
