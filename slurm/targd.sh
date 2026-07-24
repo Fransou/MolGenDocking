@@ -17,20 +17,24 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_HOME/lib64
 source $HOME/OpenRLHF/bin/activate
 module load cuda/12.6
 
-python slurm/create_pdb_pocket.py \
- $SLURM_ARRAY_TASK_ID \
- $SLURM_TMPDIR/pocket.pdb \
- --data_path $SCRATCH/MolGenData/molgendata
 
+cd $HOME/MolGenDocking
 
-cd external_repositories/targetdiff
-python3 -m scripts.sample_for_pocket configs/sampling.yml --pdb_path $SLURM_TMPDIR/pocket.pdb --result_path $SLURM_TMPDIR/outputs_pdb
+for i in $(seq $SLURM_ARRAY_TASK_ID $(($SLURM_ARRAY_TASK_ID+5))); do
+  python slurm/create_pdb_pocket.py \
+   $i \
+   $SLURM_TMPDIR/pocket.pdb \
+   --data_path $SCRATCH/MolGenData/molgendata
 
-obabel $SLURM_TMPDIR/outputs_pdb/sdf/*.sdf -osmi -O $SLURM_TMPDIR/tmp.smi
+  cd external_repositories/targetdiff
+  python3 -m scripts.sample_for_pocket configs/sampling.yml --pdb_path $SLURM_TMPDIR/pocket.pdb --result_path $SLURM_TMPDIR/outputs_pdb
+  obabel $SLURM_TMPDIR/outputs_pdb/sdf/*.sdf -osmi -O $SLURM_TMPDIR/tmp.smi
+  cd ../..
 
-python slurm/process_result.py \
- $SLURM_ARRAY_TASK_ID \
- $SLURM_TMPDIR/tmp.smi \
- $SCRATCH/MolGenOutput/TargetDiff \
- --data_path $SCRATCH/MolGenData/molgendata
+  python slurm/process_result.py \
+   $i \
+   $SLURM_TMPDIR/tmp.smi \
+   $SCRATCH/MolGenOutput/TargetDiff \
+   --data_path $SCRATCH/MolGenData/molgendata
+done
 
