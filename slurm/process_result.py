@@ -46,6 +46,7 @@ if __name__=="__main__":
 
     # Save to output_dir with the name <prompt_id>.jsonl
     output_path = os.path.join(args.output_dir, f"{args.prompt_id}.jsonl")
+    os.makedirs(args.output_dir, exist_ok=True)
     import jsonlines
     with jsonlines.open(output_path, "w") as writer:
         writer.write_all(completions)
