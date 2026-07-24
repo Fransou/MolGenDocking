@@ -30,9 +30,11 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     line = get_prompt(args.prompt_id, args.data_path)
+    smiles = []
     # Open the .smi file and read the SMILES string
     with open(args.smiles_path, "r") as f:
-        smiles = f.readline().strip()
+        for line in f:
+            smiles.append(line.strip())
     print(smiles)
 
     completions = []
