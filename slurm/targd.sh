@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=batch_inference_molgen
+#SBATCH --job-name=targd
 #SBATCH --account=def-ibenayed
 #SBATCH --time=00:00:00
 #SBATCH --gpus=h100:4
@@ -23,9 +23,9 @@ python slurm/create_pdb_pocket.py \
 
 
 cd external_repositories/targetdiff
-python3 -m scripts.sample_for_pocket configs/sampling.yml --pdb_path $SLURM_TMPDIR/pocket.pdb
+python3 -m scripts.sample_for_pocket configs/sampling.yml --pdb_path $SLURM_TMPDIR/pocket.pdb --result_path $SLURM_TMPDIR/outputs_pdb
 
-obabel outputs_pdb/sdf/*.sdf -osmi -O $SLURM_TMPDIR/tmp.smi
+obabel $SLURM_TMPDIR/outputs_pdb/sdf/*.sdf -osmi -O $SLURM_TMPDIR/tmp.smi
 
 python slurm/process_result.py \
  $SLURM_ARRAY_TASK_ID \
