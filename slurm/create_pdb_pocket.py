@@ -29,7 +29,7 @@ def get_target_id(prompt_id, data_path="data"):
         with jsonlines.open(f"{data_path}/test_data/test_prompts_ood.jsonl") as reader:
             for obj in reader:
                 if obj["conversations"][0]["meta"]["n_props"] == 1 and obj["conversations"][0]["meta"]["n_docking_props"] == 1:
-                    targets_id[id] = (obj["identifier"], obj["conversations"][0]["meta"]["properties"][0])
+                    targets_id[str(id)] = (obj["identifier"], obj["conversations"][0]["meta"]["properties"][0])
                     id += 1
 
         # Save targets_id
@@ -39,7 +39,7 @@ def get_target_id(prompt_id, data_path="data"):
         with open(f"targets_id.json", "r") as f:
             targets_id = json.load(f)
 
-    return targets_id[int(prompt_id)][1]
+    return targets_id[prompt_id][1]
 
 
 if __name__=="__main__":
