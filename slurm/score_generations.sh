@@ -31,4 +31,5 @@ export scorer_exhaustiveness=4
 python -m molrgen.score_completions \
     --input_file $1 \
     --batch_size 1024 \
-    --mol-generation
+    --mol-generation \
+    --randomize-pockets
