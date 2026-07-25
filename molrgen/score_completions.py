@@ -146,7 +146,11 @@ if __name__ == "__main__":
                     if "properties" in m and len(m["properties"]) > 0:
                         for i,p in enumerate(m["properties"]):
                             if p in pockets_info:
-                                m["properties"][i] = np.random.choice(list(pockets_info.keys()))
+                                new_pocket = np.random.choice(list(pockets_info.keys()))
+                                m["properties"][i] = new_pocket
+                                receptor_process.process_receptors(
+                                    [new_pocket], allow_bad_res=True, use_pbar=False
+                                )
             output = reward_scorer.get_score(
                 completions=[item["output"] for item in batch],
                 metadata=[item.get("metadata", {}) for item in batch],
