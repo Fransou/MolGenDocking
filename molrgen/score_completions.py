@@ -43,6 +43,12 @@ def get_args() -> argparse.Namespace:
         default=None,
         help="Iteration number if used during inference.",
     )
+    parser.add_argument(
+        "--randomize-pockets",
+        action="store_true",
+        default=False,
+        help="Randomize pockets for scoring (useful for testing).",
+    )
     args = parser.parse_args()
 
     if args.input_file.endswith(".yaml"):
@@ -64,6 +70,7 @@ if __name__ == "__main__":
         receptor_process = ReceptorProcess(
             data_path=verifier_settings.data_path, pre_process_receptors=True
         )
+        pockets_info=receptor_process.pockets
 
     if Path(args.input_file).is_file():
         input_files = [args.input_file]
@@ -132,6 +139,13 @@ if __name__ == "__main__":
                     all_targets, allow_bad_res=True, use_pbar=False
                 )
             # 2 get reward
+            metadata = [item.get("metadata", {}) for item in batch]
+            if args.mol_generation and args.randomize_pockets:
+                for m in metadata:
+                    if "properties" in m and len(m["properties"]) > 0:
+                        for i,p in enumerate(m["properties"]):
+                            if p in pockets_info:
+                                m["properties"][i] = np.random.choice(list(pockets_info.keys()))
             output = reward_scorer.get_score(
                 completions=[item["output"] for item in batch],
                 metadata=[item.get("metadata", {}) for item in batch],
