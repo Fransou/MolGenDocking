@@ -155,6 +155,7 @@ if __name__ == "__main__":
             output = reward_scorer.get_score(
                 completions=[item["output"] for item in batch],
                 metadata=[item.get("metadata", {}) for item in batch],
+                use_pbar=True
             )
             all_responses.extend(output.rewards)
             all_metas.extend([m.model_dump() for m in output.verifier_metadatas])
