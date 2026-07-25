@@ -148,6 +148,7 @@ if __name__ == "__main__":
                             if p in pockets_info:
                                 new_pocket = np.random.choice(list(pockets_info.keys()))
                                 m["properties"][i] = new_pocket
+                                print(f"Randomizing pocket {p} -> {new_pocket}")
                                 receptor_process.process_receptors(
                                     [new_pocket], allow_bad_res=True, use_pbar=False
                                 )
