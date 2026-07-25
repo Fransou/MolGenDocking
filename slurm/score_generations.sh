@@ -23,7 +23,7 @@ cp data/properties.csv $SLURM_TMPDIR
 export DATA_PATH=$SLURM_TMPDIR/$DATASET
 
 export RAY_TMPDIR=$SLURM_TMPDIR/ray
-ray start --head
+ray start --head --include-dashboard=False
 
 export docking_oracle=autodock_gpu
 export scorer_exhaustiveness=4
