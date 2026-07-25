@@ -5,6 +5,7 @@ from typing import Any
 import jsonlines
 import yaml
 from tqdm import tqdm
+import numpy as np
 
 from molrgen.data.meeko_process import ReceptorProcess
 from molrgen.reward.molecular_verifier import (
