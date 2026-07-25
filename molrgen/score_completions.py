@@ -141,12 +141,12 @@ if __name__ == "__main__":
                 )
             # 2 get reward
             metadata = [item.get("metadata", {}) for item in batch]
+            new_pocket = np.random.choice(list(pockets_info.keys()))
             if args.mol_generation and args.randomize_pockets:
                 for m in metadata:
                     if "properties" in m and len(m["properties"]) > 0:
                         for i,p in enumerate(m["properties"]):
                             if p in pockets_info:
-                                new_pocket = np.random.choice(list(pockets_info.keys()))
                                 m["properties"][i] = new_pocket
                                 print(f"Randomizing pocket {p} -> {new_pocket}")
                                 receptor_process.process_receptors(
